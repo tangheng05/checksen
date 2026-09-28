@@ -6,12 +6,13 @@ use teloxide::prelude::*;
 use teloxide::types::{MessageEntityKind, PhotoSize};
 use url::Url;
 
-use crate::analyzers::link::{self, LinkChecker};
-use crate::analyzers::{self, Check, khqr};
-use crate::verdict;
+use checksen::analyzers::link::{self, LinkChecker};
+use checksen::analyzers::{self, Check, khqr, text};
+use checksen::verdict;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
+const MIN_TEXT_CHARS: usize = 20;
 
 pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> ResponseResult<()> {
     let largest_photo = msg
@@ -28,18 +29,30 @@ pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> Response
         verdict::render_km(&checks)
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         verdict::render_km(&[khqr::check(payload)])
+    } else if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
+        check_text(&msg, message, &links).await
     } else {
-        let urls = urls_in(&msg);
-        if urls.is_empty() {
-            verdict::HELP_KM.to_owned()
-        } else {
-            let checks = join_all(urls.into_iter().map(|url| links.check(url))).await;
-            verdict::render_km(&checks)
-        }
+        verdict::HELP_KM.to_owned()
     };
 
     bot.send_message(msg.chat.id, reply).await?;
     Ok(())
+}
+
+async fn check_text(msg: &Message, message: &str, links: &LinkChecker) -> String {
+    let urls = urls_in(msg);
+    let text_check = text::check(message);
+    let no_signals = text_check.signals.is_empty();
+    if no_signals && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS {
+        return verdict::HELP_KM.to_owned();
+    }
+
+    let mut checks = Vec::new();
+    if !no_signals || urls.is_empty() {
+        checks.push(text_check);
+    }
+    checks.extend(join_all(urls.into_iter().map(|url| links.check(url))).await);
+    verdict::render_km(&checks)
 }
 
 async fn check_photo(

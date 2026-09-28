@@ -7,6 +7,8 @@ pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR កូដ K
 const BANK_APP_ADVICE_KM: &str =
     "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានច្បាស់។";
 const LINK_ADVICE_KM: &str = "កុំបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមរយៈតំណ។ បើចង់ពិនិត្យគណនី សូមបើកកម្មវិធីធនាគារដោយផ្ទាល់។";
+const NO_TEXT_SIGNALS_KM: &str =
+    "ខ្ញុំមិនឃើញពាក្យដែលអ្នកបោកប្រាស់ច្រើនប្រើទេ ប៉ុន្តែនេះមិនមានន័យថាសារនេះគ្មានបញ្ហានោះទេ។";
 const NO_QR_FOUND_KM: &str = "រកមិនឃើញ QR ក្នុងរូបភាពនេះទេ។ សូមថតឱ្យច្បាស់ ហើយឱ្យឃើញ QR ទាំងមូល រួចផ្ញើម្តងទៀត។";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,7 +59,8 @@ fn render_check(check: &Check) -> String {
     match &check.subject {
         Subject::Khqr(payee) => lines.push(render_payee(payee)),
         Subject::Link(link) => lines.push(render_link(link)),
-        Subject::Unreadable => {}
+        Subject::Text if check.signals.is_empty() => lines.push(NO_TEXT_SIGNALS_KM.to_owned()),
+        Subject::Text | Subject::Unreadable => {}
     }
     lines.join("\n")
 }
@@ -76,6 +79,26 @@ fn reason_km(signal: Signal) -> String {
         }
         Signal::Punycode => "ឈ្មោះគេហទំព័រនេះប្រើអក្សរពិសេស ដែលអាចធ្វើឱ្យមើលទៅដូចគេហទំព័រផ្សេង។",
         Signal::NewDomain => "គេហទំព័រនេះទើបតែបង្កើតថ្មីៗ មិនទាន់ដល់ ៣០ ថ្ងៃផង។",
+        Signal::OtpRequest => {
+            "សារនេះសុំលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនពិតប្រាកដមិនដែលសុំលេខកូដទាំងនេះទេ។ កុំប្រាប់នរណាម្នាក់ឱ្យសោះ។"
+        }
+        Signal::UpfrontFee => "សារនេះសុំឱ្យបង់ប្រាក់មុន ដើម្បីទទួលបានកម្ចី ការងារ ឬរង្វាន់។",
+        Signal::MoveMoneyOut => "សារនេះប្រាប់ឱ្យផ្ទេរប្រាក់ចេញពីគណនីរបស់អ្នក ទៅគណនីផ្សេង។",
+        Signal::AccountRental => {
+            "សារនេះសុំជួល ទិញ ឬប្រើគណនីធនាគាររបស់អ្នក។ គណនីបែបនេះអាចត្រូវគេប្រើដើម្បីលាងលុយ ហើយអ្នកអាចជាប់ពាក់ព័ន្ធផ្លូវច្បាប់។"
+        }
+        Signal::AuthorityThreat => {
+            "សារនេះអះអាងថាមកពីប៉ូលិស តុលាការ ឬស្ថាប័នរដ្ឋ ហើយសុំប្រាក់ ឬគំរាម។ ស្ថាប័នពិតមិនសុំឱ្យផ្ទេរប្រាក់តាមសារទេ។"
+        }
+        Signal::FamilyImpersonation => {
+            "សារនេះអះអាងថាជាសាច់ញាតិ ឬមិត្តភក្តិដែលប្តូរលេខថ្មី ហើយសុំលុយ។ សូមខលទៅលេខចាស់របស់គាត់ដើម្បីបញ្ជាក់សិន។"
+        }
+        Signal::AccountThreat => "សារនេះគំរាមថាគណនីរបស់អ្នកនឹងត្រូវបិទ ឬផ្អាក ហើយប្រាប់ឱ្យចុចតំណ ឬផ្ទៀងផ្ទាត់។",
+        Signal::LoanBait => "សារនេះសន្យាផ្តល់កម្ចីងាយៗ ដោយមិនត្រូវការអ្នកធានា ឬពិនិត្យប្រវត្តិ។",
+        Signal::JobBait => "សារនេះសន្យាការងារងាយៗ ដែលរកលុយបានច្រើនពេក ដូចជាចុចឡាយ ឬវាយអក្សរ។",
+        Signal::PrizeBait => "សារនេះប្រាប់ថាអ្នកបានឈ្នះរង្វាន់ ឬទទួលបានប្រាក់ជំនួយ។",
+        Signal::InvestmentBait => "សារនេះធានាប្រាក់ចំណេញខ្ពស់ ឬថាមិនខាត។ គ្មានការវិនិយោគណាអាចធានាបែបនេះបានទេ។",
+        Signal::Urgency => "សារនេះបង្ខំឱ្យធ្វើភ្លាមៗ។",
     };
     reason.to_owned()
 }
@@ -190,6 +213,8 @@ mod tests {
                 Signal::NewDomain,
             ])]),
             render_km(&[link_check(vec![])]),
+            render_km(&[crate::analyzers::text::check("សូមផ្ញើលេខកូដ OTP មកខ្ញុំ")]),
+            render_km(&[crate::analyzers::text::check("See you at the café at 6")]),
         ];
         for reply in replies {
             assert!(reply.ends_with(BANK_APP_ADVICE_KM), "{reply}");

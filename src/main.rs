@@ -1,10 +1,8 @@
-mod analyzers;
 mod bot;
-mod verdict;
 
 use std::sync::Arc;
 
-use analyzers::link::LinkChecker;
+use checksen::analyzers::link::LinkChecker;
 use teloxide::prelude::*;
 
 #[tokio::main]
