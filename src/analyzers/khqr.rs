@@ -1,19 +1,13 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use khqr_core::{DecodedKhqr, KhqrError};
+use khqr_core::KhqrError;
 use rxing::{BarcodeFormat, DecodeHints};
 
-use super::Signal;
+use super::{Check, Signal, Subject};
 
 const MAX_QRS_PER_IMAGE: usize = 3;
 const EMV_HEADER: &str = "000201";
-
-#[derive(Debug)]
-pub struct KhqrCheck {
-    pub payee: Option<DecodedKhqr>,
-    pub signals: Vec<Signal>,
-}
 
 pub fn looks_like_khqr(text: &str) -> bool {
     text.trim().starts_with(EMV_HEADER)
@@ -40,11 +34,11 @@ pub fn payloads_from_image(bytes: &[u8]) -> Vec<String> {
     payloads
 }
 
-pub fn check(payload: &str) -> KhqrCheck {
+pub fn check(payload: &str) -> Check {
     let payload = payload.trim();
     if !looks_like_khqr(payload) {
-        return KhqrCheck {
-            payee: None,
+        return Check {
+            subject: Subject::Unreadable,
             signals: vec![Signal::NotKhqr],
         };
     }
@@ -56,8 +50,8 @@ pub fn check(payload: &str) -> KhqrCheck {
             } else {
                 Vec::new()
             };
-            KhqrCheck {
-                payee: Some(decoded),
+            Check {
+                subject: Subject::Khqr(Box::new(decoded)),
                 signals,
             }
         }
@@ -67,8 +61,8 @@ pub fn check(payload: &str) -> KhqrCheck {
                 KhqrError::DuplicateTag { .. } => Signal::DuplicateTag,
                 _ => Signal::Malformed,
             };
-            KhqrCheck {
-                payee: None,
+            Check {
+                subject: Subject::Unreadable,
                 signals: vec![signal],
             }
         }
@@ -92,14 +86,14 @@ pub(crate) mod tests {
     fn valid_payload_has_no_signals() {
         let check = check(INDIVIDUAL_KHR_500);
         assert!(check.signals.is_empty(), "{:?}", check.signals);
-        assert!(check.payee.is_some());
+        assert!(matches!(check.subject, Subject::Khqr(_)));
     }
 
     #[test]
     fn expired_dynamic_payload_is_flagged() {
         let check = check(ABA_MERCHANT);
         assert_eq!(check.signals, [Signal::Expired]);
-        assert!(check.payee.is_some());
+        assert!(matches!(check.subject, Subject::Khqr(_)));
     }
 
     #[test]
