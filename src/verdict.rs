@@ -3,9 +3,11 @@ use khqr_core::{Currency, DecodedKhqr};
 use crate::analyzers::Signal;
 use crate::analyzers::khqr::KhqrCheck;
 
-pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR ឬកូដ KHQR មកខ្ញុំ។ ខ្ញុំនឹងប្រាប់អ្នកថា QR នោះបង់ប្រាក់ទៅឱ្យអ្នកណាពិតប្រាកដ។";
-const BANK_APP_ADVICE_KM: &str = "សូមពិនិត្យឈ្មោះអ្នកទទួលក្នុងកម្មវិធីធនាគាររបស់អ្នក មុនពេលបង់ប្រាក់។";
-const NO_QR_FOUND_KM: &str = "រកមិនឃើញ QR នៅក្នុងរូបភាពនេះទេ។ សូមផ្ញើរូបថតច្បាស់ៗ ដែលឃើញ QR ទាំងមូល។";
+pub const HELP_KM: &str =
+    "សូមផ្ញើរូបថត KHQR ឬបិទភ្ជាប់កូដ KHQR មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា ប្រាក់នឹងចូលទៅគណនីរបស់អ្នកណាពិតប្រាកដ។";
+const BANK_APP_ADVICE_KM: &str =
+    "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានច្បាស់។";
+const NO_QR_FOUND_KM: &str = "រកមិនឃើញ QR ក្នុងរូបភាពនេះទេ។ សូមថតឱ្យច្បាស់ ហើយឱ្យឃើញ QR ទាំងមូល រួចផ្ញើម្តងទៀត។";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -20,8 +22,8 @@ impl Level {
         match self {
             Self::HighRisk => "🔴 ហានិភ័យខ្ពស់",
             Self::Suspicious => "🟠 គួរឱ្យសង្ស័យ",
-            Self::NoKnownSignals => "⚪ មិនឃើញសញ្ញាហានិភ័យដែលគេស្គាល់",
-            Self::CantTell => "❔ មិនអាចសន្និដ្ឋានបាន",
+            Self::NoKnownSignals => "⚪ មិនទាន់រកឃើញសញ្ញាគួរឱ្យសង្ស័យទេ",
+            Self::CantTell => "❔ មិនអាចពិនិត្យបាន",
         }
     }
 }
@@ -65,18 +67,20 @@ fn render_check(check: &KhqrCheck) -> String {
 
 fn reason_km(signal: Signal) -> &'static str {
     match signal {
-        Signal::NotKhqr => "QR នេះមិនមែនជា KHQR សម្រាប់ទូទាត់ប្រាក់ទេ។",
-        Signal::ChecksumInvalid => "លេខផ្ទៀងផ្ទាត់របស់ KHQR នេះមិនត្រឹមត្រូវ។ QR អាចត្រូវបានកែប្រែ ឬខូច។",
-        Signal::DuplicateTag => "KHQR នេះមានព័ត៌មានដដែលៗ ដែលជាលក្ខណៈនៃ QR ដែលត្រូវបានកែប្រែ។",
-        Signal::Malformed => "QR នេះមើលទៅដូចជា KHQR ប៉ុន្តែទម្រង់របស់វាមិនត្រឹមត្រូវ។",
-        Signal::Expired => "QR សម្រាប់ទូទាត់តែម្តងនេះបានផុតកំណត់ហើយ។",
+        Signal::NotKhqr => "QR នេះមិនមែនជា KHQR សម្រាប់បង់ប្រាក់ទេ។ បច្ចុប្បន្ន ខ្ញុំពិនិត្យបានតែ KHQR ប៉ុណ្ណោះ។",
+        Signal::ChecksumInvalid => {
+            "QR នេះប្រហែលជាត្រូវបានគេកែប្រែ ឬខូច (លេខផ្ទៀងផ្ទាត់មិនត្រូវគ្នា)។ កុំបង់ប្រាក់តាម QR នេះ។"
+        }
+        Signal::DuplicateTag => "QR នេះមានព័ត៌មានស្ទួនគ្នា ដែលជាសញ្ញាថាអាចត្រូវបានគេកែប្រែ។ កុំបង់ប្រាក់តាម QR នេះ។",
+        Signal::Malformed => "QR នេះមើលទៅដូច KHQR ប៉ុន្តែទម្រង់របស់វាមិនត្រឹមត្រូវ។",
+        Signal::Expired => "QR នេះប្រើបានតែម្តង ហើយបានផុតសុពលភាពរួចហើយ។ សូមសុំ QR ថ្មីពីអ្នកលក់។",
     }
 }
 
 fn render_payee(payee: &DecodedKhqr) -> String {
     let mut lines = vec![
-        "ប្រាក់នឹងទៅកាន់៖".to_owned(),
-        format!("• ឈ្មោះ៖ {}", payee.merchant_name),
+        "QR នេះបង់ប្រាក់ទៅ៖".to_owned(),
+        format!("• ឈ្មោះអ្នកទទួល៖ {}", payee.merchant_name),
         format!("• គណនី៖ {}", payee.bakong_account_id),
     ];
     if let Some(bank) = &payee.acquiring_bank {
@@ -91,7 +95,7 @@ fn render_payee(payee: &DecodedKhqr) -> String {
         lines.push(format!("• ចំនួនទឹកប្រាក់៖ {amount} {currency}"));
     }
     lines.push(format!("• ទីក្រុង៖ {}", payee.merchant_city));
-    lines.push("តើនេះជាអ្នកដែលអ្នកចង់បង់ប្រាក់ឱ្យមែនទេ?".to_owned());
+    lines.push("តើឈ្មោះនេះត្រូវនឹងហាង ឬបុគ្គលដែលអ្នកចង់បង់ប្រាក់ឱ្យមែនទេ? បើមិនត្រូវ កុំបង់ប្រាក់។".to_owned());
     lines.join("\n")
 }
 
