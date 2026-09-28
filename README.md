@@ -1,6 +1,6 @@
-# Khmer Scam Shield
+# CheckSen (ឆែកសិន)
 
-A Telegram bot for people in Cambodia. Forward it a suspicious message, link, KHQR code or screenshot, and it replies in Khmer within seconds with a risk level and the reasons behind it.
+"Check first": a Telegram bot for people in Cambodia. Forward it a suspicious message, link, KHQR code or screenshot, and it replies in Khmer within seconds with a risk level and the reasons behind it.
 
 > **Status:** early development. Nothing is running yet. The public beta is planned for November 2026.
 
