@@ -31,6 +31,10 @@ pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> Response
         verdict::render_km(&[khqr::check(payload)])
     } else if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
         check_text(&msg, message, &links).await
+    } else if let Some(document) = msg.document() {
+        let file_name = document.file_name.as_deref().unwrap_or_default();
+        let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
+        verdict::render_km(&[text::check(&described)])
     } else {
         verdict::HELP_KM.to_owned()
     };

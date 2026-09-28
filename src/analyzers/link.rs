@@ -23,42 +23,133 @@ const GOVERNMENT: &str = "គេហទំព័ររដ្ឋាភិបាល
 
 struct Brand {
     name: &'static str,
-    official: &'static str,
+    official: &'static [&'static str],
     tokens: &'static [&'static str],
     stems: &'static [&'static str],
     misspelled: &'static [&'static str],
 }
 
-const BRANDS: [Brand; 4] = [
+const fn brand(
+    name: &'static str,
+    official: &'static [&'static str],
+    tokens: &'static [&'static str],
+    stems: &'static [&'static str],
+    misspelled: &'static [&'static str],
+) -> Brand {
     Brand {
-        name: "ABA",
-        official: "ababank.com",
-        tokens: &["aba", "ababank"],
-        stems: &["ababank", "advancebank", "advancedbank"],
-        misspelled: &["ababank"],
-    },
-    Brand {
-        name: "ACLEDA",
-        official: "acledabank.com.kh",
-        tokens: &["acleda", "acledabank"],
-        stems: &["acleda"],
-        misspelled: &["acledabank"],
-    },
-    Brand {
-        name: "Wing",
-        official: "wingbank.com.kh",
-        tokens: &["wing", "wingbank"],
-        stems: &["wingbank"],
-        misspelled: &["wingbank"],
-    },
-    Brand {
-        name: "Bakong",
-        official: "nbc.gov.kh",
-        tokens: &["bakong"],
-        stems: &["bakong"],
-        misspelled: &[],
-    },
+        name,
+        official,
+        tokens,
+        stems,
+        misspelled,
+    }
+}
+
+const BRANDS: [Brand; 11] = [
+    brand(
+        "ABA",
+        &["ababank.com", "payway.com.kh"],
+        &["aba", "ababank"],
+        &["ababank", "advancebank", "advancedbank"],
+        &["ababank"],
+    ),
+    brand(
+        "ACLEDA",
+        &[
+            "acledabank.com.kh",
+            "acledainternetbank.com.kh",
+            "acledabankmb.com.kh",
+            "acledasecurities.com.kh",
+            "acledabank.com.la",
+            "acledainternetbank.com.la",
+        ],
+        &["acleda", "acledabank"],
+        &["acleda"],
+        &["acleda"],
+    ),
+    brand(
+        "Wing",
+        &["wingbank.com.kh"],
+        &["wing", "wingbank"],
+        &["wingbank"],
+        &["wingbank"],
+    ),
+    brand("Bakong", &["nbc.gov.kh"], &["bakong"], &["bakong"], &[]),
+    brand(
+        "Canadia",
+        &["canadiabank.com.kh"],
+        &["canadia", "canadiabank"],
+        &["canadiabank"],
+        &[],
+    ),
+    brand(
+        "Vattanac",
+        &["vattanacbank.com"],
+        &["vattanac"],
+        &["vattanac"],
+        &[],
+    ),
+    brand(
+        "Chip Mong",
+        &["chipmongbank.com"],
+        &["chipmongbank"],
+        &["chipmongbank", "chipmongcommercial"],
+        &[],
+    ),
+    brand(
+        "Sathapana",
+        &["sathapana.com.kh"],
+        &["sathapana"],
+        &["sathapana"],
+        &[],
+    ),
+    brand(
+        "Hattha",
+        &["hatthabank.com"],
+        &["hattha", "hatthabank"],
+        &["hatthabank"],
+        &[],
+    ),
+    brand(
+        "PRASAC",
+        &["prasac.com.kh", "kbprasacbank.com.kh"],
+        &["prasac"],
+        &["prasac"],
+        &[],
+    ),
+    brand(
+        "Telegram",
+        &["telegram.org", "t.me", "telegram.me"],
+        &["telegram"],
+        &["telegram"],
+        &[],
+    ),
 ];
+
+const OTHER_OFFICIAL: [&str; 20] = [
+    "princebank.com.kh",
+    "amkbank.com.kh",
+    "maybank2u.com.kh",
+    "maybank.com.kh",
+    "cimbcambodia.com",
+    "icbc.com.kh",
+    "bridgebank.com.kh",
+    "sbilhbank.com.kh",
+    "ucb.com.kh",
+    "wbfinance.com.kh",
+    "bankofchina.com.kh",
+    "alphabank.com.kh",
+    "bidc.com.kh",
+    "lolc.com.kh",
+    "mbcambodia.com",
+    "truemoney.com.kh",
+    "pipay.com",
+    "smart.com.kh",
+    "cellcard.com.kh",
+    "metfone.com.kh",
+];
+
+const GOVERNMENT_SERVICES: [&str; 4] = ["arrival", "evisa", "visa", "immigration"];
 
 const BANKING_WORDS: [&str; 11] = [
     "bank", "bnk", "camb", "khmer", "asia", "online", "app", "pay", "login", "verify", "secure",
@@ -115,7 +206,7 @@ impl LinkChecker {
                 .flatten(),
             None => None,
         };
-        if age_days.is_some_and(|days| days < NEW_DOMAIN_DAYS) {
+        if is_new_domain(age_days) {
             signals.push(Signal::NewDomain);
         }
 
@@ -187,6 +278,10 @@ impl LinkChecker {
     }
 }
 
+fn is_new_domain(age_days: Option<i64>) -> bool {
+    age_days.is_some_and(|days| days < NEW_DOMAIN_DAYS)
+}
+
 pub fn parse_http_url(text: &str) -> Option<Url> {
     Url::parse(text.trim())
         .ok()
@@ -196,7 +291,10 @@ pub fn parse_http_url(text: &str) -> Option<Url> {
 pub fn lookalike_signals(host: &str) -> Vec<Signal> {
     let registrable = psl::domain_str(host).unwrap_or(host);
     let is_official = registrable.ends_with(".gov.kh")
-        || BRANDS.iter().any(|brand| brand.official == registrable);
+        || OTHER_OFFICIAL.contains(&registrable)
+        || BRANDS
+            .iter()
+            .any(|brand| brand.official.contains(&registrable));
     if is_official {
         return Vec::new();
     }
@@ -219,7 +317,12 @@ pub fn lookalike_signals(host: &str) -> Vec<Signal> {
         .find(|brand| imitates(brand, &tokens, &labels))
     {
         signals.push(Signal::Lookalike(brand.name));
-    } else if tokens.contains(&"gov") && (tokens.contains(&"kh") || tokens.contains(&"cambodia")) {
+    } else if tokens.contains(&"gov") && (tokens.contains(&"kh") || tokens.contains(&"cambodia"))
+        || host.contains("cambodia")
+            && GOVERNMENT_SERVICES
+                .iter()
+                .any(|service| host.contains(service))
+    {
         signals.push(Signal::Lookalike(GOVERNMENT));
     }
     signals
@@ -231,13 +334,15 @@ fn imitates(brand: &Brand, tokens: &[&str], labels: &[&str]) -> bool {
 }
 
 fn label_imitates(brand: &Brand, label: &str) -> bool {
+    let label = label.replace('-', "");
+    let label = label.as_str();
     let brand_then_banking_word = |token: &&str| {
         label
             .strip_prefix(*token)
             .is_some_and(|rest| BANKING_WORDS.iter().any(|word| rest.contains(word)))
     };
 
-    brand.stems.iter().any(|stem| label.starts_with(stem))
+    brand.stems.iter().any(|stem| label.contains(stem))
         || brand.tokens.iter().any(brand_then_banking_word)
         || brand
             .misspelled
@@ -250,10 +355,11 @@ fn starts_with_misspelling(label: &str, name: &str) -> bool {
         return false;
     };
     let same_start = start == name_start || start.chars().rev().eq(name_start.chars());
+    let max_edits = if name.len() <= 6 { 1 } else { 2 };
     same_start
         && (name.len() - 2..=name.len() + 2)
             .filter_map(|len| label.get(..len))
-            .any(|prefix| strsim::damerau_levenshtein(prefix, name) <= 2)
+            .any(|prefix| strsim::damerau_levenshtein(prefix, name) <= max_edits)
 }
 
 fn is_fetchable(url: &Url) -> bool {
@@ -419,6 +525,25 @@ mod tests {
             "freshnewsasia.com",
             "smart.com.kh",
             "bakingclub.com",
+            "acledainternetbank.com.kh",
+            "acledabankmb.com.kh",
+            "acledasecurities.com.kh",
+            "acledabank.com.la",
+            "bakong.acledabank.com.kh",
+            "bakong.maybank2u.com.kh",
+            "bakong.icbc.com.kh",
+            "bakong.cimbcambodia.com",
+            "web.telegram.org",
+            "t.me",
+            "arrival.gov.kh",
+            "hatthabank.com",
+            "kbprasacbank.com.kh",
+            "academy.com",
+            "accenture.com",
+            "acer.com",
+            "canadiantire.com",
+            "chipmong.com",
+            "telegraph.co.uk",
         ] {
             assert!(lookalike_signals(host).is_empty(), "{host}");
         }
@@ -447,6 +572,19 @@ mod tests {
             ("bakong-khqr.site", "Bakong"),
             ("gov-kh.site", GOVERNMENT),
             ("ababkonline.web.app", "ABA"),
+            ("theababank.com", "ABA"),
+            ("myababank.com", "ABA"),
+            ("acle-da.com", "ACLEDA"),
+            ("kh.bank.aceldaa.com", "ACLEDA"),
+            ("acledainternetbank.com", "ACLEDA"),
+            ("wingbank-lucky-gift.com", "Wing"),
+            ("vattanaccommercialbank.com", "Vattanac"),
+            ("chipmongcommercialbank.com", "Chip Mong"),
+            ("hatthabanks.com", "Hattha"),
+            ("sathapanabank.com", "Sathapana"),
+            ("telegrams.org-web.net", "Telegram"),
+            ("cambodia-e-arrival.com", GOVERNMENT),
+            ("cambodiaimmigration.org", GOVERNMENT),
         ];
         for (host, brand) in cases {
             assert_eq!(
@@ -455,6 +593,13 @@ mod tests {
                 "{host}"
             );
         }
+    }
+
+    #[test]
+    fn unknown_domain_age_is_never_new() {
+        assert!(!is_new_domain(None));
+        assert!(is_new_domain(Some(3)));
+        assert!(!is_new_domain(Some(400)));
     }
 
     #[test]

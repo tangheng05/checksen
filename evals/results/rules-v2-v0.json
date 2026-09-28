@@ -144,7 +144,7 @@
     "scam-loan-08",
     "scam-job-07"
   ],
-  "rules_version": 1,
+  "rules_version": 2,
   "splits": {
     "dev": {
       "caught": 46,
@@ -162,5 +162,6 @@
       "recall": 1.0,
       "scams": 12
     }
-  }
+  },
+  "strata": {}
 }

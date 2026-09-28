@@ -41,6 +41,8 @@ pub enum Signal {
     JobBait,
     PrizeBait,
     InvestmentBait,
+    TelegramTakeover,
+    MalwareFile,
     Urgency,
 }
 
@@ -67,7 +69,12 @@ impl Signal {
             | Self::NewDomain
             | Self::AuthorityThreat
             | Self::FamilyImpersonation => 0.5,
-            Self::Lookalike(_) | Self::UpfrontFee | Self::MoveMoneyOut | Self::AccountRental => 0.6,
+            Self::Lookalike(_)
+            | Self::UpfrontFee
+            | Self::MoveMoneyOut
+            | Self::AccountRental
+            | Self::TelegramTakeover
+            | Self::MalwareFile => 0.6,
             Self::ChecksumInvalid | Self::DuplicateTag | Self::OtpRequest => 1.0,
         }
     }

@@ -9,7 +9,7 @@ use checksen::verdict::{Level, decide};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-const DATASET: &str = "evals/data/v0.jsonl";
+const DATASETS: [&str; 2] = ["v0", "v1"];
 const BASELINE: &str = "evals/baseline.json";
 
 #[derive(Deserialize)]
@@ -19,6 +19,8 @@ struct Example {
     category: String,
     label: String,
     split: String,
+    #[serde(default)]
+    verbatim: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,17 +80,64 @@ fn main() -> anyhow::Result<ExitCode> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let update_baseline = std::env::args().any(|arg| arg == "--update-baseline");
 
-    let dataset = fs::read_to_string(root.join(DATASET)).context("reading the dataset")?;
+    let mut current = BTreeMap::new();
+    for name in DATASETS {
+        current.insert(name.to_owned(), evaluate(root, name)?);
+    }
+
+    if update_baseline {
+        fs::write(
+            root.join(BASELINE),
+            serde_json::to_string_pretty(&current)? + "\n",
+        )?;
+        println!("baseline updated");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let baselines: BTreeMap<String, Baseline> = serde_json::from_str(
+        &fs::read_to_string(root.join(BASELINE))
+            .context("no baseline yet; run with --update-baseline")?,
+    )?;
+    let mut worse = false;
+    for (name, now) in &current {
+        let Some(baseline) = baselines.get(name) else {
+            eprintln!("{name}: no baseline; run with --update-baseline");
+            worse = true;
+            continue;
+        };
+        let recall_dropped = now.recall + f64::EPSILON < baseline.recall;
+        let false_positives_rose =
+            now.false_positive_rate > baseline.false_positive_rate + f64::EPSILON;
+        if recall_dropped || false_positives_rose {
+            eprintln!(
+                "{name} worse than baseline: recall {:.3} (baseline {:.3}), false positives {:.3} (baseline {:.3})",
+                now.recall, baseline.recall, now.false_positive_rate, baseline.false_positive_rate,
+            );
+            worse = true;
+        }
+    }
+    Ok(if worse {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    })
+}
+
+fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
+    let path = format!("evals/data/{name}.jsonl");
+    let dataset =
+        fs::read_to_string(root.join(&path)).with_context(|| format!("reading {path}"))?;
     let examples: Vec<Example> = dataset
         .lines()
         .filter(|line| !line.trim().is_empty())
         .enumerate()
         .map(|(index, line)| {
-            serde_json::from_str(line).with_context(|| format!("{DATASET} line {}", index + 1))
+            serde_json::from_str(line).with_context(|| format!("{path} line {}", index + 1))
         })
         .collect::<anyhow::Result<_>>()?;
 
     let mut splits: BTreeMap<&str, Tally> = BTreeMap::new();
+    let mut strata: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut categories: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut total = Tally::default();
     let mut missed = Vec::new();
@@ -104,6 +153,14 @@ fn main() -> anyhow::Result<ExitCode> {
             .entry(&example.split)
             .or_default()
             .add(is_scam, flagged);
+        if let Some(verbatim) = example.verbatim {
+            let stratum = if verbatim {
+                "verbatim"
+            } else {
+                "reconstructed"
+            };
+            strata.entry(stratum).or_default().add(is_scam, flagged);
+        }
         categories
             .entry(&example.category)
             .or_default()
@@ -116,14 +173,18 @@ fn main() -> anyhow::Result<ExitCode> {
         }
     }
 
-    println!("rules v{RULES_VERSION} on {} examples", examples.len());
-    for (name, tally) in splits
+    println!(
+        "{name}: rules v{RULES_VERSION} on {} examples",
+        examples.len()
+    );
+    for (group, tally) in splits
         .iter()
-        .map(|(name, tally)| (*name, tally))
+        .chain(&strata)
+        .map(|(group, tally)| (*group, tally))
         .chain([("all", &total)])
     {
         println!(
-            "  {name:<5} recall {:>5.1}% ({}/{})   false positives {:>5.1}% ({}/{})",
+            "  {group:<13} recall {:>5.1}% ({}/{})   false positives {:>5.1}% ({}/{})",
             tally.recall() * 100.0,
             tally.caught,
             tally.scams,
@@ -135,48 +196,29 @@ fn main() -> anyhow::Result<ExitCode> {
     println!("  missed: {}", missed.join(", "));
     println!("  false alarms: {}", false_alarms.join(", "));
 
+    let to_json = |tallies: &BTreeMap<&str, Tally>| {
+        tallies
+            .iter()
+            .map(|(group, tally)| (group.to_string(), tally.to_json()))
+            .collect::<BTreeMap<_, _>>()
+    };
     let report = json!({
         "rules_version": RULES_VERSION,
-        "dataset": DATASET,
+        "dataset": path,
         "examples": examples.len(),
         "all": total.to_json(),
-        "splits": splits.iter().map(|(name, tally)| (*name, tally.to_json())).collect::<BTreeMap<_, _>>(),
-        "categories": categories.iter().map(|(name, tally)| (*name, tally.to_json())).collect::<BTreeMap<_, _>>(),
+        "splits": to_json(&splits),
+        "strata": to_json(&strata),
+        "categories": to_json(&categories),
         "missed": missed,
         "false_alarms": false_alarms,
     });
-    let report_path: PathBuf = root.join(format!("evals/results/rules-v{RULES_VERSION}.json"));
+    let report_path: PathBuf =
+        root.join(format!("evals/results/rules-v{RULES_VERSION}-{name}.json"));
     fs::write(&report_path, serde_json::to_string_pretty(&report)? + "\n")?;
 
-    let current = Baseline {
+    Ok(Baseline {
         recall: total.recall(),
         false_positive_rate: total.false_positive_rate(),
-    };
-    if update_baseline {
-        fs::write(
-            root.join(BASELINE),
-            serde_json::to_string_pretty(&current)? + "\n",
-        )?;
-        println!("baseline updated");
-        return Ok(ExitCode::SUCCESS);
-    }
-
-    let baseline: Baseline = serde_json::from_str(
-        &fs::read_to_string(root.join(BASELINE))
-            .context("no baseline yet; run with --update-baseline")?,
-    )?;
-    let recall_dropped = current.recall + f64::EPSILON < baseline.recall;
-    let false_positives_rose =
-        current.false_positive_rate > baseline.false_positive_rate + f64::EPSILON;
-    if recall_dropped || false_positives_rose {
-        eprintln!(
-            "worse than baseline: recall {:.3} (baseline {:.3}), false positives {:.3} (baseline {:.3})",
-            current.recall,
-            baseline.recall,
-            current.false_positive_rate,
-            baseline.false_positive_rate,
-        );
-        return Ok(ExitCode::FAILURE);
-    }
-    Ok(ExitCode::SUCCESS)
+    })
 }
