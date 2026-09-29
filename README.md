@@ -9,28 +9,29 @@
 | You send | It checks |
 | --- | --- |
 | A KHQR code (photo or screenshot) | Who the QR really pays: merchant name, account, bank and amount, and whether the code is valid KHQR |
-| A link | Where it redirects, how new the domain is, known-bad lists, and lookalikes of bank and government domains |
-| A text message | Common scam patterns such as OTP requests, upfront fees for jobs or loans, and scripts others have already reported |
-| A screenshot | Reads the text, QR codes and links in it, then checks each of them as above |
+| A link | Where it redirects, how new the domain is, and lookalikes of bank, wallet, Telegram and government domains |
+| A text message | Common scam patterns in Khmer and English, such as OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats and fake police |
+| A file | Whether its name hides a program, such as `.apk` or `.pdf.scr` |
+
+Reading text from screenshots, known-bad lists and scripts other users have reported are planned.
 
 Each reply gives one of four levels: **High risk**, **Suspicious**, **No known risk signals** or **Can't tell**. The bot never says a message is "safe". Every reply reminds you to check in your own bank app before paying.
 
 ## How it works
 
-- Fixed rules come first: QR parsing and checksum validation (via [khqr-rs](https://github.com/tangheng05/khqr-rs)), domain age, blocklists and known scam scripts.
-- A language model classifies what the rules can't decide and writes the explanation in Khmer. It can't raise a verdict to High risk without evidence it can point to.
+- Fixed rules come first: QR parsing and checksum validation (via [khqr-rs](https://github.com/tangheng05/khqr-rs)), domain age and lookalike checks, and Khmer and English scam-wording rules.
+- A language model classifies what the rules can't decide. It returns only a category, so every reply is fixed Khmer text, and it can't raise a verdict to High risk without a rule signal it can point to.
 - A labeled benchmark of Khmer and English scam messages is checked in CI, so a change that lowers detection or flags more legitimate messages can't be merged.
 
 ## Privacy
 
-- Images are never saved, and message text is deleted within 24 hours. What's kept is the verdict and any scam indicators found (links, domains, account IDs).
-- Telegram user IDs are stored only as keyed hashes.
-- `/forget` deletes everything linked to you.
-- Example messages are kept only if you choose to donate them.
+- Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
+- When AI checking is on, message text is sent to Anthropic's API to classify it; it isn't used for training.
+- `/forget` confirms that nothing linked to you is stored.
 
 ## Stack
 
-Rust, [teloxide](https://docs.rs/teloxide/), axum, PostgreSQL with sqlx, Claude and Google Web Risk.
+Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, and Claude Haiku. PostgreSQL, webhooks and Google Web Risk are planned.
 
 ## License
 

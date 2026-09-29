@@ -1,13 +1,14 @@
 use std::hash::{BuildHasher, Hash, RandomState};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use moka::sync::Cache;
 
 const CHECKS_PER_WINDOW: u32 = 30;
 const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
+const MODEL_CALLS_PER_DAY: u32 = 5_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Admission {
@@ -20,6 +21,7 @@ pub struct Guard {
     hasher: RandomState,
     checks: Cache<u64, Arc<AtomicU32>>,
     replies: Cache<u64, Arc<str>>,
+    model_calls: Cache<u64, Arc<AtomicU32>>,
 }
 
 impl Guard {
@@ -33,6 +35,10 @@ impl Guard {
             replies: Cache::builder()
                 .max_capacity(10_000)
                 .time_to_live(REPLY_TTL)
+                .build(),
+            model_calls: Cache::builder()
+                .max_capacity(4)
+                .time_to_live(Duration::from_secs(25 * 60 * 60))
                 .build(),
         }
     }
@@ -50,6 +56,16 @@ impl Guard {
             checks if checks == CHECKS_PER_WINDOW + 1 => Admission::LimitReached,
             _ => Admission::Silent,
         }
+    }
+
+    pub fn allow_model_call(&self) -> bool {
+        let day = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_secs() / 86_400);
+        let calls = self
+            .model_calls
+            .get_with(day, || Arc::new(AtomicU32::new(0)));
+        calls.fetch_add(1, Ordering::Relaxed) < MODEL_CALLS_PER_DAY
     }
 
     pub fn cached(&self, key: u64) -> Option<Arc<str>> {
@@ -74,6 +90,15 @@ mod tests {
         assert_eq!(guard.admit(1), Admission::LimitReached);
         assert_eq!(guard.admit(1), Admission::Silent);
         assert_eq!(guard.admit(2), Admission::Allowed);
+    }
+
+    #[test]
+    fn model_calls_stop_at_the_daily_cap() {
+        let guard = Guard::new();
+        for _ in 0..MODEL_CALLS_PER_DAY {
+            assert!(guard.allow_model_call());
+        }
+        assert!(!guard.allow_model_call());
     }
 
     #[test]

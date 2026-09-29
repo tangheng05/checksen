@@ -4,7 +4,8 @@ use crate::analyzers::link::LinkInfo;
 use crate::analyzers::llm::ScamCategory;
 use crate::analyzers::{Check, Signal, Subject};
 
-pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR កូដ KHQR ឬតំណ (link) ដែលអ្នកសង្ស័យមកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR នោះបង់ប្រាក់ទៅអ្នកណា ឬតំណនោះនាំទៅគេហទំព័រណាពិតប្រាកដ។";
+pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR កូដ KHQR ឬតំណ (link) ដែលអ្នកសង្ស័យមកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR នោះបង់ប្រាក់ទៅអ្នកណា ឬតំណនោះនាំទៅគេហទំព័រណាពិតប្រាកដ។\n\nសារ និងរូបភាពដែលអ្នកផ្ញើមក មិនត្រូវបានរក្សាទុកទេ។ ដើម្បីពិនិត្យ អត្ថបទអាចត្រូវបានផ្ញើទៅសេវា AI ដែលមិនប្រើវាសម្រាប់ហ្វឹកហាត់។";
+pub const FORGET_KM: &str = "CheckSen មិនរក្សាទុកសារ រូបភាព ឬព័ត៌មានដែលភ្ជាប់នឹងអ្នកទេ ដូច្នេះគ្មានអ្វីត្រូវលុបទេ។";
 pub const RATE_LIMITED_KM: &str = "អ្នកបានផ្ញើសារឱ្យពិនិត្យច្រើនពេកក្នុងរយៈពេលខ្លី។ សូមរង់ចាំបន្តិច រួចព្យាយាមម្តងទៀត។";
 const BANK_APP_ADVICE_KM: &str =
     "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានច្បាស់។";
@@ -153,11 +154,11 @@ fn category_km(category: ScamCategory) -> &'static str {
 fn render_payee(payee: &DecodedKhqr) -> String {
     let mut lines = vec![
         "QR នេះបង់ប្រាក់ទៅ៖".to_owned(),
-        format!("• ឈ្មោះអ្នកទទួល៖ {}", payee.merchant_name),
-        format!("• គណនី៖ {}", payee.bakong_account_id),
+        format!("• ឈ្មោះអ្នកទទួល៖ {}", inert(&payee.merchant_name)),
+        format!("• គណនី៖ {}", inert(&payee.bakong_account_id)),
     ];
     if let Some(bank) = &payee.acquiring_bank {
-        lines.push(format!("• ធនាគារ៖ {bank}"));
+        lines.push(format!("• ធនាគារ៖ {}", inert(bank)));
     }
     if let Some(amount) = &payee.transaction_amount {
         let currency = match payee.currency() {
@@ -165,9 +166,13 @@ fn render_payee(payee: &DecodedKhqr) -> String {
             Some(Currency::Usd) => "USD",
             _ => payee.transaction_currency.as_str(),
         };
-        lines.push(format!("• ចំនួនទឹកប្រាក់៖ {amount} {currency}"));
+        lines.push(format!(
+            "• ចំនួនទឹកប្រាក់៖ {} {}",
+            visible(amount),
+            visible(currency)
+        ));
     }
-    lines.push(format!("• ទីក្រុង៖ {}", payee.merchant_city));
+    lines.push(format!("• ទីក្រុង៖ {}", inert(&payee.merchant_city)));
     lines.push("តើឈ្មោះនេះត្រូវនឹងហាង ឬបុគ្គលដែលអ្នកចង់បង់ប្រាក់ឱ្យមែនទេ? បើមិនត្រូវ កុំបង់ប្រាក់។".to_owned());
     lines.join("\n")
 }
@@ -191,6 +196,31 @@ fn render_link(link: &LinkInfo) -> String {
 
 fn defang(host: &str) -> String {
     host.replace('.', "[.]")
+}
+
+fn visible(value: &str) -> String {
+    value
+        .chars()
+        .filter(|&c| {
+            !c.is_control() && !matches!(c, '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        })
+        .collect()
+}
+
+fn inert(value: &str) -> String {
+    let value = visible(value);
+    let mut out = String::with_capacity(value.len());
+    let mut previous: Option<char> = None;
+    let mut chars = value.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '.' if chars.peek().is_some_and(|next| next.is_alphanumeric()) => out.push_str("[.]"),
+            '@' if previous.is_none_or(char::is_whitespace) => out.push('＠'),
+            _ => out.push(c),
+        }
+        previous = Some(c);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -309,6 +339,15 @@ mod tests {
     fn valid_reply_shows_payee() {
         let reply = render_km(&[khqr::check(INDIVIDUAL_KHR_500)]);
         assert!(reply.contains("jonhsmith@nbcq") && reply.contains("500 KHR"));
+    }
+
+    #[test]
+    fn qr_payee_fields_cannot_become_links_or_hide_text() {
+        assert_eq!(inert("aba-help.top"), "aba-help[.]top");
+        assert_eq!(inert("@ABA_Support KH"), "＠ABA_Support KH");
+        assert_eq!(inert("sok@abaa"), "sok@abaa");
+        assert_eq!(inert("Mr. Sok"), "Mr. Sok");
+        assert_eq!(inert("SOK\u{202E}ARAD"), "SOKARAD");
     }
 
     #[test]

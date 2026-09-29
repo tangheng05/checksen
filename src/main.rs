@@ -4,6 +4,8 @@ mod guard;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
+
 use checksen::analyzers::link::LinkChecker;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
 use teloxide::prelude::*;
@@ -20,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("ANTHROPIC_API_KEY is not set; text checks use rules only");
     }
     Dispatcher::builder(
-        Bot::from_env(),
+        Bot::new(std::env::var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?),
         Update::filter_message().endpoint(bot::handle),
     )
     .dependencies(dptree::deps![

@@ -201,7 +201,16 @@ async fn send_with_retry(
                     .get(reqwest::header::RETRY_AFTER)
                     .and_then(|value| value.to_str().ok()?.parse().ok())
                     .map(Duration::from_secs);
-                let body = response.bytes().await?;
+                let body = match response.bytes().await {
+                    Ok(body) => body,
+                    Err(error) => {
+                        last_error = error.into();
+                        if attempt + 1 < attempts {
+                            tokio::time::sleep(backoff(attempt)).await;
+                        }
+                        continue;
+                    }
+                };
                 if status.is_success() {
                     match parse(&body) {
                         Ok(classification) => return Ok(classification),

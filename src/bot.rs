@@ -10,7 +10,7 @@ use url::Url;
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, anthropic::AnthropicClassifier};
 use checksen::analyzers::text::RULES_VERSION;
-use checksen::analyzers::{self, Check, Signal, khqr, text};
+use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict;
 
 use crate::guard::{Admission, Guard};
@@ -29,9 +29,10 @@ impl Outcome {
     fn of(checks: &[Check]) -> Self {
         Self {
             reply: verdict::render_km(checks),
-            cacheable: !checks
-                .iter()
-                .any(|check| check.signals.contains(&Signal::ModelUnavailable)),
+            cacheable: !checks.iter().any(|check| {
+                check.signals.contains(&Signal::ModelUnavailable)
+                    || matches!(check.subject, Subject::Link(_))
+            }),
         }
     }
 }
@@ -43,6 +44,10 @@ pub async fn handle(
     classifier: Option<Arc<AnthropicClassifier>>,
     guard: Arc<Guard>,
 ) -> ResponseResult<()> {
+    if msg.text().is_some_and(|text| text.starts_with("/forget")) {
+        bot.send_message(msg.chat.id, verdict::FORGET_KM).await?;
+        return Ok(());
+    }
     let Some(key) = cache_key(&guard, &msg) else {
         bot.send_message(msg.chat.id, verdict::HELP_KM).await?;
         return Ok(());
@@ -65,7 +70,7 @@ pub async fn handle(
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let outcome = check(&bot, &msg, &links, classifier.as_deref()).await;
+            let outcome = check(&bot, &msg, &links, classifier.as_deref(), &guard).await;
             let reply: Arc<str> = Arc::from(outcome.reply);
             if outcome.cacheable {
                 guard.store(key, reply.clone());
@@ -106,6 +111,7 @@ async fn check(
     msg: &Message,
     links: &LinkChecker,
     classifier: Option<&AnthropicClassifier>,
+    guard: &Guard,
 ) -> Outcome {
     if let Some(photo) = largest_photo(msg) {
         return match check_photo(bot, photo, links).await {
@@ -123,7 +129,7 @@ async fn check(
         return Outcome::of(&[khqr::check(payload)]);
     }
     if let Some(message) = msg.text() {
-        return check_text(msg, message, links, classifier).await;
+        return check_text(msg, message, links, classifier, guard).await;
     }
     let file_name = msg
         .document()
@@ -138,6 +144,7 @@ async fn check_text(
     message: &str,
     links: &LinkChecker,
     classifier: Option<&AnthropicClassifier>,
+    guard: &Guard,
 ) -> Outcome {
     let urls = urls_in(msg);
     let text_check = text::check(message);
@@ -152,8 +159,14 @@ async fn check_text(
     let show_text = urls.is_empty();
     let classified = async {
         match classifier {
-            Some(classifier) => {
+            Some(classifier) if guard.allow_model_call() => {
                 llm::classify(text_check, message, classifier, CLASSIFIER_BUDGET).await
+            }
+            Some(_) => {
+                tracing::warn!("daily classifier budget used up");
+                let mut text_check = text_check;
+                text_check.signals.push(Signal::ModelUnavailable);
+                text_check
             }
             None => text_check,
         }
