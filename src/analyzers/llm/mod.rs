@@ -217,6 +217,8 @@ async fn send_with_retry(
                         Err(error) => last_error = error,
                     }
                     backoff(attempt)
+                } else if status.as_u16() == 429 && is_daily_quota(&body) {
+                    bail!("daily quota exhausted");
                 } else if status.as_u16() == 429
                     || status.as_u16() == 529
                     || status.is_server_error()
@@ -237,6 +239,10 @@ async fn send_with_retry(
         }
     }
     Err(last_error)
+}
+
+fn is_daily_quota(body: &[u8]) -> bool {
+    String::from_utf8_lossy(body).contains("PerDay")
 }
 
 const MAX_WAIT: Duration = Duration::from_secs(60);
@@ -340,6 +346,14 @@ mod tests {
         for name in ScamCategory::NAMES {
             serde_json::from_value::<ScamCategory>(serde_json::json!(name)).unwrap();
         }
+    }
+
+    #[test]
+    fn daily_quota_is_recognized() {
+        assert!(is_daily_quota(
+            br#"{"error":{"details":[{"violations":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}]}}"#
+        ));
+        assert!(!is_daily_quota(br#"{"error":{"message":"rate limited"}}"#));
     }
 
     #[test]
