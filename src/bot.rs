@@ -9,46 +9,128 @@ use url::Url;
 
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, anthropic::AnthropicClassifier};
-use checksen::analyzers::{self, Check, khqr, text};
+use checksen::analyzers::text::RULES_VERSION;
+use checksen::analyzers::{self, Check, Signal, khqr, text};
 use checksen::verdict;
+
+use crate::guard::{Admission, Guard};
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
 
+struct Outcome {
+    reply: String,
+    cacheable: bool,
+}
+
+impl Outcome {
+    fn of(checks: &[Check]) -> Self {
+        Self {
+            reply: verdict::render_km(checks),
+            cacheable: !checks
+                .iter()
+                .any(|check| check.signals.contains(&Signal::ModelUnavailable)),
+        }
+    }
+}
+
 pub async fn handle(
     bot: Bot,
     msg: Message,
     links: Arc<LinkChecker>,
     classifier: Option<Arc<AnthropicClassifier>>,
+    guard: Arc<Guard>,
 ) -> ResponseResult<()> {
-    let largest_photo = msg
-        .photo()
-        .and_then(|sizes| sizes.iter().max_by_key(|size| size.width * size.height));
-
-    let reply = if let Some(photo) = largest_photo {
-        let checks = check_photo(&bot, photo, &links)
-            .await
-            .unwrap_or_else(|error| {
-                tracing::warn!(%error, "photo check failed");
-                Vec::new()
-            });
-        verdict::render_km(&checks)
-    } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
-        verdict::render_km(&[khqr::check(payload)])
-    } else if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
-        check_text(&msg, message, &links, classifier.as_deref()).await
-    } else if let Some(document) = msg.document() {
-        let file_name = document.file_name.as_deref().unwrap_or_default();
-        let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
-        verdict::render_km(&[text::check(&described)])
-    } else {
-        verdict::HELP_KM.to_owned()
+    let Some(key) = cache_key(&guard, &msg) else {
+        bot.send_message(msg.chat.id, verdict::HELP_KM).await?;
+        return Ok(());
     };
 
-    bot.send_message(msg.chat.id, reply).await?;
+    let sender = msg
+        .from
+        .as_ref()
+        .map_or(msg.chat.id.0 as u64, |user| user.id.0);
+    match guard.admit(sender) {
+        Admission::Allowed => {}
+        Admission::LimitReached => {
+            bot.send_message(msg.chat.id, verdict::RATE_LIMITED_KM)
+                .await?;
+            return Ok(());
+        }
+        Admission::Silent => return Ok(()),
+    }
+
+    let reply = match guard.cached(key) {
+        Some(reply) => reply,
+        None => {
+            let outcome = check(&bot, &msg, &links, classifier.as_deref()).await;
+            let reply: Arc<str> = Arc::from(outcome.reply);
+            if outcome.cacheable {
+                guard.store(key, reply.clone());
+            }
+            reply
+        }
+    };
+
+    bot.send_message(msg.chat.id, reply.as_ref()).await?;
     Ok(())
+}
+
+fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
+    msg.photo()
+        .and_then(|sizes| sizes.iter().max_by_key(|size| size.width * size.height))
+}
+
+fn cache_key(guard: &Guard, msg: &Message) -> Option<u64> {
+    if let Some(photo) = largest_photo(msg) {
+        return Some(guard.key((RULES_VERSION, "photo", &photo.file.unique_id.0)));
+    }
+    if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
+        let urls: Vec<String> = urls_in(msg).iter().map(Url::to_string).collect();
+        return Some(guard.key((RULES_VERSION, "text", message, urls)));
+    }
+    msg.document().map(|document| {
+        guard.key((
+            RULES_VERSION,
+            "document",
+            &document.file.unique_id.0,
+            msg.caption().unwrap_or_default(),
+        ))
+    })
+}
+
+async fn check(
+    bot: &Bot,
+    msg: &Message,
+    links: &LinkChecker,
+    classifier: Option<&AnthropicClassifier>,
+) -> Outcome {
+    if let Some(photo) = largest_photo(msg) {
+        return match check_photo(bot, photo, links).await {
+            Ok(checks) => Outcome::of(&checks),
+            Err(error) => {
+                tracing::warn!(%error, "photo check failed");
+                Outcome {
+                    reply: verdict::render_km(&[]),
+                    cacheable: false,
+                }
+            }
+        };
+    }
+    if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
+        return Outcome::of(&[khqr::check(payload)]);
+    }
+    if let Some(message) = msg.text() {
+        return check_text(msg, message, links, classifier).await;
+    }
+    let file_name = msg
+        .document()
+        .and_then(|document| document.file_name.as_deref())
+        .unwrap_or_default();
+    let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
+    Outcome::of(&[text::check(&described)])
 }
 
 async fn check_text(
@@ -56,12 +138,15 @@ async fn check_text(
     message: &str,
     links: &LinkChecker,
     classifier: Option<&AnthropicClassifier>,
-) -> String {
+) -> Outcome {
     let urls = urls_in(msg);
     let text_check = text::check(message);
     if text_check.signals.is_empty() && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS
     {
-        return verdict::HELP_KM.to_owned();
+        return Outcome {
+            reply: verdict::HELP_KM.to_owned(),
+            cacheable: true,
+        };
     }
 
     let show_text = urls.is_empty();
@@ -83,7 +168,7 @@ async fn check_text(
         checks.push(text_check);
     }
     checks.extend(link_checks);
-    verdict::render_km(&checks)
+    Outcome::of(&checks)
 }
 
 async fn check_photo(

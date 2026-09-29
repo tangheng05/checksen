@@ -1,4 +1,5 @@
 mod bot;
+mod guard;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +23,11 @@ async fn main() -> anyhow::Result<()> {
         Bot::from_env(),
         Update::filter_message().endpoint(bot::handle),
     )
-    .dependencies(dptree::deps![links, classifier])
+    .dependencies(dptree::deps![
+        links,
+        classifier,
+        Arc::new(guard::Guard::new())
+    ])
     .enable_ctrlc_handler()
     .build()
     .dispatch()

@@ -9,6 +9,7 @@ chrono = "0.4.45"
 dotenvy = "0.15.7"
 futures = "0.3.34"
 khqr-core = "0.4"
+moka = { version = "0.12", features = ["sync"] }
 psl = "2.1.238"
 regex = "1.13.1"
 reqwest = "0.12"
