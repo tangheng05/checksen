@@ -6,10 +6,11 @@ use reqwest::Client;
 use serde_json::{Value, json};
 
 use super::{
-    Classification, Classifier, SYSTEM_PROMPT, ScamCategory, parse_classification, send_with_retry,
-    user_prompt,
+    Classification, Classifier, OUTPUT_FIELDS, SYSTEM_PROMPT, output_schema, parse_classification,
+    send_with_retry, user_prompt,
 };
 use crate::analyzers::Signal;
+use crate::env_var;
 
 const DEFAULT_MODEL: &str = "gemini-3.8-flash";
 
@@ -24,13 +25,10 @@ pub struct GeminiClassifier {
 
 impl GeminiClassifier {
     pub fn from_env(timeout: Duration, attempts: u32) -> anyhow::Result<Option<Self>> {
-        let Some(api_key) = std::env::var("GEMINI_API_KEY")
-            .ok()
-            .filter(|key| !key.is_empty())
-        else {
+        let Some(api_key) = env_var("GEMINI_API_KEY") else {
             return Ok(None);
         };
-        let model = std::env::var("GEMINI_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
+        let model = env_var("GEMINI_MODEL").unwrap_or_else(|| DEFAULT_MODEL.to_owned());
         Ok(Some(Self {
             http: Client::builder().timeout(timeout).build()?,
             api_key,
@@ -73,19 +71,9 @@ impl Classifier for GeminiClassifier {
 }
 
 fn schema() -> Value {
-    json!({
-        "type": "OBJECT",
-        "properties": {
-            "category": {"type": "STRING", "enum": ScamCategory::NAMES},
-            "confidence": {"type": "STRING", "enum": ["low", "medium", "high"]},
-            "cited_signals": {
-                "type": "ARRAY",
-                "items": {"type": "STRING", "enum": Signal::rule_names().collect::<Vec<_>>()},
-            },
-        },
-        "required": ["category", "confidence", "cited_signals"],
-        "propertyOrdering": ["category", "confidence", "cited_signals"],
-    })
+    let mut schema = output_schema("OBJECT", "STRING", "ARRAY");
+    schema["propertyOrdering"] = json!(OUTPUT_FIELDS);
+    schema
 }
 
 fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
@@ -109,6 +97,7 @@ fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyzers::llm::ScamCategory;
 
     #[test]
     fn parses_a_structured_response() {

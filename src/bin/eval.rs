@@ -86,25 +86,10 @@ async fn main() -> anyhow::Result<ExitCode> {
     dotenvy::dotenv().ok();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let args: Vec<String> = std::env::args().collect();
-    let update_baseline = args.iter().any(|arg| arg == "--update-baseline");
 
-    if let Some(provider) = args
-        .iter()
-        .position(|arg| arg == "--llm")
-        .map(|at| args.get(at + 1))
-    {
-        let timeout = Duration::from_secs(120);
-        let classifier: Box<dyn Classifier> = match provider.map(String::as_str) {
-            Some("gemini") => {
-                Box::new(GeminiClassifier::from_env(timeout, 8)?.context("set GEMINI_API_KEY")?)
-            }
-            Some("claude") => Box::new(
-                AnthropicClassifier::from_env(timeout, 8)?.context("set ANTHROPIC_API_KEY")?,
-            ),
-            _ => bail!("usage: eval --llm gemini|claude"),
-        };
-        let provider = provider.map(String::as_str).unwrap_or_default();
-        evaluate(root, "v1", Some((provider, classifier.as_ref()))).await?;
+    if let Some(at) = args.iter().position(|arg| arg == "--llm") {
+        let provider = args.get(at + 1).map(String::as_str).unwrap_or_default();
+        run_with_model(root, provider).await?;
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -112,8 +97,7 @@ async fn main() -> anyhow::Result<ExitCode> {
     for name in DATASETS {
         current.insert(name.to_owned(), evaluate(root, name, None).await?);
     }
-
-    if update_baseline {
+    if args.iter().any(|arg| arg == "--update-baseline") {
         fs::write(
             root.join(BASELINE),
             serde_json::to_string_pretty(&current)? + "\n",
@@ -121,13 +105,34 @@ async fn main() -> anyhow::Result<ExitCode> {
         println!("baseline updated");
         return Ok(ExitCode::SUCCESS);
     }
+    compare_to_baseline(root, &current)
+}
 
+async fn run_with_model(root: &Path, provider: &str) -> anyhow::Result<()> {
+    let timeout = Duration::from_secs(120);
+    let classifier: Box<dyn Classifier> = match provider {
+        "gemini" => {
+            Box::new(GeminiClassifier::from_env(timeout, 8)?.context("set GEMINI_API_KEY")?)
+        }
+        "claude" => {
+            Box::new(AnthropicClassifier::from_env(timeout, 8)?.context("set ANTHROPIC_API_KEY")?)
+        }
+        _ => bail!("usage: eval --llm gemini|claude"),
+    };
+    evaluate(root, "v1", Some((provider, classifier.as_ref()))).await?;
+    Ok(())
+}
+
+fn compare_to_baseline(
+    root: &Path,
+    current: &BTreeMap<String, Baseline>,
+) -> anyhow::Result<ExitCode> {
     let baselines: BTreeMap<String, Baseline> = serde_json::from_str(
         &fs::read_to_string(root.join(BASELINE))
             .context("no baseline yet; run with --update-baseline")?,
     )?;
     let mut worse = false;
-    for (name, now) in &current {
+    for (name, now) in current {
         let Some(baseline) = baselines.get(name) else {
             eprintln!("{name}: no baseline; run with --update-baseline");
             worse = true;

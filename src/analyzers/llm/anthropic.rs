@@ -6,10 +6,11 @@ use reqwest::Client;
 use serde_json::{Value, json};
 
 use super::{
-    Classification, Classifier, SYSTEM_PROMPT, ScamCategory, parse_classification, send_with_retry,
-    user_prompt,
+    Classification, Classifier, SYSTEM_PROMPT, output_schema, parse_classification,
+    send_with_retry, user_prompt,
 };
 use crate::analyzers::Signal;
+use crate::env_var;
 
 const ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
 const MODEL: &str = "claude-haiku-4-5";
@@ -23,10 +24,7 @@ pub struct AnthropicClassifier {
 
 impl AnthropicClassifier {
     pub fn from_env(timeout: Duration, attempts: u32) -> anyhow::Result<Option<Self>> {
-        let Some(api_key) = std::env::var("ANTHROPIC_API_KEY")
-            .ok()
-            .filter(|key| !key.is_empty())
-        else {
+        let Some(api_key) = env_var("ANTHROPIC_API_KEY") else {
             return Ok(None);
         };
         Ok(Some(Self {
@@ -67,19 +65,9 @@ impl Classifier for AnthropicClassifier {
 }
 
 fn schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "category": {"type": "string", "enum": ScamCategory::NAMES},
-            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-            "cited_signals": {
-                "type": "array",
-                "items": {"type": "string", "enum": Signal::rule_names().collect::<Vec<_>>()},
-            },
-        },
-        "required": ["category", "confidence", "cited_signals"],
-        "additionalProperties": false,
-    })
+    let mut schema = output_schema("object", "string", "array");
+    schema["additionalProperties"] = json!(false);
+    schema
 }
 
 fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
@@ -106,6 +94,7 @@ fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyzers::llm::ScamCategory;
 
     #[test]
     fn parses_a_structured_response() {

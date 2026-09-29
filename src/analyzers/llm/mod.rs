@@ -6,6 +6,7 @@ use std::time::Duration;
 use anyhow::{anyhow, bail};
 use futures::future::BoxFuture;
 use serde::Deserialize;
+use serde_json::{Value, json};
 
 use super::{Check, Signal};
 use crate::verdict::{self, Level};
@@ -109,6 +110,23 @@ These are usually legitimate, so answer none unless there is a clear scam cue: a
 confidence: high when the scam cue is explicit, medium when likely, low when unsure.
 
 cited_signals: from the rule signals listed before the message, the ones your decision relies on. Cite only listed signals; leave it empty if none were listed or none apply.";
+
+const OUTPUT_FIELDS: [&str; 3] = ["category", "confidence", "cited_signals"];
+
+fn output_schema(object: &str, string: &str, array: &str) -> Value {
+    json!({
+        "type": object,
+        "properties": {
+            "category": {"type": string, "enum": ScamCategory::NAMES},
+            "confidence": {"type": string, "enum": ["low", "medium", "high"]},
+            "cited_signals": {
+                "type": array,
+                "items": {"type": string, "enum": Signal::rule_names().collect::<Vec<_>>()},
+            },
+        },
+        "required": OUTPUT_FIELDS,
+    })
+}
 
 pub fn user_prompt(text: &str, found: &[Signal]) -> String {
     let names: Vec<&str> = found
