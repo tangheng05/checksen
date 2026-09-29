@@ -144,6 +144,7 @@
     "scam-loan-08",
     "scam-job-07"
   ],
+  "model_errors": 0,
   "rules_version": 2,
   "splits": {
     "dev": {
@@ -163,5 +164,6 @@
       "scams": 12
     }
   },
-  "strata": {}
+  "strata": {},
+  "variant": "rules-v2"
 }

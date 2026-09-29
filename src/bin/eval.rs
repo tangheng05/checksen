@@ -2,8 +2,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
-use anyhow::Context;
+use anyhow::{Context, bail};
+use checksen::analyzers::Signal;
+use checksen::analyzers::llm::{
+    self, Classifier, anthropic::AnthropicClassifier, gemini::GeminiClassifier,
+};
 use checksen::analyzers::text::{self, RULES_VERSION};
 use checksen::verdict::{Level, decide};
 use serde::{Deserialize, Serialize};
@@ -76,13 +81,36 @@ fn ratio(part: usize, whole: usize) -> f64 {
     }
 }
 
-fn main() -> anyhow::Result<ExitCode> {
+#[tokio::main]
+async fn main() -> anyhow::Result<ExitCode> {
+    dotenvy::dotenv().ok();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let update_baseline = std::env::args().any(|arg| arg == "--update-baseline");
+    let args: Vec<String> = std::env::args().collect();
+    let update_baseline = args.iter().any(|arg| arg == "--update-baseline");
+
+    if let Some(provider) = args
+        .iter()
+        .position(|arg| arg == "--llm")
+        .map(|at| args.get(at + 1))
+    {
+        let timeout = Duration::from_secs(120);
+        let classifier: Box<dyn Classifier> = match provider.map(String::as_str) {
+            Some("gemini") => {
+                Box::new(GeminiClassifier::from_env(timeout, 8)?.context("set GEMINI_API_KEY")?)
+            }
+            Some("claude") => Box::new(
+                AnthropicClassifier::from_env(timeout, 8)?.context("set ANTHROPIC_API_KEY")?,
+            ),
+            _ => bail!("usage: eval --llm gemini|claude"),
+        };
+        let provider = provider.map(String::as_str).unwrap_or_default();
+        evaluate(root, "v1", Some((provider, classifier.as_ref()))).await?;
+        return Ok(ExitCode::SUCCESS);
+    }
 
     let mut current = BTreeMap::new();
     for name in DATASETS {
-        current.insert(name.to_owned(), evaluate(root, name)?);
+        current.insert(name.to_owned(), evaluate(root, name, None).await?);
     }
 
     if update_baseline {
@@ -123,7 +151,15 @@ fn main() -> anyhow::Result<ExitCode> {
     })
 }
 
-fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
+async fn evaluate(
+    root: &Path,
+    name: &str,
+    model: Option<(&str, &dyn Classifier)>,
+) -> anyhow::Result<Baseline> {
+    let variant = match model {
+        Some((provider, _)) => format!("rules-v{RULES_VERSION}+{provider}"),
+        None => format!("rules-v{RULES_VERSION}"),
+    };
     let path = format!("evals/data/{name}.jsonl");
     let dataset =
         fs::read_to_string(root.join(&path)).with_context(|| format!("reading {path}"))?;
@@ -140,12 +176,19 @@ fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
     let mut strata: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut categories: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut total = Tally::default();
+    let mut model_errors = 0;
     let mut missed = Vec::new();
     let mut false_alarms = Vec::new();
 
     for example in &examples {
         let is_scam = example.label == "scam";
-        let level = decide(&text::check(&example.text));
+        let mut check = text::check(&example.text);
+        if let Some((_, classifier)) = model {
+            check = llm::classify(check, &example.text, classifier, Duration::from_secs(300)).await;
+            model_errors += usize::from(check.signals.contains(&Signal::ModelUnavailable));
+            eprint!(".");
+        }
+        let level = decide(&check);
         let flagged = matches!(level, Level::HighRisk | Level::Suspicious);
 
         total.add(is_scam, flagged);
@@ -173,10 +216,13 @@ fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
         }
     }
 
-    println!(
-        "{name}: rules v{RULES_VERSION} on {} examples",
-        examples.len()
-    );
+    if model.is_some() {
+        eprintln!();
+    }
+    println!("{name}: {variant} on {} examples", examples.len());
+    if model.is_some() {
+        println!("  model errors (fell back to rules): {model_errors}");
+    }
     for (group, tally) in splits
         .iter()
         .chain(&strata)
@@ -204,6 +250,8 @@ fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
     };
     let report = json!({
         "rules_version": RULES_VERSION,
+        "variant": variant,
+        "model_errors": model_errors,
         "dataset": path,
         "examples": examples.len(),
         "all": total.to_json(),
@@ -213,8 +261,7 @@ fn evaluate(root: &Path, name: &str) -> anyhow::Result<Baseline> {
         "missed": missed,
         "false_alarms": false_alarms,
     });
-    let report_path: PathBuf =
-        root.join(format!("evals/results/rules-v{RULES_VERSION}-{name}.json"));
+    let report_path: PathBuf = root.join(format!("evals/results/{variant}-{name}.json"));
     fs::write(&report_path, serde_json::to_string_pretty(&report)? + "\n")?;
 
     Ok(Baseline {

@@ -1,6 +1,7 @@
 use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::link::LinkInfo;
+use crate::analyzers::llm::ScamCategory;
 use crate::analyzers::{Check, Signal, Subject};
 
 pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR កូដ KHQR ឬតំណ (link) ដែលអ្នកសង្ស័យមកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR នោះបង់ប្រាក់ទៅអ្នកណា ឬតំណនោះនាំទៅគេហទំព័រណាពិតប្រាកដ។";
@@ -32,7 +33,13 @@ impl Level {
 
 pub fn decide(check: &Check) -> Level {
     let score: f32 = check.signals.iter().map(|signal| signal.weight()).sum();
-    if check.signals.iter().any(|signal| signal.is_hard()) || score > 0.8 {
+    let uncited_model: f32 = check
+        .signals
+        .iter()
+        .filter(|signal| matches!(signal, Signal::Model { cited: false, .. }))
+        .map(|signal| signal.weight())
+        .sum();
+    if check.signals.iter().any(|signal| signal.is_hard()) || score - uncited_model > 0.8 {
         Level::HighRisk
     } else if score >= 0.4 {
         Level::Suspicious
@@ -59,7 +66,9 @@ fn render_check(check: &Check) -> String {
     match &check.subject {
         Subject::Khqr(payee) => lines.push(render_payee(payee)),
         Subject::Link(link) => lines.push(render_link(link)),
-        Subject::Text if check.signals.is_empty() => lines.push(NO_TEXT_SIGNALS_KM.to_owned()),
+        Subject::Text if check.signals.iter().all(|signal| signal.weight() == 0.0) => {
+            lines.push(NO_TEXT_SIGNALS_KM.to_owned())
+        }
         Subject::Text | Subject::Unreadable => {}
     }
     lines.join("\n")
@@ -105,8 +114,39 @@ fn reason_km(signal: Signal) -> String {
             "ឯកសារនេះជាកម្មវិធី (ដូចជា .apk ឬ .exe) មិនមែនជាឯកសារធម្មតាទេ។ កុំបើក ឬដំឡើងវា ព្រោះវាអាចគ្រប់គ្រងទូរស័ព្ទរបស់អ្នក។"
         }
         Signal::Urgency => "សារនេះបង្ខំឱ្យធ្វើភ្លាមៗ។",
+        Signal::Model { category, .. } => {
+            return format!(
+                "ការពិនិត្យដោយ AI យល់ឃើញថាសារនេះស្រដៀងនឹង{}។",
+                category_km(category)
+            );
+        }
+        Signal::ModelUnavailable => {
+            "ការពិនិត្យដោយ AI មិនអាចប្រើបានបណ្តោះអាសន្ន ដូច្នេះលទ្ធផលនេះពឹងលើការពិនិត្យតាមច្បាប់តែប៉ុណ្ណោះ។"
+        }
     };
     reason.to_owned()
+}
+
+fn category_km(category: ScamCategory) -> &'static str {
+    match category {
+        ScamCategory::Loan => "កម្ចីក្លែងក្លាយ",
+        ScamCategory::Job => "ការងារក្លែងក្លាយ",
+        ScamCategory::Otp => "ការសុំលេខកូដសម្ងាត់",
+        ScamCategory::Prize => "រង្វាន់ក្លែងក្លាយ",
+        ScamCategory::Account => "ការគំរាមបិទគណនី",
+        ScamCategory::Authority => "ការក្លែងខ្លួនជាអាជ្ញាធរ",
+        ScamCategory::Investment => "ការវិនិយោគក្លែងក្លាយ",
+        ScamCategory::Mule => "ការជួល ឬទិញគណនីធនាគារ",
+        ScamCategory::Family => "ការក្លែងខ្លួនជាសាច់ញាតិ ឬមិត្តភក្តិ",
+        ScamCategory::Telegram => "ការលួចគណនី Telegram",
+        ScamCategory::Malware => "កម្មវិធីព្យាបាទ",
+        ScamCategory::Charity => "ការសុំបរិច្ចាគក្លែងក្លាយ",
+        ScamCategory::Shop => "ការលក់ទំនិញក្លែងក្លាយ",
+        ScamCategory::Gambling => "ល្បែងស៊ីសង ឬឆ្នោតខុសច្បាប់",
+        ScamCategory::Extortion => "ការគំរាមយកលុយ",
+        ScamCategory::Recruitment => "ការជ្រើសរើសបុគ្គលិកក្លែងក្លាយ",
+        ScamCategory::OtherScam | ScamCategory::None => "ការបោកប្រាស់",
+    }
 }
 
 fn render_payee(payee: &DecodedKhqr) -> String {
@@ -207,6 +247,31 @@ mod tests {
     }
 
     #[test]
+    fn model_reaches_high_risk_only_with_cited_rule_evidence() {
+        let text = |signals| Check {
+            subject: Subject::Text,
+            signals,
+        };
+        let model = |cited| Signal::Model {
+            category: ScamCategory::Loan,
+            cited,
+        };
+        assert_eq!(decide(&text(vec![model(false)])), Level::Suspicious);
+        assert_eq!(
+            decide(&text(vec![Signal::UpfrontFee, model(false)])),
+            Level::Suspicious
+        );
+        assert_eq!(
+            decide(&text(vec![Signal::LoanBait, model(true)])),
+            Level::HighRisk
+        );
+        assert_eq!(
+            decide(&text(vec![Signal::OtpRequest, model(false)])),
+            Level::HighRisk
+        );
+    }
+
+    #[test]
     fn every_reply_sends_user_to_bank_app_and_never_says_safe() {
         let replies = [
             render_km(&[]),
@@ -221,6 +286,17 @@ mod tests {
             render_km(&[link_check(vec![])]),
             render_km(&[crate::analyzers::text::check("សូមផ្ញើលេខកូដ OTP មកខ្ញុំ")]),
             render_km(&[crate::analyzers::text::check("See you at the café at 6")]),
+            render_km(&[Check {
+                subject: Subject::Text,
+                signals: vec![Signal::ModelUnavailable],
+            }]),
+            render_km(&[Check {
+                subject: Subject::Text,
+                signals: vec![Signal::Model {
+                    category: ScamCategory::Prize,
+                    cited: false,
+                }],
+            }]),
         ];
         for reply in replies {
             assert!(reply.ends_with(BANK_APP_ADVICE_KM), "{reply}");

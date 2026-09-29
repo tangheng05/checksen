@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::future::join_all;
 use teloxide::net::Download;
@@ -7,14 +8,21 @@ use teloxide::types::{MessageEntityKind, PhotoSize};
 use url::Url;
 
 use checksen::analyzers::link::{self, LinkChecker};
+use checksen::analyzers::llm::{self, anthropic::AnthropicClassifier};
 use checksen::analyzers::{self, Check, khqr, text};
 use checksen::verdict;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
+const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
 
-pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> ResponseResult<()> {
+pub async fn handle(
+    bot: Bot,
+    msg: Message,
+    links: Arc<LinkChecker>,
+    classifier: Option<Arc<AnthropicClassifier>>,
+) -> ResponseResult<()> {
     let largest_photo = msg
         .photo()
         .and_then(|sizes| sizes.iter().max_by_key(|size| size.width * size.height));
@@ -30,7 +38,7 @@ pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> Response
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         verdict::render_km(&[khqr::check(payload)])
     } else if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
-        check_text(&msg, message, &links).await
+        check_text(&msg, message, &links, classifier.as_deref()).await
     } else if let Some(document) = msg.document() {
         let file_name = document.file_name.as_deref().unwrap_or_default();
         let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
@@ -43,19 +51,38 @@ pub async fn handle(bot: Bot, msg: Message, links: Arc<LinkChecker>) -> Response
     Ok(())
 }
 
-async fn check_text(msg: &Message, message: &str, links: &LinkChecker) -> String {
+async fn check_text(
+    msg: &Message,
+    message: &str,
+    links: &LinkChecker,
+    classifier: Option<&AnthropicClassifier>,
+) -> String {
     let urls = urls_in(msg);
     let text_check = text::check(message);
-    let no_signals = text_check.signals.is_empty();
-    if no_signals && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS {
+    if text_check.signals.is_empty() && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS
+    {
         return verdict::HELP_KM.to_owned();
     }
 
+    let show_text = urls.is_empty();
+    let classified = async {
+        match classifier {
+            Some(classifier) => {
+                llm::classify(text_check, message, classifier, CLASSIFIER_BUDGET).await
+            }
+            None => text_check,
+        }
+    };
+    let (text_check, link_checks) = tokio::join!(
+        classified,
+        join_all(urls.into_iter().map(|url| links.check(url)))
+    );
+
     let mut checks = Vec::new();
-    if !no_signals || urls.is_empty() {
+    if show_text || !text_check.signals.is_empty() {
         checks.push(text_check);
     }
-    checks.extend(join_all(urls.into_iter().map(|url| links.check(url))).await);
+    checks.extend(link_checks);
     verdict::render_km(&checks)
 }
 
