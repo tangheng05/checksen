@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: checksen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-checksen}
+      POSTGRES_DB: checksen
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checksen"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  postgres:

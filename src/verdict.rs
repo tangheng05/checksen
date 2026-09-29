@@ -6,6 +6,18 @@ use crate::analyzers::{Check, Signal, Subject};
 
 pub const HELP_KM: &str = "សូមផ្ញើរូបថត KHQR កូដ KHQR ឬតំណ (link) ដែលអ្នកសង្ស័យមកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR នោះបង់ប្រាក់ទៅអ្នកណា ឬតំណនោះនាំទៅគេហទំព័រណាពិតប្រាកដ។\n\nសារ និងរូបភាពដែលអ្នកផ្ញើមក មិនត្រូវបានរក្សាទុកទេ។ ដើម្បីពិនិត្យ អត្ថបទអាចត្រូវបានផ្ញើទៅសេវា AI ដែលមិនប្រើវាសម្រាប់ហ្វឹកហាត់។";
 pub const FORGET_KM: &str = "CheckSen មិនរក្សាទុកសារ រូបភាព ឬព័ត៌មានដែលភ្ជាប់នឹងអ្នកទេ ដូច្នេះគ្មានអ្វីត្រូវលុបទេ។";
+pub const INTENDED_BUTTON_KM: &str = "✅ ត្រូវហើយ";
+pub const NOT_INTENDED_BUTTON_KM: &str = "❌ មិនមែនទេ";
+pub const INTENDED_KM: &str = "ល្អ។ សូមពិនិត្យឈ្មោះអ្នកទទួលម្តងទៀតក្នុងកម្មវិធីធនាគាររបស់អ្នក មុនពេលបង់ប្រាក់។";
+pub const REPORTED_KM: &str =
+    "អរគុណ។ យើងបានកត់ត្រាការរាយការណ៍របស់អ្នក។ កុំបង់ប្រាក់តាម QR នេះ ហើយសូមសួរអ្នកលក់ពីគណនីត្រឹមត្រូវ។";
+pub const REPORT_LIMIT_KM: &str =
+    "អ្នកបានរាយការណ៍ច្រើនពេកនៅថ្ងៃនេះ។ កុំបង់ប្រាក់តាម QR នេះ ហើយសូមព្យាយាមរាយការណ៍ម្តងទៀតនៅថ្ងៃស្អែក។";
+pub const REPORT_FAILED_KM: &str = "មិនអាចកត់ត្រាការរាយការណ៍បានទេនៅពេលនេះ។ កុំបង់ប្រាក់តាម QR នេះ។";
+
+pub fn forgotten_km(removed: u64) -> String {
+    format!("បានលុបការរាយការណ៍ {removed} ដែលភ្ជាប់នឹងអ្នក។ CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។")
+}
 pub const RATE_LIMITED_KM: &str = "អ្នកបានផ្ញើសារឱ្យពិនិត្យច្រើនពេកក្នុងរយៈពេលខ្លី។ សូមរង់ចាំបន្តិច រួចព្យាយាមម្តងទៀត។";
 const BANK_APP_ADVICE_KM: &str =
     "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានច្បាស់។";
@@ -116,6 +128,11 @@ fn reason_km(signal: Signal) -> String {
             "ឯកសារនេះជាកម្មវិធី (ដូចជា .apk ឬ .exe) មិនមែនជាឯកសារធម្មតាទេ។ កុំបើក ឬដំឡើងវា ព្រោះវាអាចគ្រប់គ្រងទូរស័ព្ទរបស់អ្នក។"
         }
         Signal::Urgency => "សារនេះបង្ខំឱ្យធ្វើភ្លាមៗ។",
+        Signal::Reported(reporters) => {
+            return format!(
+                "គណនីនេះត្រូវបានអ្នកប្រើប្រាស់ {reporters} នាក់រាយការណ៍ថា មិនមែនជាអ្នកទទួលដែលពួកគេរំពឹងទុកទេ។"
+            );
+        }
         Signal::Model { category, .. } => {
             return format!(
                 "ការពិនិត្យដោយ AI យល់ឃើញថាសារនេះស្រដៀងនឹង{}។",
@@ -298,6 +315,20 @@ mod tests {
         );
         assert_eq!(
             decide(&text(vec![Signal::OtpRequest, model(false)])),
+            Level::HighRisk
+        );
+    }
+
+    #[test]
+    fn reported_account_is_suspicious_alone_and_high_risk_with_evidence() {
+        let reported = check_with(vec![Signal::Reported(3)], true);
+        assert_eq!(decide(&reported), Level::Suspicious);
+        assert!(render_km(&[reported]).contains("3 នាក់"));
+        assert_eq!(
+            decide(&check_with(
+                vec![Signal::Reported(3), Signal::Expired],
+                true
+            )),
             Level::HighRisk
         );
     }

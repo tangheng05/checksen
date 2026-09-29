@@ -8,6 +8,21 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: checksen
+          POSTGRES_PASSWORD: checksen
+          POSTGRES_DB: checksen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U checksen"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://checksen:checksen@localhost:5432/checksen
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

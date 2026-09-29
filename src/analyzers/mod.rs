@@ -32,6 +32,7 @@ pub enum Signal {
     Lookalike(&'static str),
     Punycode,
     NewDomain,
+    Reported(u32),
     OtpRequest,
     UpfrontFee,
     MoveMoneyOut,
@@ -75,6 +76,7 @@ impl Signal {
             | Self::FamilyImpersonation
             | Self::Model { .. } => 0.5,
             Self::Lookalike(_)
+            | Self::Reported(_)
             | Self::UpfrontFee
             | Self::MoveMoneyOut
             | Self::AccountRental

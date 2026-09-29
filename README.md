@@ -27,11 +27,12 @@ Each reply gives one of four levels: **High risk**, **Suspicious**, **No known r
 
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text is sent to Anthropic's API to classify it; it isn't used for training.
-- `/forget` confirms that nothing linked to you is stored.
+- If you tap "No" on a KHQR check, the bot stores a report against that payment account, linked only to a keyed hash of your Telegram ID. An account is shown as reported only after 3 different people report it.
+- `/forget` deletes every report linked to you.
 
 ## Stack
 
-Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, and Claude Haiku. PostgreSQL, webhooks and Google Web Risk are planned.
+Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, and Claude Haiku. Webhooks and Google Web Risk are planned.
 
 ## License
 

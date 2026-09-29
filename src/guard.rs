@@ -10,6 +10,11 @@ const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
 const MODEL_CALLS_PER_DAY: u32 = 5_000;
 
+pub struct Reply {
+    pub text: String,
+    pub account: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Admission {
     Allowed,
@@ -20,7 +25,7 @@ pub enum Admission {
 pub struct Guard {
     hasher: RandomState,
     checks: Cache<u64, Arc<AtomicU32>>,
-    replies: Cache<u64, Arc<str>>,
+    replies: Cache<u64, Arc<Reply>>,
     model_calls: Cache<u64, Arc<AtomicU32>>,
 }
 
@@ -68,11 +73,11 @@ impl Guard {
         calls.fetch_add(1, Ordering::Relaxed) < MODEL_CALLS_PER_DAY
     }
 
-    pub fn cached(&self, key: u64) -> Option<Arc<str>> {
+    pub fn cached(&self, key: u64) -> Option<Arc<Reply>> {
         self.replies.get(&key)
     }
 
-    pub fn store(&self, key: u64, reply: Arc<str>) {
+    pub fn store(&self, key: u64, reply: Arc<Reply>) {
         self.replies.insert(key, reply);
     }
 }
@@ -106,8 +111,16 @@ mod tests {
         let guard = Guard::new();
         let key = guard.key(("text", "hello"));
         assert!(guard.cached(key).is_none());
-        guard.store(key, Arc::from("reply"));
-        assert_eq!(guard.cached(key).as_deref(), Some("reply"));
+        guard.store(
+            key,
+            Arc::new(Reply {
+                text: "reply".to_owned(),
+                account: Some("sok@abaa".to_owned()),
+            }),
+        );
+        let cached = guard.cached(key).unwrap();
+        assert_eq!(cached.text, "reply");
+        assert_eq!(cached.account.as_deref(), Some("sok@abaa"));
     }
 
     #[test]

@@ -4,7 +4,9 @@ use std::time::Duration;
 use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
-use teloxide::types::{MessageEntityKind, PhotoSize};
+use teloxide::types::{
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntityKind, PhotoSize,
+};
 use url::Url;
 
 use checksen::analyzers::link::{self, LinkChecker};
@@ -13,7 +15,8 @@ use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict;
 
-use crate::guard::{Admission, Guard};
+use crate::guard::{Admission, Guard, Reply};
+use crate::store::{REPORT_THRESHOLD, ReportOutcome, Store};
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
@@ -21,18 +24,39 @@ const MIN_TEXT_CHARS: usize = 20;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
 
 struct Outcome {
-    reply: String,
+    reply: Reply,
     cacheable: bool,
 }
 
 impl Outcome {
     fn of(checks: &[Check]) -> Self {
+        let mut payees = checks.iter().filter_map(|check| match &check.subject {
+            Subject::Khqr(payee) => Some(payee.bakong_account_id.clone()),
+            _ => None,
+        });
+        let account = match (payees.next(), payees.next()) {
+            (Some(account), None) => Some(account),
+            _ => None,
+        };
         Self {
-            reply: verdict::render_km(checks),
+            reply: Reply {
+                text: verdict::render_km(checks),
+                account,
+            },
             cacheable: !checks.iter().any(|check| {
                 check.signals.contains(&Signal::ModelUnavailable)
                     || matches!(check.subject, Subject::Link(_))
             }),
+        }
+    }
+
+    fn text(text: impl Into<String>, cacheable: bool) -> Self {
+        Self {
+            reply: Reply {
+                text: text.into(),
+                account: None,
+            },
+            cacheable,
         }
     }
 }
@@ -43,9 +67,20 @@ pub async fn handle(
     links: Arc<LinkChecker>,
     classifier: Option<Arc<AnthropicClassifier>>,
     guard: Arc<Guard>,
+    store: Option<Arc<Store>>,
 ) -> ResponseResult<()> {
     if msg.text().is_some_and(|text| text.starts_with("/forget")) {
-        bot.send_message(msg.chat.id, verdict::FORGET_KM).await?;
+        let reply = match (&store, &msg.from) {
+            (Some(store), Some(user)) => match store.forget(user.id.0).await {
+                Ok(removed) => verdict::forgotten_km(removed),
+                Err(error) => {
+                    tracing::warn!(%error, "forget failed");
+                    verdict::REPORT_FAILED_KM.to_owned()
+                }
+            },
+            _ => verdict::FORGET_KM.to_owned(),
+        };
+        bot.send_message(msg.chat.id, reply).await?;
         return Ok(());
     }
     let Some(key) = cache_key(&guard, &msg) else {
@@ -70,8 +105,16 @@ pub async fn handle(
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let outcome = check(&bot, &msg, &links, classifier.as_deref(), &guard).await;
-            let reply: Arc<str> = Arc::from(outcome.reply);
+            let outcome = check(
+                &bot,
+                &msg,
+                &links,
+                classifier.as_deref(),
+                &guard,
+                store.as_deref(),
+            )
+            .await;
+            let reply = Arc::new(outcome.reply);
             if outcome.cacheable {
                 guard.store(key, reply.clone());
             }
@@ -79,8 +122,81 @@ pub async fn handle(
         }
     };
 
-    bot.send_message(msg.chat.id, reply.as_ref()).await?;
+    let keyboard = store
+        .as_deref()
+        .zip(reply.account.as_deref())
+        .and_then(|(store, account)| {
+            let yes = store.callback_data(true, account)?;
+            let no = store.callback_data(false, account)?;
+            Some(InlineKeyboardMarkup::new([[
+                InlineKeyboardButton::callback(verdict::INTENDED_BUTTON_KM, yes),
+                InlineKeyboardButton::callback(verdict::NOT_INTENDED_BUTTON_KM, no),
+            ]]))
+        });
+    let request = bot.send_message(msg.chat.id, reply.text.as_str());
+    match keyboard {
+        Some(keyboard) => request.reply_markup(keyboard).await?,
+        None => request.await?,
+    };
     Ok(())
+}
+
+pub async fn handle_callback(
+    bot: Bot,
+    query: CallbackQuery,
+    store: Option<Arc<Store>>,
+) -> ResponseResult<()> {
+    bot.answer_callback_query(query.id.clone()).await?;
+    let (Some(store), Some(message)) = (store, query.regular_message()) else {
+        return Ok(());
+    };
+    let Some((intended, account)) = query
+        .data
+        .as_deref()
+        .and_then(|data| store.verify_callback(data))
+    else {
+        return Ok(());
+    };
+    if let Err(error) = bot
+        .edit_message_reply_markup(message.chat.id, message.id)
+        .await
+    {
+        tracing::warn!(%error, "could not remove report buttons");
+    }
+
+    let reply = if intended {
+        verdict::INTENDED_KM
+    } else {
+        match store.report(&account, query.from.id.0).await {
+            Ok(ReportOutcome::Recorded | ReportOutcome::AlreadyReported) => verdict::REPORTED_KM,
+            Ok(ReportOutcome::DailyLimit) => verdict::REPORT_LIMIT_KM,
+            Err(error) => {
+                tracing::warn!(%error, "report failed");
+                verdict::REPORT_FAILED_KM
+            }
+        }
+    };
+    bot.send_message(message.chat.id, reply).await?;
+    Ok(())
+}
+
+async fn with_reports(mut checks: Vec<Check>, store: Option<&Store>) -> Vec<Check> {
+    let Some(store) = store else {
+        return checks;
+    };
+    for check in &mut checks {
+        let Subject::Khqr(payee) = &check.subject else {
+            continue;
+        };
+        match store.reporters(&payee.bakong_account_id).await {
+            Ok(reporters) if reporters >= REPORT_THRESHOLD => {
+                check.signals.push(Signal::Reported(reporters as u32));
+            }
+            Ok(_) => {}
+            Err(error) => tracing::warn!(%error, "report lookup failed"),
+        }
+    }
+    checks
 }
 
 fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
@@ -112,21 +228,19 @@ async fn check(
     links: &LinkChecker,
     classifier: Option<&AnthropicClassifier>,
     guard: &Guard,
+    store: Option<&Store>,
 ) -> Outcome {
     if let Some(photo) = largest_photo(msg) {
         return match check_photo(bot, photo, links).await {
-            Ok(checks) => Outcome::of(&checks),
+            Ok(checks) => Outcome::of(&with_reports(checks, store).await),
             Err(error) => {
                 tracing::warn!(%error, "photo check failed");
-                Outcome {
-                    reply: verdict::render_km(&[]),
-                    cacheable: false,
-                }
+                Outcome::text(verdict::render_km(&[]), false)
             }
         };
     }
     if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
-        return Outcome::of(&[khqr::check(payload)]);
+        return Outcome::of(&with_reports(vec![khqr::check(payload)], store).await);
     }
     if let Some(message) = msg.text() {
         return check_text(msg, message, links, classifier, guard).await;
@@ -150,10 +264,7 @@ async fn check_text(
     let text_check = text::check(message);
     if text_check.signals.is_empty() && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS
     {
-        return Outcome {
-            reply: verdict::HELP_KM.to_owned(),
-            cacheable: true,
-        };
+        return Outcome::text(verdict::HELP_KM, true);
     }
 
     let show_text = urls.is_empty();
