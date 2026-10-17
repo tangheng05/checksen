@@ -45,6 +45,10 @@ pub enum Signal {
     PrizeBait,
     InvestmentBait,
     TelegramTakeover,
+    DonationRequest,
+    Extortion,
+    PaymentRedirect,
+    RecruitmentBait,
     MalwareFile,
     Urgency,
     Model { category: ScamCategory, cited: bool },
@@ -68,12 +72,15 @@ impl Signal {
             | Self::LoanBait
             | Self::JobBait
             | Self::PrizeBait
-            | Self::InvestmentBait => 0.4,
+            | Self::InvestmentBait
+            | Self::DonationRequest
+            | Self::RecruitmentBait => 0.4,
             Self::Malformed
             | Self::Expired
             | Self::NewDomain
             | Self::AuthorityThreat
             | Self::FamilyImpersonation
+            | Self::PaymentRedirect
             | Self::Model { .. } => 0.5,
             Self::Lookalike(_)
             | Self::Reported(_)
@@ -81,13 +88,14 @@ impl Signal {
             | Self::MoveMoneyOut
             | Self::AccountRental
             | Self::TelegramTakeover
+            | Self::Extortion
             | Self::MalwareFile => 0.6,
             Self::ChecksumInvalid | Self::DuplicateTag | Self::OtpRequest => 1.0,
         }
     }
 }
 
-const TEXT_RULE_SIGNALS: [(Signal, &str); 14] = [
+const TEXT_RULE_SIGNALS: [(Signal, &str); 18] = [
     (Signal::OtpRequest, "otp_request"),
     (Signal::UpfrontFee, "upfront_fee"),
     (Signal::MoveMoneyOut, "move_money_out"),
@@ -100,6 +108,10 @@ const TEXT_RULE_SIGNALS: [(Signal, &str); 14] = [
     (Signal::PrizeBait, "prize_bait"),
     (Signal::InvestmentBait, "investment_bait"),
     (Signal::TelegramTakeover, "telegram_takeover"),
+    (Signal::DonationRequest, "donation_request"),
+    (Signal::Extortion, "extortion"),
+    (Signal::PaymentRedirect, "payment_redirect"),
+    (Signal::RecruitmentBait, "recruitment_bait"),
     (Signal::MalwareFile, "malware_file"),
     (Signal::Urgency, "urgency"),
 ];
