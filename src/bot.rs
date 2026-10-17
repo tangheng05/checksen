@@ -8,7 +8,7 @@ use teloxide::types::{MessageEntityKind, PhotoSize};
 use url::Url;
 
 use checksen::analyzers::link::{self, LinkChecker};
-use checksen::analyzers::llm::{self, anthropic::AnthropicClassifier};
+use checksen::analyzers::llm::{self, Classifier};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict;
@@ -64,7 +64,7 @@ pub async fn handle(
     bot: Bot,
     msg: Message,
     links: Arc<LinkChecker>,
-    classifier: Option<Arc<AnthropicClassifier>>,
+    classifier: Option<Arc<dyn Classifier>>,
     guard: Arc<Guard>,
     store: Option<Arc<Store>>,
 ) -> ResponseResult<()> {
@@ -148,7 +148,7 @@ async fn check(
     bot: &Bot,
     msg: &Message,
     links: &LinkChecker,
-    classifier: Option<&AnthropicClassifier>,
+    classifier: Option<&dyn Classifier>,
     guard: &Guard,
     store: Option<&Store>,
 ) -> Outcome {
@@ -179,7 +179,7 @@ async fn check_text(
     msg: &Message,
     message: &str,
     links: &LinkChecker,
-    classifier: Option<&AnthropicClassifier>,
+    classifier: Option<&dyn Classifier>,
     guard: &Guard,
 ) -> Outcome {
     let urls = urls_in(msg);

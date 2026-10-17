@@ -9,7 +9,9 @@ use std::time::Duration;
 use anyhow::Context;
 
 use checksen::analyzers::link::LinkChecker;
+use checksen::analyzers::llm::Classifier;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
+use checksen::analyzers::llm::gemini::GeminiClassifier;
 use checksen::env_var;
 use teloxide::prelude::*;
 
@@ -20,10 +22,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("starting CheckSen");
 
     let links = Arc::new(LinkChecker::new()?);
-    let classifier = AnthropicClassifier::from_env(Duration::from_secs(3), 2)?.map(Arc::new);
-    if classifier.is_none() {
-        tracing::warn!("ANTHROPIC_API_KEY is not set; text checks use rules only");
-    }
+    let classifier = classifier()?;
     let store = match env_var("DATABASE_URL") {
         Some(url) => {
             let secret = env_var("HASH_SECRET").context(
@@ -54,4 +53,20 @@ async fn main() -> anyhow::Result<()> {
     .dispatch()
     .await;
     Ok(())
+}
+
+fn classifier() -> anyhow::Result<Option<Arc<dyn Classifier>>> {
+    let timeout = Duration::from_secs(3);
+    if let Some(classifier) = AnthropicClassifier::from_env(timeout, 2)? {
+        tracing::info!("text checks use Anthropic");
+        return Ok(Some(Arc::new(classifier)));
+    }
+    if let Some(classifier) = GeminiClassifier::from_env(timeout, 2)? {
+        tracing::info!("text checks use Gemini");
+        return Ok(Some(Arc::new(classifier)));
+    }
+    tracing::warn!(
+        "neither ANTHROPIC_API_KEY nor GEMINI_API_KEY is set; text checks use rules only"
+    );
+    Ok(None)
 }

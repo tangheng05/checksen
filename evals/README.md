@@ -5,6 +5,8 @@
 - **v0**: 100 messages written before the first rules, by the same author. Its scores are optimistic.
 - **v1**: 87 messages from published 2023–2026 Cambodian sources (bank and regulator warnings, news, real bank promotions and alerts); each row's `source` links to where it was published. 47 are verbatim, the rest reconstructed from published descriptions; the eval scores the two separately. Treat v1 as the real-world number. After an intended improvement, run `cargo run --bin eval -- --update-baseline` and commit both files.
 
+CI scores the rules alone. Before changing the classifier prompt or model, also run `cargo run --bin eval -- --llm gemini` (free tier; needs `GEMINI_API_KEY`) and commit its `rules-v<N>+gemini-v1.json`.
+
 Each line of `data/v0.jsonl` is one message:
 
 | Field | Values |

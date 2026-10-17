@@ -14,7 +14,7 @@ use crate::env_var;
 
 const DEFAULT_MODEL: &str = "gemini-3.8-flash";
 
-// Gemini's free tier trains on and lets humans review what it is sent; only public benchmark data may go here.
+// Gemini's free tier trains on and lets humans review what it is sent; /help and the README disclose this.
 pub struct GeminiClassifier {
     http: Client,
     api_key: String,
@@ -55,6 +55,7 @@ impl Classifier for GeminiClassifier {
                 "responseSchema": self.schema,
                 "temperature": 0,
                 "maxOutputTokens": 2048,
+                "thinkingConfig": {"thinkingLevel": "low"},
             },
         });
         Box::pin(send_with_retry(
