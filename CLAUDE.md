@@ -41,7 +41,7 @@ CI runs, in order: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnin
 
 ## Evals
 
-Datasets are in `evals/data/` (see `evals/README.md`). v1 is the real-world number, while v0 was written by the rules' author and is optimistic. Never tune rules on rows with `split: test`. The regression gate compares recall and false positive rate per dataset against `evals/baseline.json`.
+Datasets are in `evals/data/` (see `evals/README.md`). v1 is the real-world English-heavy number and v2 the real-world Khmer number; v0 was written by the rules' author and is optimistic. Never tune rules on rows with `split: test`. The regression gate compares recall and false positive rate per dataset against `evals/baseline.json`.
 
 ## Privacy constraints
 

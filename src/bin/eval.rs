@@ -14,7 +14,7 @@ use checksen::verdict::{Level, decide};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-const DATASETS: [&str; 2] = ["v0", "v1"];
+const DATASETS: [&str; 3] = ["v0", "v1", "v2"];
 const BASELINE: &str = "evals/baseline.json";
 
 #[derive(Deserialize)]
@@ -119,7 +119,9 @@ async fn run_with_model(root: &Path, provider: &str) -> anyhow::Result<()> {
         }
         _ => bail!("usage: eval --llm gemini|claude"),
     };
-    evaluate(root, "v1", Some((provider, classifier.as_ref()))).await?;
+    for name in ["v1", "v2"] {
+        evaluate(root, name, Some((provider, classifier.as_ref()))).await?;
+    }
     Ok(())
 }
 
