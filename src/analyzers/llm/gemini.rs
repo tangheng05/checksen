@@ -1,20 +1,23 @@
 use std::time::Duration;
 
 use anyhow::{Context, ensure};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use futures::future::BoxFuture;
 use reqwest::Client;
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{
-    Classification, Classifier, OUTPUT_FIELDS, SYSTEM_PROMPT, output_schema, parse_classification,
-    send_with_retry, user_prompt,
+    Classification, Classifier, OUTPUT_FIELDS, SYSTEM_PROMPT, TRANSCRIBE_PROMPT, Transcriber,
+    output_schema, parse_classification, send_with_retry, user_prompt,
 };
 use crate::analyzers::Signal;
 use crate::env_var;
 
 const DEFAULT_MODEL: &str = "gemini-3.8-flash";
 
-// Gemini's free tier trains on and lets humans review what it is sent; /help and the README disclose this.
+// Gemini's free tier trains on and lets humans review the text and screenshots it is sent; /help and the README disclose this.
 pub struct GeminiClassifier {
     http: Client,
     api_key: String,
@@ -71,6 +74,42 @@ impl Classifier for GeminiClassifier {
     }
 }
 
+impl Transcriber for GeminiClassifier {
+    fn transcribe<'a>(&'a self, jpeg: &'a [u8]) -> BoxFuture<'a, anyhow::Result<Option<String>>> {
+        let body = json!({
+            "systemInstruction": {"parts": [{"text": TRANSCRIBE_PROMPT}]},
+            "contents": [{"role": "user", "parts": [
+                {"inlineData": {"mimeType": "image/jpeg", "data": STANDARD.encode(jpeg)}},
+            ]}],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "responseSchema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "is_message": {"type": "BOOLEAN"},
+                        "text": {"type": "STRING"},
+                    },
+                    "required": ["is_message", "text"],
+                    "propertyOrdering": ["is_message", "text"],
+                },
+                "temperature": 0,
+                "maxOutputTokens": 4096,
+                "thinkingConfig": {"thinkingLevel": "low"},
+            },
+        });
+        Box::pin(send_with_retry(
+            self.attempts,
+            move || {
+                self.http
+                    .post(&self.endpoint)
+                    .header("x-goog-api-key", &self.api_key)
+                    .json(&body)
+            },
+            parse_transcript,
+        ))
+    }
+}
+
 fn schema() -> Value {
     let mut schema = output_schema("OBJECT", "STRING", "ARRAY");
     schema["propertyOrdering"] = json!(OUTPUT_FIELDS);
@@ -78,6 +117,21 @@ fn schema() -> Value {
 }
 
 fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
+    parse_classification(&response_text(body)?)
+}
+
+#[derive(Deserialize)]
+struct Transcript {
+    is_message: bool,
+    text: String,
+}
+
+fn parse_transcript(body: &[u8]) -> anyhow::Result<Option<String>> {
+    let transcript: Transcript = serde_json::from_str(&response_text(body)?)?;
+    Ok(transcript.is_message.then_some(transcript.text))
+}
+
+fn response_text(body: &[u8]) -> anyhow::Result<String> {
     let response: Value = serde_json::from_slice(body)?;
     let candidate = &response["candidates"][0];
     let finish_reason = candidate["finishReason"].as_str();
@@ -92,7 +146,7 @@ fn parse_response(body: &[u8]) -> anyhow::Result<Classification> {
         .filter(|part| part["thought"] != true)
         .filter_map(|part| part["text"].as_str())
         .collect();
-    parse_classification(&text)
+    Ok(text)
 }
 
 #[cfg(test)]
@@ -105,6 +159,19 @@ mod tests {
         let body = br#"{"candidates":[{"finishReason":"STOP","content":{"parts":[
             {"text":"{\"category\":\"none\",\"confidence\":\"high\",\"cited_signals\":[]}"}]}}]}"#;
         assert_eq!(parse_response(body).unwrap().category, ScamCategory::None);
+    }
+
+    #[test]
+    fn parses_a_transcript() {
+        let message = br#"{"candidates":[{"finishReason":"STOP","content":{"parts":[
+            {"text":"{\"is_message\":true,\"text\":\"Your account is locked\"}"}]}}]}"#;
+        assert_eq!(
+            parse_transcript(message).unwrap().as_deref(),
+            Some("Your account is locked")
+        );
+        let photo = br#"{"candidates":[{"finishReason":"STOP","content":{"parts":[
+            {"text":"{\"is_message\":false,\"text\":\"\"}"}]}}]}"#;
+        assert!(parse_transcript(photo).unwrap().is_none());
     }
 
     #[test]

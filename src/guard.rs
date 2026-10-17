@@ -9,10 +9,26 @@ const CHECKS_PER_WINDOW: u32 = 30;
 const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
 const MODEL_CALLS_PER_DAY: u32 = 5_000;
+const SCREENSHOT_CALLS_PER_DAY: u32 = 1_000;
 
 pub struct Reply {
     pub text: String,
     pub account: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ModelCall {
+    Text,
+    Screenshot,
+}
+
+impl ModelCall {
+    fn daily_limit(self) -> u32 {
+        match self {
+            Self::Text => MODEL_CALLS_PER_DAY,
+            Self::Screenshot => SCREENSHOT_CALLS_PER_DAY,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -26,7 +42,7 @@ pub struct Guard {
     hasher: RandomState,
     checks: Cache<u64, Arc<AtomicU32>>,
     replies: Cache<u64, Arc<Reply>>,
-    model_calls: Cache<u64, Arc<AtomicU32>>,
+    model_calls: Cache<(ModelCall, u64), Arc<AtomicU32>>,
 }
 
 impl Guard {
@@ -42,7 +58,7 @@ impl Guard {
                 .time_to_live(REPLY_TTL)
                 .build(),
             model_calls: Cache::builder()
-                .max_capacity(4)
+                .max_capacity(8)
                 .time_to_live(Duration::from_secs(25 * 60 * 60))
                 .build(),
         }
@@ -63,14 +79,14 @@ impl Guard {
         }
     }
 
-    pub fn allow_model_call(&self) -> bool {
+    pub fn allow_model_call(&self, call: ModelCall) -> bool {
         let day = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_secs() / 86_400);
         let calls = self
             .model_calls
-            .get_with(day, || Arc::new(AtomicU32::new(0)));
-        calls.fetch_add(1, Ordering::Relaxed) < MODEL_CALLS_PER_DAY
+            .get_with((call, day), || Arc::new(AtomicU32::new(0)));
+        calls.fetch_add(1, Ordering::Relaxed) < call.daily_limit()
     }
 
     pub fn cached(&self, key: u64) -> Option<Arc<Reply>> {
@@ -101,9 +117,19 @@ mod tests {
     fn model_calls_stop_at_the_daily_cap() {
         let guard = Guard::new();
         for _ in 0..MODEL_CALLS_PER_DAY {
-            assert!(guard.allow_model_call());
+            assert!(guard.allow_model_call(ModelCall::Text));
         }
-        assert!(!guard.allow_model_call());
+        assert!(!guard.allow_model_call(ModelCall::Text));
+    }
+
+    #[test]
+    fn screenshot_cap_is_separate_from_the_text_cap() {
+        let guard = Guard::new();
+        for _ in 0..SCREENSHOT_CALLS_PER_DAY {
+            assert!(guard.allow_model_call(ModelCall::Screenshot));
+        }
+        assert!(!guard.allow_model_call(ModelCall::Screenshot));
+        assert!(guard.allow_model_call(ModelCall::Text));
     }
 
     #[test]

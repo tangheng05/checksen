@@ -9,9 +9,9 @@ use std::time::Duration;
 use anyhow::Context;
 
 use checksen::analyzers::link::LinkChecker;
-use checksen::analyzers::llm::Classifier;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
 use checksen::analyzers::llm::gemini::GeminiClassifier;
+use checksen::analyzers::llm::{Classifier, Transcriber};
 use checksen::env_var;
 use teloxide::prelude::*;
 
@@ -23,6 +23,11 @@ async fn main() -> anyhow::Result<()> {
 
     let links = Arc::new(LinkChecker::new()?);
     let classifier = classifier()?;
+    let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 1)?
+        .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>);
+    if transcriber.is_none() {
+        tracing::warn!("GEMINI_API_KEY is not set; photos are checked for QR codes only");
+    }
     let store = match env_var("DATABASE_URL") {
         Some(url) => {
             let secret = env_var("HASH_SECRET").context(
@@ -45,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
     .dependencies(dptree::deps![
         links,
         classifier,
+        transcriber,
         Arc::new(guard::Guard::new()),
         store
     ])

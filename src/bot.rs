@@ -8,12 +8,12 @@ use teloxide::types::{MessageEntityKind, PhotoSize};
 use url::Url;
 
 use checksen::analyzers::link::{self, LinkChecker};
-use checksen::analyzers::llm::{self, Classifier};
+use checksen::analyzers::llm::{self, Classifier, Transcriber};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict;
 
-use crate::guard::{Admission, Guard, Reply};
+use crate::guard::{Admission, Guard, ModelCall, Reply};
 use crate::reports;
 use crate::store::Store;
 
@@ -21,6 +21,7 @@ const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
+const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(10);
 
 struct Outcome {
     reply: Reply,
@@ -65,6 +66,7 @@ pub async fn handle(
     msg: Message,
     links: Arc<LinkChecker>,
     classifier: Option<Arc<dyn Classifier>>,
+    transcriber: Option<Arc<dyn Transcriber>>,
     guard: Arc<Guard>,
     store: Option<Arc<Store>>,
 ) -> ResponseResult<()> {
@@ -100,6 +102,7 @@ pub async fn handle(
                 &msg,
                 &links,
                 classifier.as_deref(),
+                transcriber.as_deref(),
                 &guard,
                 store.as_deref(),
             )
@@ -149,17 +152,19 @@ async fn check(
     msg: &Message,
     links: &LinkChecker,
     classifier: Option<&dyn Classifier>,
+    transcriber: Option<&dyn Transcriber>,
     guard: &Guard,
     store: Option<&Store>,
 ) -> Outcome {
     if let Some(photo) = largest_photo(msg) {
-        return match check_photo(bot, photo, links).await {
-            Ok(checks) => Outcome::of(&reports::with_reports(checks, store).await),
+        let image = match download_photo(bot, photo).await {
+            Ok(image) => image,
             Err(error) => {
-                tracing::warn!(%error, "photo check failed");
-                Outcome::text(verdict::render_km(&[]), false)
+                tracing::warn!(%error, "photo download failed");
+                return Outcome::text(verdict::render_km(&[]), false);
             }
         };
+        return check_photo(image, links, classifier, transcriber, guard, store).await;
     }
     if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         return Outcome::of(&reports::with_reports(vec![khqr::check(payload)], store).await);
@@ -190,22 +195,8 @@ async fn check_text(
     }
 
     let show_text = urls.is_empty();
-    let classified = async {
-        match classifier {
-            Some(classifier) if guard.allow_model_call() => {
-                llm::classify(text_check, message, classifier, CLASSIFIER_BUDGET).await
-            }
-            Some(_) => {
-                tracing::warn!("daily classifier budget used up");
-                let mut text_check = text_check;
-                text_check.signals.push(Signal::ModelUnavailable);
-                text_check
-            }
-            None => text_check,
-        }
-    };
     let (text_check, link_checks) = tokio::join!(
-        classified,
+        classify_text(text_check, message, classifier, guard),
         join_all(urls.into_iter().map(|url| links.check(url)))
     );
 
@@ -217,24 +208,82 @@ async fn check_text(
     Outcome::of(&checks)
 }
 
-async fn check_photo(
-    bot: &Bot,
-    photo: &PhotoSize,
-    links: &LinkChecker,
-) -> anyhow::Result<Vec<Check>> {
-    anyhow::ensure!(photo.file.size <= MAX_PHOTO_BYTES, "photo too large");
+async fn classify_text(
+    mut text_check: Check,
+    message: &str,
+    classifier: Option<&dyn Classifier>,
+    guard: &Guard,
+) -> Check {
+    match classifier {
+        Some(classifier) if guard.allow_model_call(ModelCall::Text) => {
+            llm::classify(text_check, message, classifier, CLASSIFIER_BUDGET).await
+        }
+        Some(_) => {
+            tracing::warn!("daily classifier budget used up");
+            text_check.signals.push(Signal::ModelUnavailable);
+            text_check
+        }
+        None => text_check,
+    }
+}
 
+async fn download_photo(bot: &Bot, photo: &PhotoSize) -> anyhow::Result<Vec<u8>> {
+    anyhow::ensure!(photo.file.size <= MAX_PHOTO_BYTES, "photo too large");
     let file = bot.get_file(photo.file.id.clone()).await?;
     let mut bytes = Vec::new();
     bot.download_file(&file.path, &mut bytes).await?;
+    Ok(bytes)
+}
 
-    let payloads = tokio::task::spawn_blocking(move || khqr::payloads_from_image(&bytes)).await?;
-    Ok(join_all(
-        payloads
-            .iter()
-            .map(|payload| analyzers::check_qr_payload(payload, links)),
-    )
-    .await)
+async fn check_photo(
+    image: Vec<u8>,
+    links: &LinkChecker,
+    classifier: Option<&dyn Classifier>,
+    transcriber: Option<&dyn Transcriber>,
+    guard: &Guard,
+    store: Option<&Store>,
+) -> Outcome {
+    let decoded = tokio::task::spawn_blocking(move || {
+        let payloads = khqr::payloads_from_image(&image);
+        (image, payloads)
+    })
+    .await;
+    let (image, payloads) = match decoded {
+        Ok(decoded) => decoded,
+        Err(error) => {
+            tracing::warn!(%error, "QR decoding failed");
+            return Outcome::text(verdict::render_km(&[]), false);
+        }
+    };
+    if !payloads.is_empty() {
+        let checks = join_all(
+            payloads
+                .iter()
+                .map(|payload| analyzers::check_qr_payload(payload, links)),
+        )
+        .await;
+        return Outcome::of(&reports::with_reports(checks, store).await);
+    }
+
+    let Some(transcriber) = transcriber else {
+        return Outcome::of(&[]);
+    };
+    if !guard.allow_model_call(ModelCall::Screenshot) {
+        tracing::warn!("daily screenshot budget used up");
+        return Outcome::text(verdict::render_km(&[]), false);
+    }
+    match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
+        Ok(Some(transcript)) => {
+            let check =
+                classify_text(text::check(&transcript), &transcript, classifier, guard).await;
+            Outcome::of(&[check])
+        }
+        Ok(None) => Outcome::of(&[]),
+        Err(error) => {
+            tracing::warn!(%error, "screenshot transcription failed");
+            Outcome::text(verdict::render_km(&[]), false)
+        }
+    }
 }
 
 fn urls_in(msg: &Message) -> Vec<Url> {
