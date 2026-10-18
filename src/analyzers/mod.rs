@@ -52,6 +52,7 @@ pub enum Signal {
     PaymentRedirect,
     RecruitmentBait,
     MalwareFile,
+    GamblingBait,
     Urgency,
     BrandClaim(&'static str),
     PasswordPage,
@@ -79,7 +80,8 @@ impl Signal {
             | Self::PrizeBait
             | Self::InvestmentBait
             | Self::DonationRequest
-            | Self::RecruitmentBait => 0.4,
+            | Self::RecruitmentBait
+            | Self::GamblingBait => 0.4,
             Self::Malformed
             | Self::Expired
             | Self::NewDomain
@@ -101,7 +103,7 @@ impl Signal {
     }
 }
 
-const TEXT_RULE_SIGNALS: [(Signal, &str); 18] = [
+const TEXT_RULE_SIGNALS: [(Signal, &str); 19] = [
     (Signal::OtpRequest, "otp_request"),
     (Signal::UpfrontFee, "upfront_fee"),
     (Signal::MoveMoneyOut, "move_money_out"),
@@ -119,6 +121,7 @@ const TEXT_RULE_SIGNALS: [(Signal, &str); 18] = [
     (Signal::PaymentRedirect, "payment_redirect"),
     (Signal::RecruitmentBait, "recruitment_bait"),
     (Signal::MalwareFile, "malware_file"),
+    (Signal::GamblingBait, "gambling_bait"),
     (Signal::Urgency, "urgency"),
 ];
 

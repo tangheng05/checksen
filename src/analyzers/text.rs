@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 4;
+pub const RULES_VERSION: u32 = 5;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -230,6 +230,16 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             Some(NEWS_OR_WARNING),
         ),
         Rule::new(
+            Signal::GamblingBait,
+            &[
+                r"កាស៊ីណូ|បាការ៉ា|ស្លុត|ភ្នាល់|ល្បែងអនឡាញ|ល្បែងស៊ីសងអនឡាញ|ជល់មាន់|\b(?:casino|baccarat|sportsbook|betting|bet now|roulette|poker|slot (?:games?|machines?)|scratch (?:cards?|and win))\b",
+                r"បូណូស|ដាក់(?:លុយ|ប្រាក់)|ដក(?:លុយ|ប្រាក់)|ចុះឈ្មោះ|ចូលលេង|ឈ្នះ|\b(?:bonus|deposit|withdraw|free credit|register|sign ?up|play now|join|win)\b|\d+\s?%",
+            ],
+            Some(&format!(
+                "{NEWS_OR_WARNING}|មិនត្រូវ|ហាមឃាត់|ខុសច្បាប់|\\billegal\\b"
+            )),
+        ),
+        Rule::new(
             Signal::MalwareFile,
             &[r"\.(?:apk|exe|scr|bat|vbs|ps1|msi|cmd)\b"],
             None,
@@ -445,6 +455,14 @@ mod tests {
                 "Hiring typing and chatting staff in Sihanoukville, high salary",
             ),
             (Signal::TelegramTakeover, "Get your free Premium gift now"),
+            (
+                Signal::GamblingBait,
+                "កាស៊ីណូអនឡាញ បូណូស 100% សម្រាប់ការដាក់លុយលើកដំបូង ចុះឈ្មោះឥឡូវ",
+            ),
+            (
+                Signal::GamblingBait,
+                "Online casino and sportsbook, 200% welcome bonus, play now",
+            ),
             (
                 Signal::AccountThreat,
                 "Tap the link to verify your ABA account",
