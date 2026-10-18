@@ -1,5 +1,5 @@
 // Replies are the bot's real output for these messages (rules only), generated from src/verdict.rs.
-const ADVICE_KM = "⚠️ មុនពេលបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។";
+const ADVICE_KM = "⚠️ មុនពេលបង់ប្រាក់៖ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។";
 const ADVICE_EN = "⚠️ Before paying, always check the recipient's name and the amount in your bank app.";
 
 const SAMPLES = {
@@ -10,8 +10,8 @@ const SAMPLES = {
     label: "🔴 ហានិភ័យខ្ពស់",
     labelEn: "🔴 High risk",
     reasons: [
-      "សារនេះសុំលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនពិតៗ មិនដែលសុំលេខទាំងនេះទេ។ កុំប្រាប់នរណាម្នាក់ឡើយ។",
-      "សារនេះប្រញាប់ឱ្យអ្នកធ្វើភ្លាមៗ។",
+      "សារនេះមានការទាមទារលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ ដាច់ខាតមិនដែលសុំលេខទាំងនេះឡើយ។ សូមកុំប្រាប់ព័ត៌មាននេះទៅនរណាម្នាក់ឱ្យសោះ!",
+      "សារនេះមានចេតនាបង្ខំឱ្យអ្នកប្រញាប់ធ្វើសកម្មភាពភ្លាមៗ។",
     ],
     reasonsEn: [
       "This message asks for an OTP code or password. Real banks and companies never ask for these. Don't tell anyone.",
