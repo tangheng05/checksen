@@ -20,7 +20,8 @@ use crate::store::Store;
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
-const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
+const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
+const SCREENSHOT_CLASSIFIER_BUDGET: Duration = Duration::from_secs(10);
 const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
 
 struct Outcome {
@@ -196,7 +197,7 @@ async fn check_text(
 
     let show_text = urls.is_empty();
     let (text_check, link_checks) = tokio::join!(
-        classify_text(text_check, message, classifier, guard),
+        classify_text(text_check, message, classifier, guard, CLASSIFIER_BUDGET),
         join_all(urls.into_iter().map(|url| links.check(url)))
     );
 
@@ -213,10 +214,11 @@ async fn classify_text(
     message: &str,
     classifier: Option<&dyn Classifier>,
     guard: &Guard,
+    budget: Duration,
 ) -> Check {
     match classifier {
         Some(classifier) if guard.allow_model_call(ModelCall::Text) => {
-            llm::classify(text_check, message, classifier, CLASSIFIER_BUDGET).await
+            llm::classify(text_check, message, classifier, budget).await
         }
         Some(_) => {
             tracing::warn!("daily classifier budget used up");
@@ -274,8 +276,14 @@ async fn check_photo(
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
-            let check =
-                classify_text(text::check(&transcript), &transcript, classifier, guard).await;
+            let check = classify_text(
+                text::check(&transcript),
+                &transcript,
+                classifier,
+                guard,
+                SCREENSHOT_CLASSIFIER_BUDGET,
+            )
+            .await;
             Outcome::of(&[check])
         }
         Ok(None) => Outcome::of(&[]),

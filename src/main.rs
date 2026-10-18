@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn classifier() -> anyhow::Result<Option<Arc<dyn Classifier>>> {
-    let timeout = Duration::from_secs(3);
+    let timeout = Duration::from_secs(10);
     if let Some(classifier) = AnthropicClassifier::from_env(timeout, 2)? {
         tracing::info!("text checks use Anthropic");
         return Ok(Some(Arc::new(classifier)));
