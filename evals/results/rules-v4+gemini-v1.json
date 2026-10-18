@@ -1,10 +1,10 @@
 {
   "all": {
-    "caught": 40,
+    "caught": 43,
     "false_alarms": 3,
     "false_positive_rate": 0.07317073170731707,
     "legit": 41,
-    "recall": 0.8695652173913043,
+    "recall": 0.9347826086956522,
     "scams": 46
   },
   "categories": {
@@ -169,11 +169,11 @@
       "scams": 1
     },
     "prize": {
-      "caught": 3,
+      "caught": 6,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.42857142857142855,
+      "recall": 0.8571428571428571,
       "scams": 7
     },
     "recruitment": {
@@ -209,48 +209,45 @@
     "v1-legit-promo-13"
   ],
   "missed": [
-    "v1-scam-prize-02",
-    "v1-scam-prize-03",
-    "v1-scam-prize-04",
     "v1-scam-prize-05",
     "v1-scam-recruitment-04",
     "v1-scam-shop-01"
   ],
-  "model_errors": 8,
+  "model_errors": 0,
   "rules_version": 4,
   "splits": {
     "dev": {
-      "caught": 32,
+      "caught": 34,
       "false_alarms": 2,
       "false_positive_rate": 0.06060606060606061,
       "legit": 33,
-      "recall": 0.8648648648648649,
+      "recall": 0.918918918918919,
       "scams": 37
     },
     "test": {
-      "caught": 8,
+      "caught": 9,
       "false_alarms": 1,
       "false_positive_rate": 0.125,
       "legit": 8,
-      "recall": 0.8888888888888888,
+      "recall": 1.0,
       "scams": 9
     }
   },
   "strata": {
     "reconstructed": {
-      "caught": 29,
+      "caught": 30,
       "false_alarms": 1,
       "false_positive_rate": 0.1,
       "legit": 10,
-      "recall": 0.9666666666666667,
+      "recall": 1.0,
       "scams": 30
     },
     "verbatim": {
-      "caught": 11,
+      "caught": 13,
       "false_alarms": 2,
       "false_positive_rate": 0.06451612903225806,
       "legit": 31,
-      "recall": 0.6875,
+      "recall": 0.8125,
       "scams": 16
     }
   },
