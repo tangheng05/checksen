@@ -23,7 +23,7 @@
 | A link | Who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police, scam-compound job ads, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
-| A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs inside `.zip` files, bank-named `.apk` apps, and, when set up, a ClamAV scan and a VirusTotal lookup |
+| A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages, and, when set up, a ClamAV scan and a VirusTotal lookup. A photo or KHQR screenshot sent as a file gets the same check as a photo |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
 
 Each reply gives one of four levels:
@@ -57,10 +57,11 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 - **Fixed rules come first:** QR parsing and checksum validation (via [khqr-rs](https://github.com/tangheng05/khqr-rs)), domain age and lookalike checks, and Khmer and English scam-wording rules.
 - **A language model handles what the rules can't decide.** By default this is Google Gemini's free tier. It returns only a category and what the person seems to want (to check a message, ask a question, or get help after being scammed), so every reply is fixed, reviewed Khmer or English text. It can't raise a verdict to High risk without a rule signal it can point to, and low-confidence answers are dropped.
 - **Screenshots:** QR codes in a photo are decoded first. Otherwise Gemini reads the text in the screenshot, and that text goes through the same rules.
+- **Files:** the bot reads a file's first bytes to learn what it really is, whatever its name says, and lists what's inside `.zip` files without unpacking them. When configured, ClamAV scans the file on the same server and VirusTotal is asked about its SHA-256 fingerprint. Antivirus only knows viruses someone has already found, so a clean result still comes with "only open files from people you trust".
 
 ## Privacy
 
-- Files are downloaded into memory (up to Telegram's 20 MB bot limit), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded.
+- Files are downloaded into memory (up to Telegram's 20 MB bot limit), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded. Files over 20 MB are judged by their name and type only.
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
@@ -132,7 +133,7 @@ CI runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo
 
 ## Stack
 
-Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, and Gemini (free tier), with Claude as an option. Webhooks and Google Web Risk are planned.
+Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, Gemini (free tier) with Claude as an option, and [ClamAV](https://www.clamav.net/) and [VirusTotal](https://www.virustotal.com/) for files. Webhooks and Google Web Risk are planned.
 
 ## License
 
