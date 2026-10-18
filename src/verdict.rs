@@ -2,7 +2,7 @@ use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
-use crate::analyzers::llm::ScamCategory;
+use crate::analyzers::llm::{MessageKind, ScamCategory};
 use crate::analyzers::sites::{Kind, Site};
 use crate::analyzers::{Check, Signal, Subject};
 
@@ -228,22 +228,78 @@ pub fn render(checks: &[Check], lang: Lang) -> String {
             NO_QR_FOUND.get(lang)
         )]
     } else {
-        checks
-            .iter()
-            .map(|check| render_check(check, lang))
-            .collect()
+        let mut sections: Vec<String> = Vec::new();
+        for section in checks.iter().map(|check| render_check(check, lang)) {
+            if !sections.contains(&section) {
+                sections.push(section);
+            }
+        }
+        sections
     };
     sections.push(BANK_APP_ADVICE.get(lang).to_owned());
     sections.join("\n\n")
 }
 
+/// Who a forwarded message came from and what kind of message it is, shown above the verdict.
+pub fn about(
+    forwarded_from: Option<&str>,
+    kind: Option<MessageKind>,
+    lang: Lang,
+) -> Option<String> {
+    let mut lines = Vec::new();
+    if let Some(name) = forwarded_from
+        .map(inert)
+        .filter(|name| !name.trim().is_empty())
+    {
+        lines.push(format!(
+            "{} {name}",
+            lang.pick("• បញ្ជូនបន្តពី៖", "• Forwarded from:")
+        ));
+    }
+    if let Some(kind) = kind.and_then(|kind| kind_label(kind, lang)) {
+        lines.push(format!(
+            "{} {kind}",
+            lang.pick("• ប្រភេទសារ៖", "• Looks like:")
+        ));
+    }
+    (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+fn kind_label(kind: MessageKind, lang: Lang) -> Option<&'static str> {
+    let (km, en) = match kind {
+        MessageKind::Promotion => (
+            "ការផ្សព្វផ្សាយ ឬប្រូម៉ូសិនរបស់ហាង",
+            "a promotion or ad from a business",
+        ),
+        MessageKind::News => ("ព័ត៌មាន ឬការព្រមាន", "news or a public warning"),
+        MessageKind::Notice => ("សេចក្តីជូនដំណឹងពីធនាគារ ឬក្រុមហ៊ុន", "a notice from a bank or company"),
+        MessageKind::Personal => ("សារធម្មតារវាងមនុស្ស", "a personal message"),
+        MessageKind::JobAd => ("ការផ្សាយជ្រើសរើសការងារ", "a job ad"),
+        MessageKind::LoanOffer => ("ការផ្តល់កម្ចី", "a loan offer"),
+        MessageKind::ForSale => ("ការលក់ទំនិញ ឬសេវា", "something for sale"),
+        MessageKind::Prize => ("ការប្រកាសរង្វាន់ ឬការចាប់រង្វាន់", "a prize or giveaway"),
+        MessageKind::Investment => ("ការអញ្ជើញឱ្យវិនិយោគ", "an investment offer"),
+        MessageKind::MoneyRequest => ("ការសុំឱ្យផ្ទេរប្រាក់", "a request for money"),
+        MessageKind::Other => return None,
+    };
+    Some(lang.pick(km, en))
+}
+
 fn render_check(check: &Check, lang: Lang) -> String {
-    let mut lines = vec![decide(check).label(lang).to_owned()];
-    lines.extend(check.signals.iter().map(|&signal| reason(signal, lang)));
+    let level = decide(check);
+    // Urgency alone is common in honest promotions, so it is only explained next to other signs.
+    let shown: Vec<Signal> = check
+        .signals
+        .iter()
+        .copied()
+        .filter(|&signal| !(signal == Signal::Urgency && level == Level::NoKnownSignals))
+        .collect();
+    let mut lines = vec![level.label(lang).to_owned()];
+    lines.extend(shown.iter().map(|&signal| reason(signal, lang)));
     match &check.subject {
         Subject::Khqr(payee) => lines.push(render_payee(payee, lang)),
         Subject::Link(link) => lines.push(render_link(link, lang)),
-        Subject::Text if check.signals.iter().all(|signal| signal.weight() == 0.0) => {
+        Subject::Text if shown.iter().all(|signal| signal.weight() == 0.0) => {
             lines.push(NO_TEXT_SIGNALS.get(lang).to_owned())
         }
         Subject::Text | Subject::Unreadable => {}
@@ -821,6 +877,40 @@ mod tests {
                 assert!(!answer.contains("សុវត្ថិភាព") && !answer.to_lowercase().contains("safe"));
             }
         }
+    }
+
+    #[test]
+    fn identical_sections_are_shown_once() {
+        let urgent = || Check {
+            subject: Subject::Text,
+            signals: vec![Signal::Urgency],
+        };
+        let reply = render_km(&[urgent(), urgent()]);
+        assert_eq!(reply.matches("មិនឃើញពាក្យ").count(), 1);
+        assert!(!reply.contains("សារនេះប្រញាប់"));
+        let urgent_fee = Check {
+            subject: Subject::Text,
+            signals: vec![Signal::UpfrontFee, Signal::Urgency],
+        };
+        assert!(render_km(&[urgent_fee]).contains("សារនេះប្រញាប់"));
+    }
+
+    #[test]
+    fn about_names_the_sender_and_kind() {
+        let english = about(
+            Some("NEO GAME OASIS"),
+            Some(MessageKind::Promotion),
+            Lang::En,
+        )
+        .unwrap();
+        assert!(
+            english.contains("Forwarded from: NEO GAME OASIS") && english.contains("a promotion")
+        );
+        assert_eq!(
+            about(Some("@ABA_Support"), None, Lang::Km).as_deref(),
+            Some("• បញ្ជូនបន្តពី៖ ＠ABA_Support")
+        );
+        assert_eq!(about(None, Some(MessageKind::Other), Lang::Km), None);
     }
 
     #[test]

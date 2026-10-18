@@ -59,6 +59,45 @@ impl ScamCategory {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageKind {
+    Promotion,
+    News,
+    Notice,
+    Personal,
+    JobAd,
+    LoanOffer,
+    ForSale,
+    Prize,
+    Investment,
+    MoneyRequest,
+    Other,
+}
+
+impl MessageKind {
+    pub const NAMES: [&'static str; 11] = [
+        "promotion",
+        "news",
+        "notice",
+        "personal",
+        "job_ad",
+        "loan_offer",
+        "for_sale",
+        "prize",
+        "investment",
+        "money_request",
+        "other",
+    ];
+}
+
+/// What the model says about the message besides its scam category.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Reading {
+    pub intent: Option<Intent>,
+    pub kind: Option<MessageKind>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
     Low,
@@ -72,6 +111,7 @@ pub struct Classification {
     pub confidence: Confidence,
     pub cited: Vec<Signal>,
     pub intent: Option<Intent>,
+    pub kind: Option<MessageKind>,
 }
 
 pub trait Classifier: Send + Sync {
@@ -159,9 +199,28 @@ intent: why the person sent this to the service.
 - greeting: hello or small talk.
 - thanks: thanks, ok or similar.
 - other_question: any other question of their own.
-When unsure, answer check.";
+When unsure, answer check.
 
-const OUTPUT_FIELDS: [&str; 4] = ["category", "confidence", "cited_signals", "intent"];
+message_type: what kind of message it is, whatever the category.
+- promotion: an ad, discount or promotion from a shop or business
+- news: a news article or a public warning
+- notice: a notice or alert from a bank, wallet, telco, government office or company
+- personal: an ordinary message between people
+- job_ad: a job offer or hiring post
+- loan_offer: an offer to lend money
+- for_sale: someone selling goods or services
+- prize: a prize, lucky draw or giveaway
+- investment: an offer to invest, trade or earn returns
+- money_request: asking the reader to send or transfer money
+- other: none of the above";
+
+const OUTPUT_FIELDS: [&str; 5] = [
+    "category",
+    "confidence",
+    "cited_signals",
+    "intent",
+    "message_type",
+];
 
 fn output_schema(object: &str, string: &str, array: &str) -> Value {
     json!({
@@ -174,6 +233,7 @@ fn output_schema(object: &str, string: &str, array: &str) -> Value {
                 "items": {"type": string, "enum": Signal::rule_names().collect::<Vec<_>>()},
             },
             "intent": {"type": string, "enum": Intent::NAMES},
+            "message_type": {"type": string, "enum": MessageKind::NAMES},
         },
         "required": OUTPUT_FIELDS,
     })
@@ -202,6 +262,8 @@ struct RawClassification {
     cited_signals: Vec<String>,
     #[serde(default)]
     intent: Option<Intent>,
+    #[serde(default)]
+    message_type: Option<MessageKind>,
 }
 
 pub fn parse_classification(json: &str) -> anyhow::Result<Classification> {
@@ -215,23 +277,27 @@ pub fn parse_classification(json: &str) -> anyhow::Result<Classification> {
             .filter_map(|name| Signal::from_rule_name(name))
             .collect(),
         intent: raw.intent,
+        kind: raw.message_type,
     })
 }
 
-/// Also returns the model's reading of why the person sent the text, when it was asked.
+/// Also returns the model's reading of the message, when it was asked.
 pub async fn classify(
     mut check: Check,
     text: &str,
     classifier: &dyn Classifier,
     timeout: Duration,
-) -> (Check, Option<Intent>) {
+) -> (Check, Reading) {
     if verdict::decide(&check) == Level::HighRisk {
-        return (check, None);
+        return (check, Reading::default());
     }
-    let mut intent = None;
+    let mut reading = Reading::default();
     match tokio::time::timeout(timeout, classifier.classify(text, &check.signals)).await {
         Ok(Ok(classification)) => {
-            intent = classification.intent;
+            reading = Reading {
+                intent: classification.intent,
+                kind: classification.kind,
+            };
             let cited = classification
                 .cited
                 .iter()
@@ -258,7 +324,7 @@ pub async fn classify(
             check.signals.push(Signal::ModelUnavailable);
         }
     }
-    (check, intent)
+    (check, reading)
 }
 
 async fn send_with_retry<T>(
@@ -353,6 +419,7 @@ mod tests {
             confidence,
             cited,
             intent: None,
+            kind: None,
         })
     }
 

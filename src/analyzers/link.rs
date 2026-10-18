@@ -192,8 +192,8 @@ impl LinkChecker {
                     .flatten()
             },
             async {
-                // Known services are skipped so one-time login links aren't used up.
-                if site.is_some_and(|site| site.kind != Kind::Hosting) {
+                // Banks, email and login sites are never opened, so one-time links aren't used up.
+                if site.is_some_and(|site| !site.kind.has_public_pages()) {
                     return None;
                 }
                 timeout_at(deadline, self.fetch_page(last))
@@ -206,7 +206,13 @@ impl LinkChecker {
             signals.push(Signal::NewDomain);
         }
         let page = page.unwrap_or_default();
-        signals.extend(page_signals(&page, &signals));
+        if site.is_none_or(|site| site.kind.titles_by_anyone()) {
+            signals.extend(page_signals(&page, &signals));
+        }
+        let title = page
+            .title
+            .or(page.site_name)
+            .filter(|title| site.is_none_or(|site| !title.eq_ignore_ascii_case(site.name)));
 
         let host = first.host_str().unwrap_or_default().to_owned();
         Check {
@@ -215,7 +221,7 @@ impl LinkChecker {
                 host,
                 age_days,
                 site,
-                title: page.title.or(page.site_name),
+                title,
             }),
             signals,
         }

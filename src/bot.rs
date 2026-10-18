@@ -4,12 +4,14 @@ use std::time::Duration;
 use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
-use teloxide::types::{ChatAction, Me, MessageEntityKind, PhotoSize, ReplyParameters};
+use teloxide::types::{
+    ChatAction, Me, MessageEntityKind, MessageOrigin, PhotoSize, ReplyParameters,
+};
 use url::Url;
 
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
-use checksen::analyzers::llm::{self, Classifier, Transcriber};
+use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Text};
@@ -37,6 +39,8 @@ pub struct Services {
 struct Outcome {
     reply: Reply,
     cacheable: bool,
+    /// False for fixed answers, which get no "forwarded from" line.
+    checked: bool,
 }
 
 impl Outcome {
@@ -58,6 +62,7 @@ impl Outcome {
                 check.signals.contains(&Signal::ModelUnavailable)
                     || matches!(check.subject, Subject::Link(_))
             }),
+            checked: true,
         }
     }
 
@@ -68,14 +73,23 @@ impl Outcome {
                 account: None,
             },
             cacheable,
+            checked: false,
         }
     }
-}
 
-enum Photo {
-    Checks(Vec<Check>),
-    Unread,
-    Failed,
+    fn about(
+        mut self,
+        forwarded_from: Option<&str>,
+        kind: Option<MessageKind>,
+        lang: Lang,
+    ) -> Self {
+        if self.checked
+            && let Some(about) = verdict::about(forwarded_from, kind, lang)
+        {
+            self.reply.text = format!("{about}\n\n{}", self.reply.text);
+        }
+        self
+    }
 }
 
 pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> ResponseResult<()> {
@@ -230,7 +244,7 @@ fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
 
 fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     let urls: Vec<String> = urls_in(msg).iter().map(Url::to_string).collect();
-    let caption = msg.caption().unwrap_or_default();
+    let caption = (msg.caption().unwrap_or_default(), forwarded_from(msg));
     if let Some(photo) = largest_photo(msg) {
         return Some(guard.key((
             RULES_VERSION,
@@ -242,7 +256,7 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
         )));
     }
     if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
-        return Some(guard.key((RULES_VERSION, lang, "text", message, urls)));
+        return Some(guard.key((RULES_VERSION, lang, "text", message, urls, caption)));
     }
     msg.document().map(|document| {
         guard.key((
@@ -257,84 +271,74 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
 }
 
 async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> Outcome {
-    if let Some(photo) = largest_photo(msg) {
-        let (photo, caption) = tokio::join!(
-            check_photo(bot, photo, services),
-            caption_checks(msg, services)
-        );
-        return combine(photo, caption, lang);
-    }
-    if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
+    let (outcome, kind) = if let Some(photo) = largest_photo(msg) {
+        check_photo(bot, msg, photo, lang, services).await
+    } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         let checks = vec![khqr::check(payload)];
-        return Outcome::of(
-            &reports::with_reports(checks, services.store.as_deref()).await,
-            lang,
-        );
-    }
-    if let Some(message) = msg.text() {
-        return check_text(msg, message, lang, services).await;
-    }
-    let file_name = msg
-        .document()
-        .and_then(|document| document.file_name.as_deref())
-        .unwrap_or_default();
-    let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
-    let mut checks = vec![text::check(&described)];
-    checks.extend(
-        join_all(
-            urls_in(msg)
-                .into_iter()
-                .map(|url| services.links.check(url)),
-        )
-        .await,
-    );
-    Outcome::of(&checks, lang)
+        let checks = reports::with_reports(checks, services.store.as_deref()).await;
+        (Outcome::of(&checks, lang), None)
+    } else if let Some(message) = msg.text() {
+        check_text(msg, message, lang, services).await
+    } else {
+        let file_name = msg
+            .document()
+            .and_then(|document| document.file_name.as_deref())
+            .unwrap_or_default();
+        let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
+        let mut checks = vec![text::check(&described)];
+        let links = urls_in(msg)
+            .into_iter()
+            .map(|url| services.links.check(url));
+        checks.extend(join_all(links).await);
+        (Outcome::of(&checks, lang), None)
+    };
+    outcome.about(forwarded_from(msg).as_deref(), kind, lang)
 }
 
-fn combine(photo: Photo, mut caption: Vec<Check>, lang: Lang) -> Outcome {
-    match photo {
-        Photo::Checks(checks) if checks.is_empty() && !caption.is_empty() => {
-            Outcome::of(&caption, lang)
-        }
-        Photo::Checks(mut checks) => {
-            checks.append(&mut caption);
-            Outcome::of(&checks, lang)
-        }
-        Photo::Unread if caption.is_empty() => {
-            Outcome::text(verdict::screenshot_unread(lang), false)
-        }
-        Photo::Failed if caption.is_empty() => Outcome::text(verdict::render(&[], lang), false),
-        Photo::Unread | Photo::Failed => Outcome {
-            cacheable: false,
-            ..Outcome::of(&caption, lang)
-        },
+fn forwarded_from(msg: &Message) -> Option<String> {
+    match msg.forward_origin()? {
+        MessageOrigin::User { sender_user, .. } => Some(sender_user.full_name()),
+        MessageOrigin::HiddenUser {
+            sender_user_name, ..
+        } => Some(sender_user_name.clone()),
+        MessageOrigin::Chat { sender_chat, .. } => sender_chat.title().map(str::to_owned),
+        MessageOrigin::Channel { chat, .. } => chat.title().map(str::to_owned),
     }
 }
 
-async fn check_text(msg: &Message, message: &str, lang: Lang, services: &Services) -> Outcome {
+async fn check_text(
+    msg: &Message,
+    message: &str,
+    lang: Lang,
+    services: &Services,
+) -> (Outcome, Option<MessageKind>) {
     let urls = urls_in(msg);
     let rules = intent::detect(message);
     if urls.is_empty() {
         if let Some(intent @ (Intent::Greeting | Intent::Thanks)) = rules
             && let Some(answer) = verdict::answer(intent, lang)
         {
-            return Outcome::text(answer, true);
+            return (Outcome::text(answer, true), None);
         }
         if message.chars().count() < MIN_TEXT_CHARS && text::check(message).signals.is_empty() {
             let answer = rules.and_then(|intent| verdict::answer(intent, lang));
-            return Outcome::text(answer.unwrap_or(verdict::HELP.get(lang)), true);
+            return (
+                Outcome::text(answer.unwrap_or(verdict::HELP.get(lang)), true),
+                None,
+            );
         }
     }
 
     let has_links = !urls.is_empty();
-    let (checks, model) = text_checks(message, urls, !has_links, services).await;
-    let intent = intent::decide(rules, model, message);
+    let (checks, reading) =
+        text_checks(message, urls, !has_links, services, CLASSIFIER_BUDGET).await;
+    let intent = intent::decide(rules, reading.intent, message);
     let flagged = has_links
         || checks
             .iter()
             .any(|check| verdict::decide(check) != Level::NoKnownSignals);
     let verdict = Outcome::of(&checks, lang);
-    match verdict::answer(intent, lang) {
+    let outcome = match verdict::answer(intent, lang) {
         Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
             reply: Reply {
                 text: format!("{answer}\n\n{}", verdict.reply.text),
@@ -344,14 +348,8 @@ async fn check_text(msg: &Message, message: &str, lang: Lang, services: &Service
         },
         Some(answer) if !flagged => Outcome::text(answer, verdict.cacheable),
         _ => verdict,
-    }
-}
-
-async fn caption_checks(msg: &Message, services: &Services) -> Vec<Check> {
-    match msg.caption() {
-        Some(caption) => text_checks(caption, urls_in(msg), false, services).await.0,
-        None => Vec::new(),
-    }
+    };
+    (outcome, reading.kind)
 }
 
 /// The text check is always shown when `show_text` is set, otherwise only when it found something.
@@ -360,16 +358,17 @@ async fn text_checks(
     urls: Vec<Url>,
     show_text: bool,
     services: &Services,
-) -> (Vec<Check>, Option<Intent>) {
+    budget: Duration,
+) -> (Vec<Check>, Reading) {
     let text_check = text::check(message);
     // A bare link is covered by the link check; the model only sees real text.
     let classify = prose_chars(message) >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
-    let ((text_check, intent), link_checks) = tokio::join!(
+    let ((text_check, reading), link_checks) = tokio::join!(
         async {
             if classify {
-                classify_text(text_check, message, services, CLASSIFIER_BUDGET).await
+                classify_text(text_check, message, services, budget).await
             } else {
-                (text_check, None)
+                (text_check, Reading::default())
             }
         },
         join_all(urls.into_iter().map(|url| services.links.check(url)))
@@ -385,7 +384,7 @@ async fn text_checks(
         checks.push(text_check);
     }
     checks.extend(link_checks);
-    (checks, intent)
+    (checks, reading)
 }
 
 async fn classify_text(
@@ -393,7 +392,7 @@ async fn classify_text(
     message: &str,
     services: &Services,
     budget: Duration,
-) -> (Check, Option<Intent>) {
+) -> (Check, Reading) {
     match services.classifier.as_deref() {
         Some(classifier) if services.guard.allow_model_call(ModelCall::Text) => {
             llm::classify(text_check, message, classifier, budget).await
@@ -401,9 +400,9 @@ async fn classify_text(
         Some(_) => {
             tracing::warn!("daily classifier budget used up");
             text_check.signals.push(Signal::ModelUnavailable);
-            (text_check, None)
+            (text_check, Reading::default())
         }
-        None => (text_check, None),
+        None => (text_check, Reading::default()),
     }
 }
 
@@ -415,12 +414,21 @@ async fn download_photo(bot: &Bot, photo: &PhotoSize) -> anyhow::Result<Vec<u8>>
     Ok(bytes)
 }
 
-async fn check_photo(bot: &Bot, photo: &PhotoSize, services: &Services) -> Photo {
+/// The text in the image and the caption are checked together, as one message.
+async fn check_photo(
+    bot: &Bot,
+    msg: &Message,
+    photo: &PhotoSize,
+    lang: Lang,
+    services: &Services,
+) -> (Outcome, Option<MessageKind>) {
+    let caption = msg.caption();
+    let failed = || Outcome::text(verdict::render(&[], lang), false);
     let image = match download_photo(bot, photo).await {
         Ok(image) => image,
         Err(error) => {
             tracing::warn!(%error, "photo download failed");
-            return Photo::Failed;
+            return caption_or(msg, lang, services, failed()).await;
         }
     };
     let decoded = tokio::task::spawn_blocking(move || {
@@ -432,7 +440,7 @@ async fn check_photo(bot: &Bot, photo: &PhotoSize, services: &Services) -> Photo
         Ok(decoded) => decoded,
         Err(error) => {
             tracing::warn!(%error, "QR decoding failed");
-            return Photo::Failed;
+            return caption_or(msg, lang, services, failed()).await;
         }
     };
     if !payloads.is_empty() {
@@ -442,33 +450,68 @@ async fn check_photo(bot: &Bot, photo: &PhotoSize, services: &Services) -> Photo
                 .map(|payload| analyzers::check_qr_payload(payload, &services.links)),
         )
         .await;
-        return Photo::Checks(reports::with_reports(checks, services.store.as_deref()).await);
+        let mut checks = reports::with_reports(checks, services.store.as_deref()).await;
+        if let Some(caption) = caption {
+            let (caption_checks, _) =
+                text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
+            checks.extend(caption_checks);
+        }
+        return (Outcome::of(&checks, lang), None);
     }
 
     let Some(transcriber) = services.transcriber.as_deref() else {
-        return Photo::Checks(Vec::new());
+        return caption_or(msg, lang, services, Outcome::of(&[], lang)).await;
     };
+    let unread = || Outcome::text(verdict::screenshot_unread(lang), false);
     if !services.guard.allow_model_call(ModelCall::Screenshot) {
         tracing::warn!("daily screenshot budget used up");
-        return Photo::Unread;
+        return caption_or(msg, lang, services, unread()).await;
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
-            let (check, _) = classify_text(
-                text::check(&transcript),
-                &transcript,
+            let message = match caption {
+                Some(caption) => format!("{caption}\n\n{transcript}"),
+                None => transcript,
+            };
+            let (checks, reading) = text_checks(
+                &message,
+                urls_in(msg),
+                true,
                 services,
                 SCREENSHOT_CLASSIFIER_BUDGET,
             )
             .await;
-            Photo::Checks(vec![check])
+            (Outcome::of(&checks, lang), reading.kind)
         }
-        Ok(None) => Photo::Checks(Vec::new()),
+        Ok(None) => caption_or(msg, lang, services, Outcome::of(&[], lang)).await,
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
-            Photo::Unread
+            caption_or(msg, lang, services, unread()).await
         }
     }
+}
+
+/// Checks the caption when the image itself gave nothing, otherwise replies with `fallback`.
+async fn caption_or(
+    msg: &Message,
+    lang: Lang,
+    services: &Services,
+    fallback: Outcome,
+) -> (Outcome, Option<MessageKind>) {
+    let Some(caption) = msg.caption() else {
+        return (fallback, None);
+    };
+    let (checks, reading) =
+        text_checks(caption, urls_in(msg), true, services, CLASSIFIER_BUDGET).await;
+    let outcome = Outcome::of(&checks, lang);
+    let cacheable = outcome.cacheable && fallback.cacheable;
+    (
+        Outcome {
+            cacheable,
+            ..outcome
+        },
+        reading.kind,
+    )
 }
 
 fn entities(msg: &Message) -> Vec<teloxide::types::MessageEntityRef<'_>> {

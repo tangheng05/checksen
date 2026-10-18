@@ -36,6 +36,16 @@ impl Kind {
                 | Self::Classifieds
         )
     }
+
+    /// Public pages whose title is worth showing; banks, email and logins are never opened.
+    pub fn has_public_pages(self) -> bool {
+        self.anyone_can_post() || matches!(self, Self::Hosting | Self::News | Self::Reference)
+    }
+
+    /// Sites where a page's title is written by whoever made it, so it may claim to be a bank.
+    pub fn titles_by_anyone(self) -> bool {
+        matches!(self, Self::Hosting | Self::Files)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
