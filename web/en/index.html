@@ -120,15 +120,31 @@ This message pushes you to act right away.
       </div>
     </section>
 
-    <section class="section">
-      <div class="wrap">
-        <h2>Privacy</h2>
-        <ul class="diamonds">
-          <li><p>CheckSen doesn't save your messages or images. Replies are kept in memory for an hour, keyed only by a hash of the content.</p></li>
-          <li><p>When AI is needed, message text and screenshots are sent to Google Gemini's free tier. Google may use them to improve its products and people may review them, so hide account numbers and personal details before you send.</p></li>
-          <li><p>If you tap ❌ on a KHQR check, CheckSen stores a report against that account, linked only to a keyed hash of your Telegram ID. An account shows as reported only after 3 different people report it.</p></li>
-          <li><p>Send /forget to CheckSen to delete every report linked to you.</p></li>
-        </ul>
+    <section class="section privacy">
+      <div class="wrap privacy-grid">
+        <div>
+          <h2>Privacy</h2>
+          <p class="privacy-claim">Your messages are not kept.</p>
+          <p class="intro">CheckSen checks messages and images in memory and doesn't save them. Its code is open, so anyone can <a href="https://github.com/tangheng05/checksen">check this on GitHub</a>.</p>
+        </div>
+        <dl class="privacy-facts">
+          <div>
+            <dt>Messages and images</dt>
+            <dd>Not saved. The reply is kept in memory for an hour, keyed only by a hash of the content.</dd>
+          </div>
+          <div>
+            <dt>AI checks</dt>
+            <dd>Text and screenshots are sent to Google Gemini's free tier. Google may use them to improve its products and people may review them.<strong>Hide account numbers and personal details before you send.</strong></dd>
+          </div>
+          <div>
+            <dt>Reports</dt>
+            <dd>If you tap ❌ on a KHQR check, a report is stored against that account, linked only to a keyed hash of your Telegram ID. An account shows as reported only after 3 different people report it.</dd>
+          </div>
+          <div>
+            <dt>Deleting reports</dt>
+            <dd>Send <code>/forget</code> to CheckSen to delete every report linked to you.</dd>
+          </div>
+        </dl>
       </div>
     </section>
   </main>

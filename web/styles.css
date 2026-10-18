@@ -23,6 +23,8 @@
 
   --display: "Archivo", "Kantumruy Pro", system-ui, sans-serif;
   --body: "Kantumruy Pro", system-ui, sans-serif;
+  --diamond-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Crect x='20' y='20' width='16' height='16' rx='4.3' transform='rotate(45 28 28)' fill='%235CC4B8' fill-opacity='0.08'/%3E%3C/svg%3E");
+
   --leading: 1.8;
   --measure: 34rem;
   color-scheme: light dark;
@@ -241,7 +243,7 @@ h2:lang(km) {
   border-radius: 28px;
   overflow: hidden;
   background-color: var(--teal-deep);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Crect x='20' y='20' width='16' height='16' rx='4.3' transform='rotate(45 28 28)' fill='%235CC4B8' fill-opacity='0.08'/%3E%3C/svg%3E");
+  background-image: var(--diamond-pattern);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 48px -24px rgba(5, 48, 45, 0.55);
 }
 
@@ -631,6 +633,100 @@ h2:lang(km) {
   margin: 2rem 0 0;
   max-width: var(--measure);
   font-weight: 500;
+}
+
+.section.privacy {
+  padding-block: 4.5rem;
+  border-top: 0;
+  background-color: var(--teal-night);
+  background-image: var(--diamond-pattern);
+  color: var(--cream);
+}
+
+.privacy-grid {
+  display: grid;
+  gap: 2.5rem;
+}
+
+@media (min-width: 60rem) {
+  .privacy-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 5rem;
+  }
+}
+
+.privacy h2 {
+  color: var(--mint);
+  font-size: 1.25rem;
+}
+
+.privacy-claim {
+  margin: 0.75rem 0 0;
+  font-family: var(--display);
+  font-stretch: 125%;
+  font-weight: 800;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  line-height: 1.15;
+}
+
+.privacy-claim:lang(km) {
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.section.privacy .intro {
+  margin-top: 1.25rem;
+  color: rgba(244, 241, 234, 0.75);
+}
+
+.privacy a {
+  color: var(--mint);
+}
+
+.privacy-facts {
+  margin: 0;
+  border-bottom: 1px solid rgba(92, 196, 184, 0.25);
+}
+
+.privacy-facts div {
+  display: grid;
+  gap: 0.35rem 2rem;
+  padding-block: 1.35rem;
+  border-top: 1px solid rgba(92, 196, 184, 0.25);
+}
+
+@media (min-width: 40rem) {
+  .privacy-facts div {
+    grid-template-columns: 10rem 1fr;
+  }
+}
+
+.privacy-facts dt {
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.privacy-facts dd {
+  margin: 0;
+  color: rgba(244, 241, 234, 0.85);
+}
+
+.privacy-facts strong {
+  display: block;
+  margin-top: 0.6rem;
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--mint);
+  color: var(--cream);
+  font-weight: 600;
+}
+
+.privacy code {
+  padding: 0.1em 0.45em;
+  border-radius: 6px;
+  background: rgba(92, 196, 184, 0.16);
+  color: var(--cream);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
 }
 
 /* Footer */
