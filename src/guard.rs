@@ -17,6 +17,8 @@ const LANGUAGE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 pub struct Reply {
     pub text: String,
     pub account: Option<String>,
+    /// Verdicts use Telegram HTML; fixed answers are plain text.
+    pub html: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -170,6 +172,7 @@ mod tests {
             Arc::new(Reply {
                 text: "reply".to_owned(),
                 account: Some("sok@abaa".to_owned()),
+                html: true,
             }),
         );
         let cached = guard.cached(key).unwrap();

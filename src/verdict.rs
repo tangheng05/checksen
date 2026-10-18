@@ -224,55 +224,247 @@ pub fn screenshot_unread(lang: Lang) -> String {
     )
 }
 
-pub fn render(checks: &[Check], lang: Lang) -> String {
-    let mut sections: Vec<String> = if checks.is_empty() {
-        vec![format!(
-            "{}\n{}",
-            Level::CantTell.label(lang),
-            NO_QR_FOUND.get(lang)
-        )]
-    } else {
-        let mut sections: Vec<String> = Vec::new();
-        for section in checks.iter().map(|check| render_check(check, lang)) {
-            if !sections.contains(&section) {
-                sections.push(section);
-            }
-        }
-        sections
-    };
-    if checks
-        .iter()
-        .any(|check| matches!(check.subject, Subject::Link(_)))
-    {
-        sections.push(LINK_ADVICE.get(lang).to_owned());
-    }
-    sections.push(BANK_APP_ADVICE.get(lang).to_owned());
-    sections.join("\n\n")
+pub fn no_qr_found(lang: Lang) -> String {
+    format!(
+        "{}\n{}\n\n{}",
+        Level::CantTell.label(lang),
+        NO_QR_FOUND.get(lang),
+        BANK_APP_ADVICE.get(lang)
+    )
 }
 
-/// Who a forwarded message came from and what kind of message it is, shown above the verdict.
-pub fn about(
-    forwarded_from: Option<&str>,
-    kind: Option<MessageKind>,
-    lang: Lang,
-) -> Option<String> {
-    let mut lines = Vec::new();
-    if let Some(name) = forwarded_from
+/// Who a forwarded message came from and what kind of message it is.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct About<'a> {
+    pub forwarded_from: Option<&'a str>,
+    pub kind: Option<MessageKind>,
+}
+
+/// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
+pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
+    let Some(lead) = checks
+        .iter()
+        .min_by_key(|check| std::cmp::Reverse(severity(decide(check))))
+    else {
+        return escape(&no_qr_found(lang));
+    };
+    let level = decide(lead);
+    let top = top_signal(lead, level);
+    let summary = summary(lead, level, top, lang);
+    let action = action(lead, level, lang).filter(|action| !summary.contains(action.as_str()));
+
+    let mut lines = vec![format!("<b>{}</b>", escape(level.label(lang)))];
+    if let Some(about) = about_line(about, lang) {
+        lines.push(escape(&about));
+    }
+    lines.push(escape(&summary));
+    if let Some(action) = &action {
+        lines.push(format!("👉 {}", escape(action)));
+    }
+    let about_money = matches!(level, Level::HighRisk | Level::Suspicious)
+        || checks
+            .iter()
+            .any(|check| matches!(check.subject, Subject::Khqr(_)));
+    if about_money {
+        lines.push(String::new());
+        lines.push(escape(BANK_APP_ADVICE.get(lang)));
+    }
+
+    let mut details: Vec<String> = Vec::new();
+    for check in checks {
+        let is_lead = std::ptr::eq(check, lead);
+        let section = detail_section(
+            check,
+            checks.len() > 1,
+            is_lead.then_some(top).flatten(),
+            !is_lead,
+            lang,
+        );
+        if !section.is_empty() && !details.contains(&section) {
+            details.push(section);
+        }
+    }
+    let link_advice = LINK_ADVICE.get(lang);
+    let has_links = checks
+        .iter()
+        .any(|check| matches!(check.subject, Subject::Link(_)));
+    if has_links && action.as_deref() != Some(link_advice) {
+        details.push(link_advice.to_owned());
+    }
+    // A fold holding only the bank-app reminder isn't worth a tap, so it is shown inline instead.
+    if !about_money && details.is_empty() {
+        lines.push(String::new());
+        lines.push(escape(BANK_APP_ADVICE.get(lang)));
+    } else if !about_money {
+        details.push(BANK_APP_ADVICE.get(lang).to_owned());
+    }
+    if !details.is_empty() {
+        let heading = lang.pick("ℹ️ ព័ត៌មានលម្អិត", "ℹ️ Details");
+        lines.push(String::new());
+        lines.push(format!(
+            "<blockquote expandable>{}</blockquote>",
+            escape(&format!("{heading}\n{}", details.join("\n\n")))
+        ));
+    }
+    lines.join("\n")
+}
+
+pub fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn severity(level: Level) -> u8 {
+    match level {
+        Level::HighRisk => 3,
+        Level::Suspicious => 2,
+        Level::CantTell => 1,
+        Level::NoKnownSignals => 0,
+    }
+}
+
+/// Urgency alone is common in honest promotions, so it is only explained next to other signs.
+fn shown_signals(check: &Check, level: Level) -> Vec<Signal> {
+    check
+        .signals
+        .iter()
+        .copied()
+        .filter(|&signal| !(signal == Signal::Urgency && level == Level::NoKnownSignals))
+        .collect()
+}
+
+fn top_signal(check: &Check, level: Level) -> Option<Signal> {
+    let shown = shown_signals(check, level);
+    let strongest = shown
+        .iter()
+        .copied()
+        .filter(|signal| signal.weight() > 0.0)
+        .reduce(|best, signal| {
+            if signal.weight() > best.weight() {
+                signal
+            } else {
+                best
+            }
+        });
+    match level {
+        Level::NoKnownSignals => None,
+        Level::CantTell => strongest.or(shown.first().copied()),
+        _ => strongest,
+    }
+}
+
+fn summary(check: &Check, level: Level, top: Option<Signal>, lang: Lang) -> String {
+    if let Some(signal) = top {
+        return reason(signal, lang);
+    }
+    match &check.subject {
+        Subject::Khqr(payee) => {
+            let mut line = format!(
+                "{} {}",
+                lang.pick("QR នេះបង់ទៅ៖", "This QR pays:"),
+                inert(&payee.merchant_name)
+            );
+            if let Some(amount) = amount(payee) {
+                line.push_str(&format!(" · {amount}"));
+            }
+            line
+        }
+        Subject::Link(link) => link_summary(link, lang),
+        Subject::Text if level == Level::NoKnownSignals => NO_TEXT_SIGNALS.get(lang).to_owned(),
+        Subject::Text | Subject::Unreadable => Level::CantTell.label(lang).to_owned(),
+    }
+}
+
+fn link_summary(link: &LinkInfo, lang: Lang) -> String {
+    let host = defang(link.redirected_to.as_deref().unwrap_or(&link.host));
+    let mut parts = match link.site {
+        Some(site) if site.kind == Kind::Hosting => vec![
+            host,
+            format!("{} {}", lang.pick("បង្កើតលើ", "built on"), site.name),
+        ],
+        Some(site) if site.kind == Kind::Shortener => {
+            vec![site.name.to_owned(), kind_name(site.kind, lang).to_owned()]
+        }
+        Some(site) => vec![
+            site_name(site, lang).to_owned(),
+            lang.pick("គេហទំព័រផ្លូវការ", "official site").to_owned(),
+        ],
+        None => vec![
+            host,
+            lang.pick("មិនមែនជាគេហទំព័រល្បី", "not a well-known site")
+                .to_owned(),
+        ],
+    };
+    if let Some(age) = link.age_days.map(|days| age(days, lang)) {
+        parts.push(age);
+    }
+    parts.join(" · ")
+}
+
+fn action(check: &Check, level: Level, lang: Lang) -> Option<String> {
+    let text = match (&check.subject, level) {
+        (_, Level::CantTell) => return None,
+        (Subject::Khqr(_) | Subject::Unreadable, Level::HighRisk) => {
+            lang.pick("កុំបង់ប្រាក់តាម QR នេះ។", "Don't pay with this QR.")
+        }
+        (Subject::Link(_), Level::HighRisk) => lang.pick(
+            "កុំបើកតំណនេះ ហើយកុំបញ្ចូលព័ត៌មានអ្វីទាំងអស់។",
+            "Don't open this link or enter anything on it.",
+        ),
+        (_, Level::HighRisk) => lang.pick(
+            "កុំឆ្លើយតប កុំប្រាប់លេខកូដ ហើយកុំផ្ទេរលុយ។",
+            "Don't reply, don't share any code, and don't send money.",
+        ),
+        (Subject::Khqr(_) | Subject::Unreadable, Level::Suspicious) => lang.pick(
+            "សូមសួរអ្នកលក់ឱ្យប្រាកដពីគណនីរបស់គេ មុនពេលបង់ប្រាក់។",
+            "Ask the seller to confirm their account before you pay.",
+        ),
+        (Subject::Link(_), Level::Suspicious) => lang.pick(
+            "កុំបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP លើគេហទំព័រនេះ។",
+            "Don't enter a password or OTP code on this site.",
+        ),
+        (_, Level::Suspicious) => lang.pick(
+            "សូមផ្ទៀងផ្ទាត់តាមលេខ ឬកម្មវិធីផ្លូវការសិន មុនពេលធ្វើតាមសារនេះ។",
+            "Check through an official number or app before you do what it asks.",
+        ),
+        (Subject::Khqr(_), Level::NoKnownSignals) => lang.pick(
+            "តើឈ្មោះនេះត្រូវនឹងហាង ឬអ្នកដែលអ្នកចង់បង់ឱ្យទេ? បើមិនត្រូវ កុំបង់។",
+            "Does this name match the shop or person you mean to pay? If not, don't pay.",
+        ),
+        (Subject::Link(link), Level::NoKnownSignals) => {
+            return Some(
+                link.site
+                    .and_then(|site| site_note(site, lang))
+                    .unwrap_or_else(|| LINK_ADVICE.get(lang).to_owned()),
+            );
+        }
+        (Subject::Text | Subject::Unreadable, Level::NoKnownSignals) => return None,
+    };
+    Some(text.to_owned())
+}
+
+fn about_line(about: About, lang: Lang) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(kind) = about.kind.and_then(|kind| kind_label(kind, lang)) {
+        parts.push(kind.to_owned());
+    }
+    if let Some(name) = about
+        .forwarded_from
         .map(inert)
         .filter(|name| !name.trim().is_empty())
     {
-        lines.push(format!(
-            "{} {name}",
-            lang.pick("• បញ្ជូនបន្តពី៖", "• Forwarded from:")
-        ));
+        parts.push(format!("{} {name}", lang.pick("បញ្ជូនបន្តពី", "forwarded from")));
     }
-    if let Some(kind) = kind.and_then(|kind| kind_label(kind, lang)) {
-        lines.push(format!(
-            "{} {kind}",
-            lang.pick("• ប្រភេទសារ៖", "• Looks like:")
-        ));
+    if parts.is_empty() {
+        return None;
     }
-    (!lines.is_empty()).then(|| lines.join("\n"))
+    let line = parts.join(" · ");
+    let mut chars = line.chars();
+    Some(match (lang, chars.next()) {
+        (Lang::En, Some(first)) => first.to_uppercase().chain(chars).collect(),
+        _ => line,
+    })
 }
 
 fn kind_label(kind: MessageKind, lang: Lang) -> Option<&'static str> {
@@ -295,24 +487,36 @@ fn kind_label(kind: MessageKind, lang: Lang) -> Option<&'static str> {
     Some(lang.pick(km, en))
 }
 
-fn render_check(check: &Check, lang: Lang) -> String {
+fn detail_section(
+    check: &Check,
+    labeled: bool,
+    skip: Option<Signal>,
+    with_note: bool,
+    lang: Lang,
+) -> String {
     let level = decide(check);
-    // Urgency alone is common in honest promotions, so it is only explained next to other signs.
-    let shown: Vec<Signal> = check
-        .signals
-        .iter()
-        .copied()
-        .filter(|&signal| !(signal == Signal::Urgency && level == Level::NoKnownSignals))
-        .collect();
-    let mut lines = vec![level.label(lang).to_owned()];
-    lines.extend(shown.iter().map(|&signal| reason(signal, lang)));
+    let mut lines = Vec::new();
+    if labeled {
+        lines.push(level.label(lang).to_owned());
+    }
+    lines.extend(
+        shown_signals(check, level)
+            .into_iter()
+            .filter(|&signal| Some(signal) != skip)
+            .map(|signal| reason(signal, lang)),
+    );
     match &check.subject {
         Subject::Khqr(payee) => lines.push(render_payee(payee, lang)),
-        Subject::Link(link) => lines.push(render_link(link, lang)),
-        Subject::Text if shown.iter().all(|signal| signal.weight() == 0.0) => {
-            lines.push(NO_TEXT_SIGNALS.get(lang).to_owned())
+        Subject::Link(link) => {
+            lines.push(render_link(link, lang));
+            if with_note && let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
+                lines.push(note);
+            }
         }
         Subject::Text | Subject::Unreadable => {}
+    }
+    if lines.len() == usize::from(labeled) {
+        return String::new();
     }
     lines.join("\n")
 }
@@ -521,9 +725,18 @@ fn category_name(category: ScamCategory, lang: Lang) -> &'static str {
     lang.pick(km, en)
 }
 
+fn amount(payee: &DecodedKhqr) -> Option<String> {
+    let amount = payee.transaction_amount.as_ref()?;
+    let currency = match payee.currency() {
+        Some(Currency::Khr) => "KHR",
+        Some(Currency::Usd) => "USD",
+        _ => payee.transaction_currency.as_str(),
+    };
+    Some(format!("{} {}", visible(amount), visible(currency)))
+}
+
 fn render_payee(payee: &DecodedKhqr, lang: Lang) -> String {
     let mut lines = vec![
-        lang.pick("QR នេះបង់ប្រាក់ទៅ៖", "This QR pays:").to_owned(),
         format!(
             "{} {}",
             lang.pick("• ឈ្មោះអ្នកទទួល៖", "• Recipient:"),
@@ -542,17 +755,10 @@ fn render_payee(payee: &DecodedKhqr, lang: Lang) -> String {
             inert(bank)
         ));
     }
-    if let Some(amount) = &payee.transaction_amount {
-        let currency = match payee.currency() {
-            Some(Currency::Khr) => "KHR",
-            Some(Currency::Usd) => "USD",
-            _ => payee.transaction_currency.as_str(),
-        };
+    if let Some(amount) = amount(payee) {
         lines.push(format!(
-            "{} {} {}",
-            lang.pick("• ចំនួនទឹកប្រាក់៖", "• Amount:"),
-            visible(amount),
-            visible(currency)
+            "{} {amount}",
+            lang.pick("• ចំនួនទឹកប្រាក់៖", "• Amount:")
         ));
     }
     lines.push(format!(
@@ -560,14 +766,18 @@ fn render_payee(payee: &DecodedKhqr, lang: Lang) -> String {
         lang.pick("• ទីក្រុង៖", "• City:"),
         inert(&payee.merchant_city)
     ));
-    lines.push(
-        lang.pick(
-            "តើឈ្មោះនេះត្រូវនឹងហាង ឬអ្នកដែលអ្នកចង់បង់ឱ្យទេ? បើមិនត្រូវ កុំបង់។",
-            "Does this name match the shop or person you mean to pay? If not, don't pay.",
-        )
-        .to_owned(),
-    );
     lines.join("\n")
+}
+
+fn age(days: i64, lang: Lang) -> String {
+    match (lang, days / 365) {
+        (Lang::Km, 0) => format!("{}ថ្ងៃ", khmer_digits(days)),
+        (Lang::Km, years) => format!("{}ឆ្នាំ", khmer_digits(years)),
+        (Lang::En, 0) if days == 1 => "1 day".to_owned(),
+        (Lang::En, 0) => format!("{days} days"),
+        (Lang::En, 1) => "1 year".to_owned(),
+        (Lang::En, years) => format!("{years} years"),
+    }
 }
 
 fn render_link(link: &LinkInfo, lang: Lang) -> String {
@@ -608,21 +818,11 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
         ),
     });
     if let Some(days) = link.age_days {
-        let age = match (lang, days / 365) {
-            (Lang::Km, 0) => format!("{}ថ្ងៃ", khmer_digits(days)),
-            (Lang::Km, years) => format!("{}ឆ្នាំ", khmer_digits(years)),
-            (Lang::En, 0) if days == 1 => "1 day".to_owned(),
-            (Lang::En, 0) => format!("{days} days"),
-            (Lang::En, 1) => "1 year".to_owned(),
-            (Lang::En, years) => format!("{years} years"),
-        };
         lines.push(format!(
-            "{} {age}",
-            lang.pick("• អាយុគេហទំព័រ៖", "• Site age:")
+            "{} {}",
+            lang.pick("• អាយុគេហទំព័រ៖", "• Site age:"),
+            age(days, lang)
         ));
-    }
-    if let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
-        lines.push(note);
     }
     lines.join("\n")
 }
@@ -667,12 +867,12 @@ fn site_note(site: &Site, lang: Lang) -> Option<String> {
                 "This is a short link that hides the real site, and CheckSen couldn't see where it goes. Be careful.",
             )
             .to_owned(),
-        (kind, Lang::Km) if kind.anyone_can_post() => format!(
-            "នេះជាគេហទំព័រផ្លូវការរបស់ {name} ប៉ុន្តែអ្នកណាក៏អាចបង្កើតទំព័រនៅលើនេះបានដែរ។ សូមពិនិត្យមើលឱ្យច្បាស់ថាអ្នកណាជាអ្នកបង្ហោះ មុនពេលសម្រេចចិត្តទុកចិត្ត។"
-        ),
-        (kind, Lang::En) if kind.anyone_can_post() => format!(
-            "This is the real {name}, but anyone can post on it. Check who posted this before you trust it."
-        ),
+        (kind, _) if kind.anyone_can_post() => lang
+            .pick(
+                "អ្នកណាក៏អាចបង្កើតទំព័រនៅលើនេះបានដែរ។ សូមពិនិត្យមើលឱ្យច្បាស់ថាអ្នកណាជាអ្នកបង្ហោះ មុនពេលទុកចិត្ត។",
+                "Anyone can post here. Check who posted it before you trust it.",
+            )
+            .to_owned(),
         _ => return None,
     })
 }
@@ -740,7 +940,7 @@ mod tests {
     use crate::analyzers::khqr::{self, tests::INDIVIDUAL_KHR_500};
 
     fn render_km(checks: &[Check]) -> String {
-        render(checks, Lang::Km)
+        render(checks, About::default(), Lang::Km)
     }
 
     fn check_with(signals: Vec<Signal>, valid: bool) -> Check {
@@ -836,7 +1036,7 @@ mod tests {
     #[test]
     fn every_reply_sends_user_to_bank_app_and_never_says_safe() {
         for lang in [Lang::Km, Lang::En] {
-            let render_km = |checks: &[Check]| render(checks, lang);
+            let render_km = |checks: &[Check]| render(checks, About::default(), lang);
             let replies = [
                 screenshot_unread(lang),
                 render_km(&[]),
@@ -864,7 +1064,7 @@ mod tests {
                 }]),
             ];
             for reply in replies {
-                assert!(reply.ends_with(BANK_APP_ADVICE.get(lang)), "{reply}");
+                assert!(reply.contains(BANK_APP_ADVICE.get(lang)), "{reply}");
                 assert!(!reply.contains("សុវត្ថិភាព") && !reply.to_lowercase().contains("safe"));
             }
         }
@@ -906,21 +1106,59 @@ mod tests {
     }
 
     #[test]
-    fn about_names_the_sender_and_kind() {
-        let english = about(
-            Some("NEO GAME OASIS"),
-            Some(MessageKind::Promotion),
-            Lang::En,
-        )
-        .unwrap();
-        assert!(
-            english.contains("Forwarded from: NEO GAME OASIS") && english.contains("a promotion")
-        );
+    fn about_line_names_the_kind_and_sender() {
+        let about = About {
+            forwarded_from: Some("NEO GAME OASIS"),
+            kind: Some(MessageKind::Promotion),
+        };
         assert_eq!(
-            about(Some("@ABA_Support"), None, Lang::Km).as_deref(),
-            Some("• បញ្ជូនបន្តពី៖ ＠ABA_Support")
+            about_line(about, Lang::En).as_deref(),
+            Some("A promotion or ad from a business · forwarded from NEO GAME OASIS")
         );
-        assert_eq!(about(None, Some(MessageKind::Other), Lang::Km), None);
+        let impostor = About {
+            forwarded_from: Some("@ABA_Support"),
+            kind: Some(MessageKind::Other),
+        };
+        assert_eq!(
+            about_line(impostor, Lang::Km).as_deref(),
+            Some("បញ្ជូនបន្តពី ＠ABA_Support")
+        );
+        assert_eq!(about_line(About::default(), Lang::Km), None);
+    }
+
+    #[test]
+    fn reply_puts_verdict_summary_and_action_first() {
+        let reply = render_km(&[khqr::check(INDIVIDUAL_KHR_500)]);
+        let mut lines = reply.lines();
+        assert_eq!(lines.next(), Some("<b>⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ</b>"));
+        assert!(lines.next().unwrap().contains("500 KHR"));
+        assert!(lines.next().unwrap().starts_with("👉 តើឈ្មោះនេះត្រូវនឹងហាង"));
+        assert!(reply.contains("<blockquote expandable>ℹ️ ព័ត៌មានលម្អិត"));
+        assert!(reply.ends_with("</blockquote>"));
+        let edited = render_km(&[check_with(vec![Signal::ChecksumInvalid], false)]);
+        assert!(!edited.contains("blockquote"));
+        let plain = render_km(&[Check {
+            subject: Subject::Text,
+            signals: vec![],
+        }]);
+        assert!(!plain.contains("blockquote") && plain.contains(BANK_APP_ADVICE.km));
+    }
+
+    #[test]
+    fn attacker_text_cannot_inject_html() {
+        let check = Check {
+            subject: Subject::Link(LinkInfo {
+                host: "evil.top".to_owned(),
+                redirected_to: None,
+                age_days: None,
+                site: None,
+                title: Some("<a href=x>ABA</a> & co".to_owned()),
+            }),
+            signals: vec![],
+        };
+        let reply = render_km(&[check]);
+        assert!(reply.contains("&lt;a href=x&gt;ABA&lt;/a&gt; &amp; co"));
+        assert!(!reply.contains("<a "));
     }
 
     #[test]
@@ -970,6 +1208,7 @@ mod tests {
                 }),
                 signals: vec![],
             }],
+            About::default(),
             Lang::En,
         );
         assert!(

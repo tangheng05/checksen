@@ -5,7 +5,7 @@ use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::types::{
-    ChatAction, Me, MessageEntityKind, MessageOrigin, PhotoSize, ReplyParameters,
+    ChatAction, Me, MessageEntityKind, MessageOrigin, ParseMode, PhotoSize, ReplyParameters,
 };
 use url::Url;
 
@@ -36,59 +36,68 @@ pub struct Services {
     pub store: Option<Arc<Store>>,
 }
 
+enum Body {
+    Checks(Vec<Check>),
+    Text(String),
+}
+
 struct Outcome {
-    reply: Reply,
+    body: Body,
+    /// Fixed advice shown above the verdict, for people who were already scammed.
+    preface: Option<&'static str>,
     cacheable: bool,
-    /// False for fixed answers, which get no "forwarded from" line.
-    checked: bool,
 }
 
 impl Outcome {
-    fn of(checks: &[Check], lang: Lang) -> Self {
-        let mut payees = checks.iter().filter_map(|check| match &check.subject {
-            Subject::Khqr(payee) => Some(payee.bakong_account_id.clone()),
-            _ => None,
+    fn of(checks: Vec<Check>) -> Self {
+        let cacheable = !checks.iter().any(|check| {
+            check.signals.contains(&Signal::ModelUnavailable)
+                || matches!(check.subject, Subject::Link(_))
         });
-        let account = match (payees.next(), payees.next()) {
-            (Some(account), None) => Some(account),
-            _ => None,
-        };
         Self {
-            reply: Reply {
-                text: verdict::render(checks, lang),
-                account,
-            },
-            cacheable: !checks.iter().any(|check| {
-                check.signals.contains(&Signal::ModelUnavailable)
-                    || matches!(check.subject, Subject::Link(_))
-            }),
-            checked: true,
+            body: Body::Checks(checks),
+            preface: None,
+            cacheable,
         }
     }
 
     fn text(text: impl Into<String>, cacheable: bool) -> Self {
         Self {
-            reply: Reply {
-                text: text.into(),
-                account: None,
-            },
+            body: Body::Text(text.into()),
+            preface: None,
             cacheable,
-            checked: false,
         }
     }
 
-    fn about(
-        mut self,
-        forwarded_from: Option<&str>,
-        kind: Option<MessageKind>,
-        lang: Lang,
-    ) -> Self {
-        if self.checked
-            && let Some(about) = verdict::about(forwarded_from, kind, lang)
-        {
-            self.reply.text = format!("{about}\n\n{}", self.reply.text);
-        }
-        self
+    fn finish(self, about: verdict::About, lang: Lang) -> (Reply, bool) {
+        let reply = match self.body {
+            Body::Text(text) => Reply {
+                text,
+                account: None,
+                html: false,
+            },
+            Body::Checks(checks) => {
+                let mut payees = checks.iter().filter_map(|check| match &check.subject {
+                    Subject::Khqr(payee) => Some(payee.bakong_account_id.clone()),
+                    _ => None,
+                });
+                let account = match (payees.next(), payees.next()) {
+                    (Some(account), None) => Some(account),
+                    _ => None,
+                };
+                let verdict = verdict::render(&checks, about, lang);
+                let text = match self.preface {
+                    Some(preface) => format!("{}\n\n{verdict}", verdict::escape(preface)),
+                    None => verdict,
+                };
+                Reply {
+                    text,
+                    account,
+                    html: true,
+                }
+            }
+        };
+        (reply, self.cacheable)
     }
 }
 
@@ -137,10 +146,10 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
         Some(reply) => reply,
         None => {
             let typing = tokio::spawn(keep_typing(bot.clone(), msg.chat.id));
-            let outcome = check(&bot, target, lang, &services).await;
+            let (reply, cacheable) = check(&bot, target, lang, &services).await;
             typing.abort();
-            let reply = Arc::new(outcome.reply);
-            if outcome.cacheable {
+            let reply = Arc::new(reply);
+            if cacheable {
                 guard.store(key, reply.clone());
             }
             reply
@@ -148,7 +157,10 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
     };
 
     let keyboard = reports::keyboard(services.store.as_deref(), reply.account.as_deref(), lang);
-    let request = answer(&bot, target, reply.text.as_str());
+    let mut request = answer(&bot, target, reply.text.as_str());
+    if reply.html {
+        request = request.parse_mode(ParseMode::Html);
+    }
     match keyboard {
         Some(keyboard) => request.reply_markup(keyboard).await?,
         None => request.await?,
@@ -266,13 +278,13 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     })
 }
 
-async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> Outcome {
+async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> (Reply, bool) {
     let (outcome, kind) = if let Some(photo) = largest_photo(msg) {
         check_photo(bot, msg, photo, lang, services).await
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         let checks = vec![khqr::check(payload)];
         let checks = reports::with_reports(checks, services.store.as_deref()).await;
-        (Outcome::of(&checks, lang), None)
+        (Outcome::of(checks), None)
     } else if let Some(message) = msg.text() {
         check_text(msg, message, lang, services).await
     } else {
@@ -286,9 +298,14 @@ async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> Out
             .into_iter()
             .map(|url| services.links.check(url));
         checks.extend(join_all(links).await);
-        (Outcome::of(&checks, lang), None)
+        (Outcome::of(checks), None)
     };
-    outcome.about(forwarded_from(msg).as_deref(), kind, lang)
+    let forwarded_from = forwarded_from(msg);
+    let about = verdict::About {
+        forwarded_from: forwarded_from.as_deref(),
+        kind,
+    };
+    outcome.finish(about, lang)
 }
 
 fn forwarded_from(msg: &Message) -> Option<String> {
@@ -333,13 +350,10 @@ async fn check_text(
         || checks
             .iter()
             .any(|check| verdict::decide(check) != Level::NoKnownSignals);
-    let verdict = Outcome::of(&checks, lang);
+    let verdict = Outcome::of(checks);
     let outcome = match verdict::answer(intent, lang) {
         Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
-            reply: Reply {
-                text: format!("{answer}\n\n{}", verdict.reply.text),
-                ..verdict.reply
-            },
+            preface: Some(answer),
             ..verdict
         },
         Some(answer) if !flagged => Outcome::text(answer, verdict.cacheable),
@@ -419,12 +433,12 @@ async fn check_photo(
     services: &Services,
 ) -> (Outcome, Option<MessageKind>) {
     let caption = msg.caption();
-    let failed = || Outcome::text(verdict::render(&[], lang), false);
+    let failed = || Outcome::text(verdict::no_qr_found(lang), false);
     let image = match download_photo(bot, photo).await {
         Ok(image) => image,
         Err(error) => {
             tracing::warn!(%error, "photo download failed");
-            return caption_or(msg, lang, services, failed()).await;
+            return caption_or(msg, services, failed()).await;
         }
     };
     let decoded = tokio::task::spawn_blocking(move || {
@@ -436,7 +450,7 @@ async fn check_photo(
         Ok(decoded) => decoded,
         Err(error) => {
             tracing::warn!(%error, "QR decoding failed");
-            return caption_or(msg, lang, services, failed()).await;
+            return caption_or(msg, services, failed()).await;
         }
     };
     if !payloads.is_empty() {
@@ -452,16 +466,16 @@ async fn check_photo(
                 text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
             checks.extend(caption_checks);
         }
-        return (Outcome::of(&checks, lang), None);
+        return (Outcome::of(checks), None);
     }
 
     let Some(transcriber) = services.transcriber.as_deref() else {
-        return caption_or(msg, lang, services, Outcome::of(&[], lang)).await;
+        return caption_or(msg, services, Outcome::of(Vec::new())).await;
     };
     let unread = || Outcome::text(verdict::screenshot_unread(lang), false);
     if !services.guard.allow_model_call(ModelCall::Screenshot) {
         tracing::warn!("daily screenshot budget used up");
-        return caption_or(msg, lang, services, unread()).await;
+        return caption_or(msg, services, unread()).await;
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
@@ -479,15 +493,15 @@ async fn check_photo(
                 SCREENSHOT_CLASSIFIER_BUDGET,
             )
             .await;
-            (Outcome::of(&checks, lang), reading.kind)
+            (Outcome::of(checks), reading.kind)
         }
         Ok(None) => {
             let nothing = Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true);
-            caption_or(msg, lang, services, nothing).await
+            caption_or(msg, services, nothing).await
         }
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
-            caption_or(msg, lang, services, unread()).await
+            caption_or(msg, services, unread()).await
         }
     }
 }
@@ -495,7 +509,6 @@ async fn check_photo(
 /// Checks the caption when the image itself gave nothing, otherwise replies with `fallback`.
 async fn caption_or(
     msg: &Message,
-    lang: Lang,
     services: &Services,
     fallback: Outcome,
 ) -> (Outcome, Option<MessageKind>) {
@@ -506,7 +519,7 @@ async fn caption_or(
     let show_text = urls.is_empty();
     let (checks, reading) =
         text_checks(caption, urls, show_text, services, CLASSIFIER_BUDGET).await;
-    let outcome = Outcome::of(&checks, lang);
+    let outcome = Outcome::of(checks);
     let cacheable = outcome.cacheable && fallback.cacheable;
     (
         Outcome {
