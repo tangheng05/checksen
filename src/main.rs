@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     let links = Arc::new(LinkChecker::new()?);
     let classifier = classifier()?;
-    let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 1)?
+    let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 3)?
         .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>);
     if transcriber.is_none() {
         tracing::warn!("GEMINI_API_KEY is not set; photos are checked for QR codes only");

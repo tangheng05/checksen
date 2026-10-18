@@ -21,7 +21,7 @@ const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(3);
-const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(10);
+const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
 
 struct Outcome {
     reply: Reply,
@@ -270,7 +270,7 @@ async fn check_photo(
     };
     if !guard.allow_model_call(ModelCall::Screenshot) {
         tracing::warn!("daily screenshot budget used up");
-        return Outcome::text(verdict::render_km(&[]), false);
+        return Outcome::text(verdict::screenshot_unread_km(), false);
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
@@ -281,7 +281,7 @@ async fn check_photo(
         Ok(None) => Outcome::of(&[]),
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
-            Outcome::text(verdict::render_km(&[]), false)
+            Outcome::text(verdict::screenshot_unread_km(), false)
         }
     }
 }

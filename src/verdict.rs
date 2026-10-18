@@ -25,6 +25,8 @@ const LINK_ADVICE_KM: &str = "កុំបញ្ចូលលេខសម្ង�
 const NO_TEXT_SIGNALS_KM: &str =
     "ខ្ញុំមិនឃើញពាក្យដែលអ្នកបោកប្រាស់ច្រើនប្រើទេ ប៉ុន្តែនេះមិនមានន័យថាសារនេះគ្មានបញ្ហានោះទេ។";
 const NO_QR_FOUND_KM: &str = "រកមិនឃើញ QR ក្នុងរូបភាពនេះទេ។ សូមថតឱ្យច្បាស់ ហើយឱ្យឃើញ QR ទាំងមូល រួចផ្ញើម្តងទៀត។";
+const SCREENSHOT_UNREAD_KM: &str =
+    "ខ្ញុំមិនអាចអានអត្ថបទក្នុងរូបភាពនេះបាននៅពេលនេះទេ។ សូមព្យាយាមម្តងទៀតបន្តិចទៀត ឬចម្លងអត្ថបទសារ ហើយផ្ញើមកជាអក្សរ។";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -62,6 +64,13 @@ pub fn decide(check: &Check) -> Level {
     } else {
         Level::NoKnownSignals
     }
+}
+
+pub fn screenshot_unread_km() -> String {
+    format!(
+        "{}\n{SCREENSHOT_UNREAD_KM}\n\n{BANK_APP_ADVICE_KM}",
+        Level::CantTell.label_km()
+    )
 }
 
 pub fn render_km(checks: &[Check]) -> String {
@@ -348,6 +357,7 @@ mod tests {
     #[test]
     fn every_reply_sends_user_to_bank_app_and_never_says_safe() {
         let replies = [
+            screenshot_unread_km(),
             render_km(&[]),
             render_km(&[khqr::check(INDIVIDUAL_KHR_500)]),
             render_km(&[check_with(vec![Signal::ChecksumInvalid], false)]),
