@@ -37,7 +37,7 @@ Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, P
 
 ## Website
 
-`web/` is a static site with no build step (Khmer at `/`, English at `/en/`). Preview it with `python3 -m http.server -d web`. On Vercel, import the repo, set Root Directory to `web` and Framework Preset to Other.
+The site is live at https://checksen.horizxon.tech. `web/` is a static site with no build step (Khmer at `/`, English at `/en/`). Preview it with `python3 -m http.server -d web`. On Vercel, import the repo, set Root Directory to `web` and Framework Preset to Other.
 
 ## License
 

@@ -647,6 +647,53 @@ h2:lang(km) {
   font-weight: 500;
 }
 
+.faq-list {
+  margin-top: 2rem;
+  max-width: 48rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.faq details {
+  border-top: 1px solid var(--rule);
+}
+
+.faq summary {
+  position: relative;
+  padding: 1.1rem 0 1.1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::before {
+  content: "";
+  position: absolute;
+  left: 0.2rem;
+  top: calc(1.1rem + 0.6em);
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  transform: rotate(45deg);
+  transition: background-color 0.2s;
+}
+
+.faq details[open] summary::before {
+  background: var(--accent);
+}
+
+.faq details p {
+  margin: -0.35rem 0 0;
+  padding: 0 0 1.25rem 2rem;
+  max-width: var(--measure);
+  color: var(--muted);
+}
+
 .section.privacy {
   padding-block: clamp(3.5rem, 8vw, 4.5rem);
   border-top: 0;

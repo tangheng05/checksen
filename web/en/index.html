@@ -3,15 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CheckSen: check suspicious messages, links and KHQR codes before you pay</title>
-  <meta name="description" content="Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram. It replies in Khmer with a risk level and the reasons. Free.">
+  <title>CheckSen: free Cambodia scam checker for messages, links and KHQR codes</title>
+  <meta name="description" content="Not sure if a message, link or KHQR code is a scam? Forward it to CheckSen on Telegram. It replies in Khmer with a risk level and the reasons, in seconds. Free, nothing to install.">
   <meta name="theme-color" content="#0E716B">
-  <link rel="alternate" hreflang="km" href="/">
-  <link rel="alternate" hreflang="en" href="/en/">
+  <link rel="canonical" href="https://checksen.horizxon.tech/en">
+  <link rel="alternate" hreflang="km" href="https://checksen.horizxon.tech/">
+  <link rel="alternate" hreflang="en" href="https://checksen.horizxon.tech/en">
+  <link rel="alternate" hreflang="x-default" href="https://checksen.horizxon.tech/">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CheckSen">
+  <meta property="og:url" content="https://checksen.horizxon.tech/en">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="km_KH">
   <meta property="og:title" content="CheckSen: check first, then pay">
-  <meta property="og:description" content="Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram.">
-  <meta property="og:image" content="https://checksen-web.vercel.app/assets/telegram-bot-photo-640.png">
+  <meta property="og:description" content="Not sure if a message, link or KHQR code is a scam? Forward it to CheckSen on Telegram. It replies in Khmer with a risk level and the reasons, in seconds. Free, nothing to install.">
+  <meta property="og:image" content="https://checksen.horizxon.tech/assets/og-en.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="CheckSen: check first, then pay">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://checksen.horizxon.tech/#website", "url": "https://checksen.horizxon.tech/", "name": "CheckSen", "alternateName": ["ឆែកសិន", "CheckSen ឆែកសិន"], "inLanguage": ["km", "en"]}, {"@type": "WebApplication", "name": "CheckSen", "alternateName": "ឆែកសិន", "url": "https://t.me/CheckSen_bot", "description": "A free Telegram bot that checks messages, links, KHQR codes and screenshots for scam signs and replies in Khmer.", "applicationCategory": "SecurityApplication", "operatingSystem": "Telegram", "inLanguage": "km", "isAccessibleForFree": true, "image": "https://checksen.horizxon.tech/assets/icon-512.png", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "sameAs": ["https://github.com/tangheng05/checksen"]}, {"@type": "FAQPage", "inLanguage": "en", "mainEntity": [{"@type": "Question", "name": "How can I tell if a KHQR code is real or edited?", "acceptedAnswer": {"@type": "Answer", "text": "Send a photo of the QR to CheckSen. It shows the real recipient name, account, bank and amount, and checks the code's check digits. Before paying, always check the recipient's name in your own bank app."}}, {"@type": "Question", "name": "Do banks ever ask for my OTP code by phone or Telegram?", "acceptedAnswer": {"@type": "Answer", "text": "No. Real banks and companies never ask for your OTP code, PIN or password. Anyone who asks for them is most likely a scammer."}}, {"@type": "Question", "name": "Is CheckSen free? Do I need to install an app?", "acceptedAnswer": {"@type": "Answer", "text": "It's free and there's nothing to install. Open @CheckSen_bot in Telegram and send it a message, link or photo."}}, {"@type": "Question", "name": "I already paid a scammer. What should I do?", "acceptedAnswer": {"@type": "Answer", "text": "Call your bank right away on the number on your card or in its app, and ask them to stop the transfer. Keep screenshots of the messages and the payment receipt, and report it to the police. Don't pay anyone who promises to get your money back for a fee."}}, {"@type": "Question", "name": "Can CheckSen tell me a message is safe?", "acceptedAnswer": {"@type": "Answer", "text": "No. It can only say whether it found known scam signs. A new trick may not be caught yet, so when in doubt, check through your bank's official number or app."}}]}]}</script>
   <link rel="icon" href="/assets/favicon.ico" sizes="any">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon-180.png">
@@ -23,7 +34,7 @@
 </head>
 <body>
   <header class="wrap site-header">
-    <a class="logo" href="/en/" aria-label="CheckSen">
+    <a class="logo" href="/en" aria-label="CheckSen">
       <img class="on-light" src="/assets/checksen-logo-horizontal.svg" alt="CheckSen" width="207" height="40">
       <img class="on-dark" src="/assets/checksen-logo-horizontal-on-dark.svg" alt="CheckSen" width="207" height="40">
     </a>
@@ -34,7 +45,7 @@
     <section class="wrap hero">
       <div>
         <h1>Check first,<br>then pay.</h1>
-        <p class="lede">Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram. Within seconds it replies in Khmer with a risk level and the reasons. It's free.</p>
+        <p class="lede">A free scam checker for Cambodia. Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram, and within seconds it replies in Khmer with a risk level and the reasons.</p>
         <div class="cta-row">
           <a class="cta" href="https://t.me/CheckSen_bot">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5ZM9.7 14.3l-.5 3.5-1.3-4.1 10.4-6.6-8.6 7.2Z"/></svg>
@@ -117,6 +128,34 @@ This message pushes you to act right away.
           <li><p>Offers high-paid typing or call-centre work in Poipet, Sihanoukville or Bavet.</p></li>
           <li><p>Asks you to pay a power bill or government fee through an agent or a personal account.</p></li>
         </ul>
+      </div>
+    </section>
+
+    <section class="section band faq">
+      <div class="wrap">
+        <h2>Questions people ask</h2>
+        <div class="faq-list">
+          <details>
+            <summary>How can I tell if a KHQR code is real or edited?</summary>
+            <p>Send a photo of the QR to CheckSen. It shows the real recipient name, account, bank and amount, and checks the code's check digits. Before paying, always check the recipient's name in your own bank app.</p>
+          </details>
+          <details>
+            <summary>Do banks ever ask for my OTP code by phone or Telegram?</summary>
+            <p>No. Real banks and companies never ask for your OTP code, PIN or password. Anyone who asks for them is most likely a scammer.</p>
+          </details>
+          <details>
+            <summary>Is CheckSen free? Do I need to install an app?</summary>
+            <p>It's free and there's nothing to install. Open @CheckSen_bot in Telegram and send it a message, link or photo.</p>
+          </details>
+          <details>
+            <summary>I already paid a scammer. What should I do?</summary>
+            <p>Call your bank right away on the number on your card or in its app, and ask them to stop the transfer. Keep screenshots of the messages and the payment receipt, and report it to the police. Don't pay anyone who promises to get your money back for a fee.</p>
+          </details>
+          <details>
+            <summary>Can CheckSen tell me a message is safe?</summary>
+            <p>No. It can only say whether it found known scam signs. A new trick may not be caught yet, so when in doubt, check through your bank's official number or app.</p>
+          </details>
+        </div>
       </div>
     </section>
 
