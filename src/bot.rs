@@ -10,7 +10,7 @@ use teloxide::types::{
 };
 use url::Url;
 
-use checksen::analyzers::file::{self, Scans};
+use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
@@ -297,7 +297,7 @@ async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> (Re
     } else if let Some(message) = msg.text() {
         check_text(msg, message, lang, services).await
     } else if let Some(document) = msg.document() {
-        (check_document(bot, msg, document, services).await, None)
+        check_document(bot, msg, document, lang, services).await
     } else {
         (Outcome::of(Vec::new()), None)
     };
@@ -426,36 +426,57 @@ async fn check_document(
     bot: &Bot,
     msg: &Message,
     document: &Document,
+    lang: Lang,
     services: &Services,
-) -> Outcome {
+) -> (Outcome, Option<MessageKind>) {
     let name = document.file_name.as_deref().unwrap_or_default();
     let mime = document.mime_type.as_ref().map(|mime| mime.essence_str());
     let bytes = if document.file.size <= MAX_FILE_BYTES {
-        match download(bot, &document.file.id).await {
-            Ok(bytes) => Some(bytes),
-            Err(error) => {
-                tracing::warn!(%error, "file download failed");
-                None
-            }
-        }
+        download(bot, &document.file.id)
+            .await
+            .map_err(|error| tracing::warn!(%error, "file download failed"))
+            .map_err(|()| Unread::DownloadFailed)
     } else {
-        None
+        Err(Unread::TooBig)
     };
-    let (scans, scanned) = match &bytes {
-        Some(bytes) => scan(bytes, services).await,
-        None => (Scans::default(), true),
+
+    // Screenshots and KHQR codes are often sent uncompressed, as files.
+    if let Ok(image) = &bytes
+        && image.len() <= MAX_PHOTO_BYTES as usize
+        && file::kind_from_bytes(image) == Some(FileKind::Image)
+    {
+        let file_check = file::inspect(name, mime, Content::Bytes(image), Scans::default());
+        let (mut outcome, kind) = check_image(image.clone(), msg, lang, services).await;
+        if !file_check.signals.is_empty()
+            && let Body::Checks(checks) = &mut outcome.body
+        {
+            checks.push(file_check);
+        }
+        return (outcome, kind);
+    }
+
+    let (content, (scans, scanned)) = match &bytes {
+        Ok(bytes) => (Content::Bytes(bytes), scan(bytes, services).await),
+        Err(why) => (
+            Content::Unread(*why),
+            (Scans::default(), *why == Unread::TooBig),
+        ),
     };
-    let mut checks = vec![file::inspect(name, mime, bytes.as_deref(), scans)];
+    let mut checks = vec![file::inspect(name, mime, content, scans)];
     if let Some(caption) = msg.caption() {
         let (caption_checks, _) =
             text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
         checks.extend(caption_checks);
     }
     let outcome = Outcome::of(checks);
-    Outcome {
-        cacheable: outcome.cacheable && scanned,
-        ..outcome
-    }
+    let cacheable = outcome.cacheable && scanned;
+    (
+        Outcome {
+            cacheable,
+            ..outcome
+        },
+        None,
+    )
 }
 
 /// Runs the configured antivirus checks; the flag is false when one of them failed.
@@ -508,7 +529,6 @@ async fn download(bot: &Bot, id: &FileId) -> anyhow::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// The text in the image and the caption are checked together, as one message.
 async fn check_photo(
     bot: &Bot,
     msg: &Message,
@@ -516,15 +536,25 @@ async fn check_photo(
     lang: Lang,
     services: &Services,
 ) -> (Outcome, Option<MessageKind>) {
-    let caption = msg.caption();
-    let failed = || Outcome::text(verdict::no_qr_found(lang), false);
-    let image = match download_photo(bot, photo).await {
-        Ok(image) => image,
+    match download_photo(bot, photo).await {
+        Ok(image) => check_image(image, msg, lang, services).await,
         Err(error) => {
             tracing::warn!(%error, "photo download failed");
-            return caption_or(msg, services, failed()).await;
+            let failed = Outcome::text(verdict::no_qr_found(lang), false);
+            caption_or(msg, services, failed).await
         }
-    };
+    }
+}
+
+/// The text in the image and the caption are checked together, as one message.
+async fn check_image(
+    image: Vec<u8>,
+    msg: &Message,
+    lang: Lang,
+    services: &Services,
+) -> (Outcome, Option<MessageKind>) {
+    let caption = msg.caption();
+    let failed = || Outcome::text(verdict::no_qr_found(lang), false);
     let decoded = tokio::task::spawn_blocking(move || {
         let payloads = khqr::payloads_from_image(&image);
         (image, payloads)

@@ -10,6 +10,7 @@ pub enum FileKind {
     Image,
     Video,
     Audio,
+    Text,
     Document,
     Archive,
     WindowsProgram,
@@ -40,7 +41,7 @@ impl FileKind {
     fn is_harmless_looking(self) -> bool {
         matches!(
             self,
-            Self::Pdf | Self::Image | Self::Video | Self::Audio | Self::Document
+            Self::Pdf | Self::Image | Self::Video | Self::Audio | Self::Text | Self::Document
         )
     }
 }
@@ -54,9 +55,23 @@ pub enum Detector {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileInfo {
     pub name: String,
-    pub size: u64,
     pub real: Option<FileKind>,
     pub scans: Scans,
+    pub unread: Option<Unread>,
+}
+
+/// What the bot got of the file's bytes.
+#[derive(Debug, Clone, Copy)]
+pub enum Content<'a> {
+    Bytes(&'a [u8]),
+    Unread(Unread),
+}
+
+/// Why the inside of a file couldn't be checked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unread {
+    TooBig,
+    DownloadFailed,
 }
 
 /// What the antivirus checks said; `None` means that check didn't run.
@@ -83,9 +98,8 @@ fn kind_from_extension(extension: &str) -> Option<FileKind> {
         "jpg" | "jpeg" | "png" | "gif" | "webp" | "heic" | "bmp" => FileKind::Image,
         "mp4" | "mov" | "avi" | "mkv" | "3gp" | "webm" => FileKind::Video,
         "mp3" | "m4a" | "wav" | "ogg" | "aac" => FileKind::Audio,
-        "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "txt" | "rtf" | "odt" | "csv" => {
-            FileKind::Document
-        }
+        "txt" | "csv" | "log" => FileKind::Text,
+        "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "rtf" | "odt" => FileKind::Document,
         "docm" | "xlsm" | "pptm" => FileKind::Script,
         "zip" | "rar" | "7z" | "tar" | "gz" => FileKind::Archive,
         "exe" | "scr" | "msi" | "com" | "pif" | "cpl" | "dll" => FileKind::WindowsProgram,
@@ -204,7 +218,11 @@ fn archive_entries(bytes: &[u8]) -> Option<Entries> {
 }
 
 /// Name tricks, the real type behind the name, and what's packed inside a zip.
-pub fn inspect(name: &str, mime: Option<&str>, bytes: Option<&[u8]>, scans: Scans) -> Check {
+pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -> Check {
+    let (bytes, unread) = match content {
+        Content::Bytes(bytes) => (Some(bytes), None),
+        Content::Unread(why) => (None, Some(why)),
+    };
     let mut signals = Vec::new();
     if name.chars().any(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}')) {
         signals.push(Signal::HiddenFileName);
@@ -222,14 +240,16 @@ pub fn inspect(name: &str, mime: Option<&str>, bytes: Option<&[u8]>, scans: Scan
         (Some(shown), Some(real)) if shown != real && real.is_dangerous() => {
             signals.push(Signal::DisguisedFile { shown, real });
         }
-        (_, Some(real)) if real.is_dangerous() => signals.push(Signal::MalwareFile),
+        (_, Some(real)) if real.is_dangerous() => signals.push(Signal::DangerousFile(real)),
         _ => {}
     }
 
-    if matches!(real, Some(FileKind::AndroidApp | FileKind::WindowsProgram))
-        && let Some(brand) = super::link::app_brand(name)
-    {
-        signals.push(Signal::FakeBankApp(brand));
+    match (real, super::link::app_brand(name)) {
+        (Some(FileKind::AndroidApp | FileKind::WindowsProgram), Some(brand)) => {
+            signals.push(Signal::FakeBankApp(brand));
+        }
+        (Some(FileKind::WebPage), Some(brand)) => signals.push(Signal::BrandClaim(brand)),
+        _ => {}
     }
 
     if real == Some(FileKind::Archive)
@@ -263,9 +283,9 @@ pub fn inspect(name: &str, mime: Option<&str>, bytes: Option<&[u8]>, scans: Scan
     Check {
         subject: Subject::File(Box::new(FileInfo {
             name: name.to_owned(),
-            size: bytes.map_or(0, |bytes| bytes.len() as u64),
             real,
             scans,
+            unread,
         })),
         signals,
     }
@@ -287,7 +307,7 @@ mod tests {
     use super::*;
 
     fn signals(name: &str, bytes: &[u8]) -> Vec<Signal> {
-        inspect(name, None, Some(bytes), Scans::default()).signals
+        inspect(name, None, Content::Bytes(bytes), Scans::default()).signals
     }
 
     fn zip_with(entries: &[(&str, bool)]) -> Vec<u8> {
@@ -367,12 +387,48 @@ mod tests {
             signals("statement.pdf.htm", b"<html><form>"),
             [disguised(FileKind::Pdf, FileKind::WebPage)]
         );
-        assert_eq!(signals("setup.exe", b"MZ"), [Signal::MalwareFile]);
-        assert_eq!(signals("game.apk", b"PK\x03\x04"), [Signal::MalwareFile]);
+        assert_eq!(
+            signals("setup.exe", b"MZ"),
+            [Signal::DangerousFile(FileKind::WindowsProgram)]
+        );
+        assert_eq!(
+            signals("login.html", b"<html><form>"),
+            [Signal::DangerousFile(FileKind::WebPage)]
+        );
+        assert_eq!(
+            signals("ABA statement.htm", b"<html><form>"),
+            [
+                Signal::DangerousFile(FileKind::WebPage),
+                Signal::BrandClaim("ABA")
+            ]
+        );
+        assert_eq!(kind_from_name("notes.txt"), Some(FileKind::Text));
+        assert_eq!(
+            signals("game.apk", b"PK\x03\x04"),
+            [Signal::DangerousFile(FileKind::AndroidApp)]
+        );
         assert_eq!(
             signals("ABA Mobile.apk", b"PK\x03\x04"),
-            [Signal::MalwareFile, Signal::FakeBankApp("ABA")]
+            [
+                Signal::DangerousFile(FileKind::AndroidApp),
+                Signal::FakeBankApp("ABA")
+            ]
         );
+    }
+
+    #[test]
+    fn unread_files_fall_back_to_name_and_type() {
+        let check = inspect(
+            "big.apk",
+            None,
+            Content::Unread(Unread::TooBig),
+            Scans::default(),
+        );
+        assert_eq!(check.signals, [Signal::DangerousFile(FileKind::AndroidApp)]);
+        let Subject::File(info) = check.subject else {
+            panic!("expected a file");
+        };
+        assert_eq!(info.unread, Some(Unread::TooBig));
     }
 
     #[test]
@@ -412,7 +468,7 @@ mod tests {
 
     #[test]
     fn antivirus_results_become_signals() {
-        let scanned = |scans| inspect("file.pdf", None, Some(b"%PDF"), scans).signals;
+        let scanned = |scans| inspect("file.pdf", None, Content::Bytes(b"%PDF"), scans).signals;
         let seen = |malicious| Scans {
             virustotal: Some(VirusTotal::Seen {
                 malicious,

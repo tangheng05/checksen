@@ -65,6 +65,7 @@ pub enum Signal {
     DisguisedFile { shown: FileKind, real: FileKind },
     HiddenFileName,
     FakeBankApp(&'static str),
+    DangerousFile(FileKind),
     ProgramInArchive,
     LockedArchive,
     KnownMalware(Detector),
@@ -120,6 +121,7 @@ impl Signal {
             | Self::TelegramTakeover
             | Self::Extortion
             | Self::MalwareFile
+            | Self::DangerousFile(_)
             | Self::ProgramInArchive => 0.6,
             Self::ChecksumInvalid
             | Self::DuplicateTag

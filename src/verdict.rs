@@ -1,6 +1,6 @@
 use khqr_core::{Currency, DecodedKhqr};
 
-use crate::analyzers::file::{Detector, FileInfo, FileKind, VirusTotal};
+use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
 use crate::analyzers::llm::{MessageKind, ScamCategory};
@@ -93,8 +93,8 @@ const HOW_TO_REPORT: Text = text(
     "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• You can also report it to the police.",
 );
 const PRIVACY: Text = text(
-    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ ចុច /forget ដើម្បីលុបការរាយការណ៍ KHQR របស់អ្នក។",
-    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Tap /forget to delete your KHQR reports.",
+    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal មិនមែនឯកសារខ្លួនឯងទេ។ ចុច /forget ដើម្បីលុបការរាយការណ៍ KHQR របស់អ្នក។",
+    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal, never the file itself. Tap /forget to delete your KHQR reports.",
 );
 const OTHER_QUESTION: Text = text(
     "ខ្ញុំអាចជួយពិនិត្យតែសារ តំណ កូដ QR រូបថតអេក្រង់ និងឯកសារ ដែលអ្នកសង្ស័យប៉ុណ្ណោះ។ សូម forward ឬចម្លងសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាមានសញ្ញាបោកប្រាស់ឬអត់។",
@@ -746,6 +746,13 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 }
             };
         }
+        Signal::DangerousFile(kind) => {
+            let kind = file_kind_name(kind, lang);
+            return match lang {
+                Lang::Km => format!("ឯកសារនេះជា{kind}។ កុំបើក ឬដំឡើងវា។"),
+                Lang::En => format!("This file is {kind}. Don't open or install it."),
+            };
+        }
         Signal::FakeBankApp(brand) => {
             return match lang {
                 Lang::Km => format!(
@@ -975,6 +982,7 @@ fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
         FileKind::Image => ("រូបភាព", "a photo"),
         FileKind::Video => ("វីដេអូ", "a video"),
         FileKind::Audio => ("សំឡេង", "an audio file"),
+        FileKind::Text => ("ឯកសារអក្សរ", "a text file"),
         FileKind::Document => ("ឯកសារ Word ឬ Excel", "a Word or Excel document"),
         FileKind::Archive => ("ឯកសារបង្ហាប់ (zip)", "an archive (zip)"),
         FileKind::WindowsProgram => ("កម្មវិធីកុំព្យូទ័រ (.exe)", "a Windows program (.exe)"),
@@ -1011,6 +1019,23 @@ fn render_file(file: &FileInfo, lang: Lang) -> String {
             lang.pick("• ប្រភេទពិត៖", "• Real type:"),
             file_kind_name(real, lang)
         ));
+    }
+    match file.unread {
+        Some(Unread::TooBig) => lines.push(
+            lang.pick(
+                "• មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះឯកសារធំជាង 20 MB",
+                "• Couldn't look inside: the file is over 20 MB",
+            )
+            .to_owned(),
+        ),
+        Some(Unread::DownloadFailed) => lines.push(
+            lang.pick(
+                "• មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះទាញយកមិនបាន",
+                "• Couldn't look inside: the download failed",
+            )
+            .to_owned(),
+        ),
+        None => {}
     }
     if let Some(clean) = file.scans.clamav_clean {
         let result = match clean {
@@ -1374,6 +1399,31 @@ mod tests {
         assert!(reply.contains("go[.]gov[.]kh · គេហទំព័ររដ្ឋាភិបាលកម្ពុជា"));
         assert!(reply.contains("👉 ការងារពិត មិនដែលឱ្យបង់ថ្លៃមុនទេ"));
         assert!(!reply.contains(".gov.kh"));
+    }
+
+    #[test]
+    fn file_replies_name_the_real_type_and_unread_files() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        let page = render_km(&[inspect(
+            "statement.html",
+            None,
+            Content::Bytes(b"<html><form>"),
+            Scans::default(),
+        )]);
+        assert!(page.contains("ទំព័រវេប ដែលអាចបង្ហាញទំព័រចូលគណនីក្លែងក្លាយ"));
+        assert!(!page.contains(".apk ឬ .exe"));
+        assert!(!page.contains(BANK_APP_ADVICE.km));
+        let big = render(
+            &[inspect(
+                "movie.mp4",
+                None,
+                Content::Unread(Unread::TooBig),
+                Scans::default(),
+            )],
+            About::default(),
+            Lang::En,
+        );
+        assert!(big.contains("Couldn't look inside: the file is over 20 MB"));
     }
 
     #[test]
