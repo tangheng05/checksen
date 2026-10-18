@@ -5,13 +5,16 @@ use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::types::{
-    ChatAction, Me, MessageEntityKind, MessageOrigin, ParseMode, PhotoSize, ReplyParameters,
+    ChatAction, Document, FileId, Me, MessageEntityKind, MessageOrigin, ParseMode, PhotoSize,
+    ReplyParameters,
 };
 use url::Url;
 
+use checksen::analyzers::file::{self, Scans};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
+use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Text};
@@ -21,6 +24,10 @@ use crate::reports;
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
+// The most a bot may download from Telegram.
+const MAX_FILE_BYTES: u32 = 20 * 1024 * 1024;
+const CLAMAV_BUDGET: Duration = Duration::from_secs(15);
+const VIRUSTOTAL_BUDGET: Duration = Duration::from_secs(6);
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
@@ -34,6 +41,8 @@ pub struct Services {
     pub transcriber: Option<Arc<dyn Transcriber>>,
     pub guard: Arc<Guard>,
     pub store: Option<Arc<Store>>,
+    pub clamav: Option<ClamAv>,
+    pub virustotal: Option<VirusTotalClient>,
 }
 
 enum Body {
@@ -287,18 +296,10 @@ async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> (Re
         (Outcome::of(checks), None)
     } else if let Some(message) = msg.text() {
         check_text(msg, message, lang, services).await
+    } else if let Some(document) = msg.document() {
+        (check_document(bot, msg, document, services).await, None)
     } else {
-        let file_name = msg
-            .document()
-            .and_then(|document| document.file_name.as_deref())
-            .unwrap_or_default();
-        let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
-        let mut checks = vec![text::check(&described)];
-        let links = urls_in(msg)
-            .into_iter()
-            .map(|url| services.links.check(url));
-        checks.extend(join_all(links).await);
-        (Outcome::of(checks), None)
+        (Outcome::of(Vec::new()), None)
     };
     let forwarded_from = forwarded_from(msg);
     let about = verdict::About {
@@ -418,7 +419,90 @@ async fn classify_text(
 
 async fn download_photo(bot: &Bot, photo: &PhotoSize) -> anyhow::Result<Vec<u8>> {
     anyhow::ensure!(photo.file.size <= MAX_PHOTO_BYTES, "photo too large");
-    let file = bot.get_file(photo.file.id.clone()).await?;
+    download(bot, &photo.file.id).await
+}
+
+async fn check_document(
+    bot: &Bot,
+    msg: &Message,
+    document: &Document,
+    services: &Services,
+) -> Outcome {
+    let name = document.file_name.as_deref().unwrap_or_default();
+    let mime = document.mime_type.as_ref().map(|mime| mime.essence_str());
+    let bytes = if document.file.size <= MAX_FILE_BYTES {
+        match download(bot, &document.file.id).await {
+            Ok(bytes) => Some(bytes),
+            Err(error) => {
+                tracing::warn!(%error, "file download failed");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let (scans, scanned) = match &bytes {
+        Some(bytes) => scan(bytes, services).await,
+        None => (Scans::default(), true),
+    };
+    let mut checks = vec![file::inspect(name, mime, bytes.as_deref(), scans)];
+    if let Some(caption) = msg.caption() {
+        let (caption_checks, _) =
+            text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
+        checks.extend(caption_checks);
+    }
+    let outcome = Outcome::of(checks);
+    Outcome {
+        cacheable: outcome.cacheable && scanned,
+        ..outcome
+    }
+}
+
+/// Runs the configured antivirus checks; the flag is false when one of them failed.
+async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
+    let clamav = async {
+        let clamav = services.clamav.as_ref()?;
+        match tokio::time::timeout(CLAMAV_BUDGET, clamav.is_clean(bytes)).await {
+            Ok(Ok(clean)) => Some(Ok(clean)),
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "ClamAV scan failed");
+                Some(Err(()))
+            }
+            Err(_) => {
+                tracing::warn!("ClamAV scan timed out");
+                Some(Err(()))
+            }
+        }
+    };
+    let virustotal = async {
+        let virustotal = services.virustotal.as_ref()?;
+        if !services.guard.allow_model_call(ModelCall::FileLookup) {
+            tracing::warn!("daily VirusTotal budget used up");
+            return Some(Err(()));
+        }
+        match tokio::time::timeout(VIRUSTOTAL_BUDGET, virustotal.lookup(bytes)).await {
+            Ok(Ok(report)) => Some(Ok(report)),
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "VirusTotal lookup failed");
+                Some(Err(()))
+            }
+            Err(_) => {
+                tracing::warn!("VirusTotal lookup timed out");
+                Some(Err(()))
+            }
+        }
+    };
+    let (clamav, virustotal) = tokio::join!(clamav, virustotal);
+    let scanned = !matches!(clamav, Some(Err(()))) && !matches!(virustotal, Some(Err(())));
+    let scans = Scans {
+        clamav_clean: clamav.and_then(Result::ok),
+        virustotal: virustotal.and_then(Result::ok),
+    };
+    (scans, scanned)
+}
+
+async fn download(bot: &Bot, id: &FileId) -> anyhow::Result<Vec<u8>> {
+    let file = bot.get_file(id.clone()).await?;
     let mut bytes = Vec::new();
     bot.download_file(&file.path, &mut bytes).await?;
     Ok(bytes)

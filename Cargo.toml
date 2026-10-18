@@ -24,10 +24,11 @@ sha2 = "0.10"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros", "chrono"] }
 strsim = "0.11.1"
 teloxide = "0.17.0"
-tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "io-util"] }
 tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
 url = "2"
+zip = { version = "9", default-features = false }
 
 [dev-dependencies]
 khqr-core = { version = "0.4", features = ["image"] }

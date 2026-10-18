@@ -1,5 +1,6 @@
 use khqr_core::{Currency, DecodedKhqr};
 
+use crate::analyzers::file::{Detector, FileInfo, FileKind, VirusTotal};
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
 use crate::analyzers::llm::{MessageKind, ScamCategory};
@@ -151,6 +152,10 @@ const LINK_ADVICE: Text = text(
     "មិនត្រូវបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណភ្ជាប់ (Link) ណាមួយឡើយ។ បើចង់ពិនិត្យមើលគណនី សូមបើកចូលកម្មវិធីធនាគាររបស់អ្នកដោយផ្ទាល់។",
     "Never enter a password or OTP code through a link. To check your account, open your bank app yourself.",
 );
+const OPENED_FILE: Text = text(
+    "បើអ្នកបានបើកវារួចហើយ៖\n1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n2. ប្តូរលេខសម្ងាត់ Two-Step Verification។\n3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។\n4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។",
+    "If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
+);
 const NO_TEXT_SIGNALS: Text = text(
     "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។",
     "No words that scammers usually use, but stay careful.",
@@ -263,6 +268,7 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
         lines.push(format!("👉 {}", escape(action)));
     }
     let about_money = matches!(level, Level::HighRisk | Level::Suspicious)
+        && !matches!(lead.subject, Subject::File(_))
         || checks
             .iter()
             .any(|check| matches!(check.subject, Subject::Khqr(_)));
@@ -292,12 +298,18 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     if has_links && action.as_deref() != Some(link_advice) {
         details.push(link_advice.to_owned());
     }
-    // A fold holding only the bank-app reminder isn't worth a tap, so it is shown inline instead.
-    if !about_money && details.is_empty() {
-        lines.push(String::new());
-        lines.push(escape(BANK_APP_ADVICE.get(lang)));
-    } else if !about_money {
-        details.push(BANK_APP_ADVICE.get(lang).to_owned());
+    // Files have nothing to do with paying, so they get no bank-app reminder.
+    let only_files = checks
+        .iter()
+        .all(|check| matches!(check.subject, Subject::File(_)));
+    if !about_money && !only_files {
+        // A fold holding only the reminder isn't worth a tap, so it is shown inline instead.
+        if details.is_empty() {
+            lines.push(String::new());
+            lines.push(escape(BANK_APP_ADVICE.get(lang)));
+        } else {
+            details.push(BANK_APP_ADVICE.get(lang).to_owned());
+        }
     }
     if !details.is_empty() {
         let heading = lang.pick("ℹ️ ព័ត៌មានលម្អិត", "ℹ️ Details");
@@ -372,6 +384,13 @@ fn summary(check: &Check, level: Level, top: Option<Signal>, lang: Lang) -> Stri
             line
         }
         Subject::Link(link) => link_summary(link, lang),
+        Subject::File(file) => {
+            let mut line = format!("📎 {}", file_name(&file.name));
+            if let Some(real) = file.real {
+                line.push_str(&format!(" · {}", file_kind_name(real, lang)));
+            }
+            line
+        }
         Subject::Text if level == Level::NoKnownSignals => NO_TEXT_SIGNALS.get(lang).to_owned(),
         Subject::Text | Subject::Unreadable => Level::CantTell.label(lang).to_owned(),
     }
@@ -411,6 +430,18 @@ fn link_summary(link: &LinkInfo, lang: Lang) -> String {
 fn action(check: &Check, level: Level, kind: Option<MessageKind>, lang: Lang) -> Option<String> {
     let text = match (&check.subject, level) {
         (_, Level::CantTell) => return None,
+        (Subject::File(_), Level::HighRisk) => lang.pick(
+            "កុំបើក ឬដំឡើងឯកសារនេះ ហើយលុបវាចោល។",
+            "Don't open or install this file. Delete it.",
+        ),
+        (Subject::File(_), Level::Suspicious) => lang.pick(
+            "កុំបើកឯកសារនេះ ទាល់តែអ្នកស្គាល់អ្នកផ្ញើ ហើយបានសួរគេផ្ទាល់។",
+            "Don't open it unless you know the sender and have asked them directly.",
+        ),
+        (Subject::File(_), Level::NoKnownSignals) => lang.pick(
+            "បើកតែឯកសារពីអ្នកដែលអ្នកស្គាល់ និងទុកចិត្តប៉ុណ្ណោះ។",
+            "Only open files from people you know and trust.",
+        ),
         (Subject::Khqr(_) | Subject::Unreadable, Level::HighRisk) => {
             lang.pick("កុំបង់ប្រាក់តាម QR នេះ។", "Don't pay with this QR.")
         }
@@ -557,6 +588,12 @@ fn detail_section(
                 lines.push(note);
             }
         }
+        Subject::File(file) => {
+            lines.push(render_file(file, lang));
+            if level != Level::NoKnownSignals {
+                lines.push(OPENED_FILE.get(lang).to_owned());
+            }
+        }
         Subject::Text | Subject::Unreadable => {}
     }
     if lines.len() == usize::from(labeled) {
@@ -698,6 +735,67 @@ fn reason(signal: Signal, lang: Lang) -> String {
             "សារនេះផ្សាយល្បែងភ្នាល់ ឬកាស៊ីណូអនឡាញ។ ល្បែងស៊ីសងអនឡាញខុសច្បាប់នៅកម្ពុជា ហើយគេហទំព័របែបនេះច្រើនតែមិនឱ្យដកលុយវិញទេ។",
             "This message advertises online betting or a casino. Online gambling is illegal in Cambodia, and sites like this often won't let you withdraw your money.",
         ),
+        Signal::DisguisedFile { shown, real } => {
+            let (shown, real) = (file_kind_name(shown, lang), file_kind_name(real, lang));
+            return match lang {
+                Lang::Km => format!("ឯកសារនេះធ្វើពុតជា{shown} តែតាមពិតជា{real}។ កុំបើកវា។"),
+                Lang::En => {
+                    format!(
+                        "This file pretends to be {shown}, but it's really {real}. Don't open it."
+                    )
+                }
+            };
+        }
+        Signal::FakeBankApp(brand) => {
+            return match lang {
+                Lang::Km => format!(
+                    "កម្មវិធីនេះប្រើឈ្មោះ {brand}។ ធនាគារមិនដែលផ្ញើកម្មវិធីតាម Telegram ទេ។ សូមដំឡើងតែពី Play Store ឬ App Store ប៉ុណ្ណោះ។"
+                ),
+                Lang::En => format!(
+                    "This app uses the name {brand}. Banks never send apps over Telegram. Only install apps from the Play Store or App Store."
+                ),
+            };
+        }
+        Signal::HiddenFileName => (
+            "ឈ្មោះឯកសារនេះមានអក្សរលាក់ ដែលបង្វែរឈ្មោះ ដើម្បីលាក់ប្រភេទពិតរបស់វា។",
+            "This file's name has a hidden character that flips the text to hide its real type.",
+        ),
+        Signal::ProgramInArchive => (
+            "ឯកសារ zip នេះមានកម្មវិធីលាក់នៅខាងក្នុង។",
+            "This archive has a program hidden inside it.",
+        ),
+        Signal::LockedArchive => (
+            "ឯកសារ zip នេះដាក់លេខសម្ងាត់ ដូច្នេះកម្មវិធីកំចាត់មេរោគមិនអាចមើលខាងក្នុងបានទេ។ ជនបោកប្រាស់តែងប្រើល្បិចនេះ។",
+            "This archive is password-protected, so antivirus can't look inside. Scammers often do this.",
+        ),
+        Signal::KnownMalware(Detector::ClamAv) => (
+            "កម្មវិធីកំចាត់មេរោគ ClamAV រកឃើញមេរោគក្នុងឯកសារនេះ។",
+            "ClamAV antivirus found a virus in this file.",
+        ),
+        Signal::KnownMalware(Detector::VirusTotal(engines)) => {
+            return match lang {
+                Lang::Km => format!(
+                    "កម្មវិធីកំចាត់មេរោគ {} ក្នុង VirusTotal ស្គាល់ឯកសារនេះថាជាមេរោគ។",
+                    khmer_digits(engines.into())
+                ),
+                Lang::En => {
+                    format!("{engines} antivirus engines on VirusTotal know this file as malware.")
+                }
+            };
+        }
+        Signal::FlaggedByFewEngines(engines) => {
+            return match lang {
+                Lang::Km => format!(
+                    "កម្មវិធីកំចាត់មេរោគ {} ក្នុង VirusTotal សង្ស័យឯកសារនេះ។",
+                    khmer_digits(engines.into())
+                ),
+                Lang::En => {
+                    format!(
+                        "{engines} antivirus engines on VirusTotal flag this file as suspicious."
+                    )
+                }
+            };
+        }
         Signal::Urgency => (
             "សារនេះប្រញាប់ឱ្យអ្នកធ្វើភ្លាមៗ។",
             "This message pushes you to act right away.",
@@ -867,6 +965,77 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
             lang.pick("• អាយុគេហទំព័រ៖", "• Site age:"),
             age(days, lang)
         ));
+    }
+    lines.join("\n")
+}
+
+fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
+    let (km, en) = match kind {
+        FileKind::Pdf => ("ឯកសារ PDF", "a PDF"),
+        FileKind::Image => ("រូបភាព", "a photo"),
+        FileKind::Video => ("វីដេអូ", "a video"),
+        FileKind::Audio => ("សំឡេង", "an audio file"),
+        FileKind::Document => ("ឯកសារ Word ឬ Excel", "a Word or Excel document"),
+        FileKind::Archive => ("ឯកសារបង្ហាប់ (zip)", "an archive (zip)"),
+        FileKind::WindowsProgram => ("កម្មវិធីកុំព្យូទ័រ (.exe)", "a Windows program (.exe)"),
+        FileKind::AndroidApp => ("កម្មវិធីទូរស័ព្ទ Android (.apk)", "an Android app (.apk)"),
+        FileKind::OtherProgram => ("កម្មវិធី", "a program"),
+        FileKind::Script => ("ស្គ្រីប ដែលអាចដំណើរការកូដ", "a script that runs code"),
+        FileKind::WebPage => (
+            "ទំព័រវេប ដែលអាចបង្ហាញទំព័រចូលគណនីក្លែងក្លាយ",
+            "a web page that can show a fake login",
+        ),
+        FileKind::Shortcut => ("ផ្លូវកាត់ ដែលអាចបើកកម្មវិធី", "a shortcut that can run programs"),
+        FileKind::DiskImage => (
+            "ឯកសារ disk image ដែលអាចមានកម្មវិធី",
+            "a disk image that can hold programs",
+        ),
+    };
+    lang.pick(km, en)
+}
+
+/// File endings like .zip are also web domains, so the dot is swapped for a look-alike that Telegram won't link.
+fn file_name(name: &str) -> String {
+    inert(name).replace("[.]", "\u{2024}")
+}
+
+fn render_file(file: &FileInfo, lang: Lang) -> String {
+    let mut lines = vec![format!(
+        "{} {}",
+        lang.pick("• ឈ្មោះឯកសារ៖", "• File name:"),
+        file_name(&file.name)
+    )];
+    if let Some(real) = file.real {
+        lines.push(format!(
+            "{} {}",
+            lang.pick("• ប្រភេទពិត៖", "• Real type:"),
+            file_kind_name(real, lang)
+        ));
+    }
+    if let Some(clean) = file.scans.clamav_clean {
+        let result = match clean {
+            true => lang.pick("មិនរកឃើញមេរោគ", "no virus found"),
+            false => lang.pick("រកឃើញមេរោគ", "virus found"),
+        };
+        lines.push(format!("• ClamAV: {result}"));
+    }
+    match file.scans.virustotal {
+        Some(VirusTotal::Unknown) => lines.push(format!(
+            "• VirusTotal: {}",
+            lang.pick(
+                "មិនទាន់មានអ្នកណាស្កេនឯកសារនេះទេ",
+                "nobody has scanned this file yet"
+            )
+        )),
+        Some(VirusTotal::Seen { malicious, engines }) => lines.push(match lang {
+            Lang::Km => format!(
+                "• VirusTotal: {}/{} រកឃើញមេរោគ",
+                khmer_digits(malicious.into()),
+                khmer_digits(engines.into())
+            ),
+            Lang::En => format!("• VirusTotal: {malicious}/{engines} engines found malware"),
+        }),
+        None => {}
     }
     lines.join("\n")
 }

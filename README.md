@@ -23,7 +23,7 @@
 | A link | Who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police, scam-compound job ads, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
-| A file | Whether its name hides a program, such as `.apk` or `.pdf.scr` |
+| A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs inside `.zip` files, bank-named `.apk` apps, and, when set up, a ClamAV scan and a VirusTotal lookup |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
 
 Each reply gives one of four levels:
@@ -60,6 +60,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 
 ## Privacy
 
+- Files are downloaded into memory (up to Telegram's 20 MB bot limit), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded.
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
@@ -85,6 +86,8 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for KHQR reports; migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
+| `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |
+| `VIRUSTOTAL_API_KEY` | no | Free key from [virustotal.com](https://www.virustotal.com/gui/my-apikey); looks up file fingerprints (500 a day) |
 
 To keep it running on a Linux server, a systemd service is enough:
 
@@ -101,6 +104,14 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
+```
+
+To scan files with ClamAV on Ubuntu, install it and point the bot at its socket (it needs about 1.5 GB of RAM):
+
+```sh
+sudo apt install clamav-daemon
+sudo systemctl enable --now clamav-freshclam clamav-daemon
+echo 'CLAMD_ADDRESS=/var/run/clamav/clamd.ctl' >> /opt/checksen/.env
 ```
 
 Then `systemctl enable --now checksen`. To update: `git pull && cargo build --release && systemctl restart checksen`.

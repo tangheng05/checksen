@@ -1,11 +1,15 @@
+pub mod file;
 pub mod intent;
 pub mod khqr;
 pub mod link;
 pub mod llm;
+pub mod scan;
 pub mod sites;
 pub mod text;
 
 use khqr_core::DecodedKhqr;
+
+use file::{Detector, FileInfo, FileKind};
 
 use link::{LinkChecker, LinkInfo};
 use llm::ScamCategory;
@@ -22,6 +26,7 @@ pub enum Subject {
     Text,
     Khqr(Box<DecodedKhqr>),
     Link(LinkInfo),
+    File(Box<FileInfo>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +62,13 @@ pub enum Signal {
     BrandClaim(&'static str),
     PasswordPage,
     ImpersonatedAccount(&'static str),
+    DisguisedFile { shown: FileKind, real: FileKind },
+    HiddenFileName,
+    FakeBankApp(&'static str),
+    ProgramInArchive,
+    LockedArchive,
+    KnownMalware(Detector),
+    FlaggedByFewEngines(u16),
     Model { category: ScamCategory, cited: bool },
     ModelUnavailable,
 }
@@ -65,14 +77,23 @@ impl Signal {
     pub fn is_hard(self) -> bool {
         matches!(
             self,
-            Self::ChecksumInvalid | Self::DuplicateTag | Self::OtpRequest
+            Self::ChecksumInvalid
+                | Self::DuplicateTag
+                | Self::OtpRequest
+                | Self::DisguisedFile { .. }
+                | Self::HiddenFileName
+                | Self::FakeBankApp(_)
+                | Self::KnownMalware(_)
         )
     }
 
     pub fn weight(self) -> f32 {
         match self {
             Self::NotKhqr | Self::ModelUnavailable => 0.0,
-            Self::Urgency | Self::PasswordPage | Self::ImpersonatedAccount(_) => 0.2,
+            Self::Urgency
+            | Self::PasswordPage
+            | Self::ImpersonatedAccount(_)
+            | Self::LockedArchive => 0.2,
             Self::Punycode
             | Self::AccountThreat
             | Self::LoanBait
@@ -81,7 +102,8 @@ impl Signal {
             | Self::InvestmentBait
             | Self::DonationRequest
             | Self::RecruitmentBait
-            | Self::GamblingBait => 0.4,
+            | Self::GamblingBait
+            | Self::FlaggedByFewEngines(_) => 0.4,
             Self::Malformed
             | Self::Expired
             | Self::NewDomain
@@ -97,8 +119,15 @@ impl Signal {
             | Self::AccountRental
             | Self::TelegramTakeover
             | Self::Extortion
-            | Self::MalwareFile => 0.6,
-            Self::ChecksumInvalid | Self::DuplicateTag | Self::OtpRequest => 1.0,
+            | Self::MalwareFile
+            | Self::ProgramInArchive => 0.6,
+            Self::ChecksumInvalid
+            | Self::DuplicateTag
+            | Self::OtpRequest
+            | Self::DisguisedFile { .. }
+            | Self::HiddenFileName
+            | Self::FakeBankApp(_)
+            | Self::KnownMalware(_) => 1.0,
         }
     }
 }

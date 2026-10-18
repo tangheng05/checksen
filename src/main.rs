@@ -12,6 +12,7 @@ use checksen::analyzers::link::LinkChecker;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
 use checksen::analyzers::llm::gemini::GeminiClassifier;
 use checksen::analyzers::llm::{Classifier, Transcriber};
+use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::env_var;
 use teloxide::prelude::*;
 use teloxide::types::BotCommand;
@@ -44,12 +45,22 @@ async fn main() -> anyhow::Result<()> {
 
     let bot = Bot::new(env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?);
     register_commands(&bot).await;
+    let clamav = ClamAv::from_env();
+    if clamav.is_none() {
+        tracing::warn!("CLAMD_ADDRESS is not set; files are not scanned with ClamAV");
+    }
+    let virustotal = VirusTotalClient::from_env(Duration::from_secs(5))?;
+    if virustotal.is_none() {
+        tracing::warn!("VIRUSTOTAL_API_KEY is not set; files are not looked up on VirusTotal");
+    }
     let services = Arc::new(bot::Services {
         links,
         classifier,
         transcriber,
         guard: Arc::new(guard::Guard::new()),
         store: store.clone(),
+        clamav,
+        virustotal,
     });
 
     Dispatcher::builder(

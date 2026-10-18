@@ -367,16 +367,26 @@ fn page_signals(page: &Page, found: &[Signal]) -> Vec<Signal> {
 
 /// A brand named in page text; short names like "Wing" count only next to a banking word.
 fn claimed_brand(text: &str) -> Option<&'static str> {
+    named_brand(text, false)
+}
+
+/// A brand named in an app's file name, like "ABA Mobile.apk"; any brand word counts.
+pub fn app_brand(file_name: &str) -> Option<&'static str> {
+    named_brand(file_name, true)
+}
+
+fn named_brand(text: &str, any_word: bool) -> Option<&'static str> {
     let lower = text.to_lowercase();
     let words: Vec<&str> = lower
         .split(|c: char| !c.is_alphanumeric() && !('\u{1780}'..='\u{17FF}').contains(&c))
         .filter(|word| !word.is_empty())
         .collect();
-    let banking = words.iter().any(|word| {
-        PAGE_BANKING_WORDS
-            .iter()
-            .any(|banking| word.starts_with(banking))
-    });
+    let banking = any_word
+        || words.iter().any(|word| {
+            PAGE_BANKING_WORDS
+                .iter()
+                .any(|banking| word.starts_with(banking))
+        });
     BRANDS
         .iter()
         .find(|brand| {

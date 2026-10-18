@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 5;
+pub const RULES_VERSION: u32 = 6;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -241,7 +241,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         ),
         Rule::new(
             Signal::MalwareFile,
-            &[r"\.(?:apk|exe|scr|bat|vbs|ps1|msi|cmd)\b"],
+            &[r"\.(?:apk|xapk|apks|exe|scr|bat|vbs|vbe|ps1|msi|cmd|sh|hta|lnk|jar|pif|jse|wsf)\b"],
             None,
         ),
         Rule::new(
