@@ -50,6 +50,26 @@ pub const HELP: Text = text(
     "សូមផ្ញើសារ តំណ (link) កូដ KHQR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
     "Send me a message, link, KHQR code or screenshot you're unsure about. I'll tell you who a QR really pays, where a link goes, and whether a message has scam signs.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
+pub const WELCOME: Text = text(
+    "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
+    "Hi! I'm CheckSen 👋\nBefore you click a link or pay, send it to me first:\n• a message you're unsure about (forwarding works)\n• a link\n• a KHQR code or a screenshot\n• a file, like an .apk\n\nWithin seconds I'll tell you the risk level and why. Tap /help to learn more.",
+);
+pub const GREETING: Text = text(
+    "សួស្តី! 👋 ផ្ញើសារ តំណ QR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកខ្ញុំពិនិត្យឱ្យ។",
+    "Hi! 👋 Send me a message, link, QR code or screenshot you're unsure about, and I'll check it.",
+);
+pub const CANT_LISTEN: Text = text(
+    "ខ្ញុំមិនទាន់អាចស្តាប់សារសំឡេង ឬមើលវីដេអូបានទេ។ សូមវាយអក្សរនូវអ្វីដែលគេនិយាយ ឬផ្ញើរូបថតអេក្រង់មកវិញ។",
+    "I can't listen to voice messages or watch videos yet. Type what they said, or send me a screenshot instead.",
+);
+pub const ABOUT_CONTACT: Text = text(
+    "CheckSen មិនទាន់អាចពិនិត្យលេខទូរស័ព្ទ ឬឈ្មោះមនុស្សបានទេ។\n• បើគេអះអាងថាមកពីធនាគារ ឬក្រុមហ៊ុន សូមតេទៅលេខដែលមានក្នុងកម្មវិធី ឬគេហទំព័រផ្លូវការរបស់គេ មិនមែនលេខដែលគេឱ្យអ្នកទេ។\n• បើគេឱ្យបង់ប្រាក់ សូមផ្ញើ QR ឬសារដែលគេផ្ញើមក ឱ្យខ្ញុំពិនិត្យ។",
+    "CheckSen can't check phone numbers or people's names yet.\n• If they say they're from a bank or company, call the number in that company's official app or website, not a number they gave you.\n• If they want you to pay, send me their QR code or the message they sent, and I'll check it.",
+);
+pub const NOTHING_TO_CHECK: Text = text(
+    "គ្មានអ្វីត្រូវពិនិត្យក្នុងទីតាំងទេ។ សូមផ្ញើសារ តំណ ឬ QR ដែលអ្នកសង្ស័យ មកវិញ។",
+    "There's nothing to check in a location. Send me a message, link or QR code you're unsure about.",
+);
 pub const FORGET: Text = text(
     "CheckSen មិនបានរក្សាទុកព័ត៌មានអ្វីរបស់អ្នកទេ ដូច្នេះគ្មានអ្វីត្រូវលុបទេ។",
     "CheckSen hasn't stored anything about you, so there's nothing to delete.",

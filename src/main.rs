@@ -14,6 +14,7 @@ use checksen::analyzers::llm::gemini::GeminiClassifier;
 use checksen::analyzers::llm::{Classifier, Transcriber};
 use checksen::env_var;
 use teloxide::prelude::*;
+use teloxide::types::BotCommand;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -41,24 +42,46 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    let bot = Bot::new(env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?);
+    register_commands(&bot).await;
+    let services = Arc::new(bot::Services {
+        links,
+        classifier,
+        transcriber,
+        guard: Arc::new(guard::Guard::new()),
+        store: store.clone(),
+    });
+
     Dispatcher::builder(
-        Bot::new(env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?),
+        bot,
         dptree::entry()
             .branch(Update::filter_message().endpoint(bot::handle))
             .branch(Update::filter_callback_query().endpoint(reports::handle_callback)),
     )
-    .dependencies(dptree::deps![
-        links,
-        classifier,
-        transcriber,
-        Arc::new(guard::Guard::new()),
-        store
-    ])
+    .dependencies(dptree::deps![services, store])
     .enable_ctrlc_handler()
     .build()
     .dispatch()
     .await;
     Ok(())
+}
+
+async fn register_commands(bot: &Bot) {
+    let commands = |help: &str, forget: &str| {
+        vec![
+            BotCommand::new("help", help),
+            BotCommand::new("forget", forget),
+        ]
+    };
+    let khmer = bot.set_my_commands(commands("របៀបប្រើ CheckSen", "លុបការរាយការណ៍របស់ខ្ញុំ"));
+    let english = bot
+        .set_my_commands(commands("How to use CheckSen", "Delete my reports"))
+        .language_code("en");
+    for result in [khmer.await, english.await] {
+        if let Err(error) = result {
+            tracing::warn!(%error, "could not register bot commands");
+        }
+    }
 }
 
 fn classifier() -> anyhow::Result<Option<Arc<dyn Classifier>>> {
