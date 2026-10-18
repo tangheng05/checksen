@@ -140,11 +140,11 @@ pub const RATE_LIMITED: Text = text(
     "You've sent a lot in a short time. Please wait a little and try again.",
 );
 const BANK_APP_ADVICE: Text = text(
-    "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ ក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។",
+    "⚠️ មុនពេលបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។",
     "⚠️ Before paying, always check the recipient's name and the amount in your bank app.",
 );
 const LINK_ADVICE: Text = text(
-    "កុំបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណណាមួយ។ បើចង់ពិនិត្យគណនី សូមបើកកម្មវិធីធនាគារដោយខ្លួនឯង។",
+    "មិនត្រូវបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណភ្ជាប់ (Link) ណាមួយឡើយ។ បើចង់ពិនិត្យមើលគណនី សូមបើកចូលកម្មវិធីធនាគាររបស់អ្នកដោយផ្ទាល់។",
     "Never enter a password or OTP code through a link. To check your account, open your bank app yourself.",
 );
 const NO_TEXT_SIGNALS: Text = text(
@@ -185,7 +185,7 @@ impl Level {
             Self::HighRisk => lang.pick("🔴 ហានិភ័យខ្ពស់", "🔴 High risk"),
             Self::Suspicious => lang.pick("🟠 គួរឱ្យសង្ស័យ", "🟠 Suspicious"),
             Self::NoKnownSignals => {
-                lang.pick("⚪ មិនទាន់ឃើញសញ្ញាបោកប្រាស់ទេ", "⚪ No scam signs found yet")
+                lang.pick("⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ", "⚪ No scam signs found yet")
             }
             Self::CantTell => lang.pick("❔ មិនអាចពិនិត្យបាន", "❔ Can't check"),
         }
@@ -400,7 +400,10 @@ fn reason(signal: Signal, lang: Lang) -> String {
         }
         Signal::Model { category, .. } => {
             return match lang {
-                Lang::Km => format!("AI យល់ថាសារនេះស្រដៀងនឹង{}។", category_name(category, lang)),
+                Lang::Km => format!(
+                    "AI រកឃើញថា សារនេះមានសញ្ញាប្រហាក់ប្រហែលនឹង{}។",
+                    category_name(category, lang)
+                ),
                 Lang::En => format!(
                     "The AI thinks this message looks like {}.",
                     category_name(category, lang)
@@ -441,7 +444,7 @@ fn category_name(category: ScamCategory, lang: Lang) -> &'static str {
             "someone posing as family or a friend",
         ),
         ScamCategory::Telegram => ("ការលួចគណនី Telegram", "a Telegram account takeover"),
-        ScamCategory::Malware => ("កម្មវិធីព្យាបាទ", "harmful software"),
+        ScamCategory::Malware => ("ការបោកប្រាស់", "harmful software"),
         ScamCategory::Charity => ("ការសុំបរិច្ចាគក្លែងក្លាយ", "a fake donation request"),
         ScamCategory::Shop => ("ការលក់ទំនិញក្លែងក្លាយ", "a fake seller"),
         ScamCategory::Gambling => ("ល្បែងស៊ីសង ឬឆ្នោតខុសច្បាប់", "illegal gambling or a lottery"),
@@ -540,8 +543,8 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
     });
     if let Some(days) = link.age_days {
         let age = match (lang, days / 365) {
-            (Lang::Km, 0) => format!("{days} ថ្ងៃ"),
-            (Lang::Km, years) => format!("{years} ឆ្នាំ"),
+            (Lang::Km, 0) => format!("{}ថ្ងៃ", khmer_digits(days)),
+            (Lang::Km, years) => format!("{}ឆ្នាំ", khmer_digits(years)),
             (Lang::En, 0) if days == 1 => "1 day".to_owned(),
             (Lang::En, 0) => format!("{days} days"),
             (Lang::En, 1) => "1 year".to_owned(),
@@ -557,6 +560,17 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
     }
     lines.push(LINK_ADVICE.get(lang).to_owned());
     lines.join("\n")
+}
+
+fn khmer_digits(number: i64) -> String {
+    number
+        .to_string()
+        .chars()
+        .map(|c| match c.to_digit(10) {
+            Some(digit) => char::from_u32('០' as u32 + digit).unwrap_or(c),
+            None => c,
+        })
+        .collect()
 }
 
 fn site_name(site: &Site, lang: Lang) -> &'static str {
@@ -589,7 +603,7 @@ fn site_note(site: &Site, lang: Lang) -> Option<String> {
             )
             .to_owned(),
         (kind, Lang::Km) if kind.anyone_can_post() => format!(
-            "នេះជាគេហទំព័រពិតរបស់ {name} តែអ្នកណាក៏អាចបង្ហោះលើវាបាន។ សូមមើលថាអ្នកណាជាអ្នកបង្ហោះ មុនទុកចិត្ត។"
+            "នេះជាគេហទំព័រផ្លូវការរបស់ {name} ប៉ុន្តែអ្នកណាក៏អាចបង្កើតទំព័រនៅលើនេះបានដែរ។ សូមពិនិត្យមើលឱ្យច្បាស់ថាអ្នកណាជាអ្នកបង្ហោះ មុនពេលសម្រេចចិត្តទុកចិត្ត។"
         ),
         (kind, Lang::En) if kind.anyone_can_post() => format!(
             "This is the real {name}, but anyone can post on it. Check who posted this before you trust it."
@@ -608,7 +622,7 @@ fn kind_name(kind: Kind, lang: Lang) -> &'static str {
         Kind::Messaging => ("កម្មវិធីផ្ញើសារ", "messaging app"),
         Kind::Social => ("បណ្តាញសង្គម", "social network"),
         Kind::Video => ("គេហទំព័រវីដេអូ", "video site"),
-        Kind::Code => ("កន្លែងរក្សាទុក និងចែករំលែកកូដកម្មវិធី", "code hosting site"),
+        Kind::Code => ("ជាកន្លែងសម្រាប់រក្សាទុក និងចែករំលែកកូដកម្មវិធី", "code hosting site"),
         Kind::Files => ("សេវាឯកសារ និងទម្រង់បំពេញ", "documents and forms"),
         Kind::Email => ("សេវាអ៊ីមែល", "email"),
         Kind::Tech => ("ក្រុមហ៊ុនបច្ចេកវិទ្យា", "tech company"),
@@ -840,10 +854,11 @@ mod tests {
             }])
         };
         let github = reply("github.com");
-        assert!(github.contains("GitHub (") && github.contains("អ្នកណាក៏អាចបង្ហោះ"));
+        assert!(github.contains("GitHub (") && github.contains("អ្នកណាក៏អាចបង្កើតទំព័រនៅលើនេះបានដែរ"));
         assert!(reply("www.ababank.com").contains("ABA (ធនាគារ)"));
         assert!(reply("aba-gift.github.io").contains("បង្កើតលើ៖ GitHub Pages"));
         assert!(reply("example.com").contains("មិនមែនជាគេហទំព័រល្បី"));
+        assert_eq!(khmer_digits(19), "១៩");
         let english = render(
             &[Check {
                 subject: Subject::Link(LinkInfo {

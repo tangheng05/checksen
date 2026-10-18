@@ -362,7 +362,8 @@ async fn text_checks(
     services: &Services,
 ) -> (Vec<Check>, Option<Intent>) {
     let text_check = text::check(message);
-    let classify = message.chars().count() >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
+    // A bare link is covered by the link check; the model only sees real text.
+    let classify = prose_chars(message) >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
     let ((text_check, intent), link_checks) = tokio::join!(
         async {
             if classify {
@@ -492,6 +493,14 @@ fn urls_in(msg: &Message) -> Vec<Url> {
     urls
 }
 
+fn prose_chars(message: &str) -> usize {
+    message
+        .split_whitespace()
+        .filter(|word| !(word.contains('.') && url_from_entity_text(word).is_some()))
+        .map(|word| word.chars().count() + 1)
+        .sum()
+}
+
 fn url_from_entity_text(text: &str) -> Option<Url> {
     link::parse_http_url(text).or_else(|| link::parse_http_url(&format!("http://{text}")))
 }
@@ -578,6 +587,15 @@ mod tests {
             Some(2)
         );
         assert_eq!(target_id(&message("private", "hello there", None)), Some(2));
+    }
+
+    #[test]
+    fn links_alone_are_not_prose() {
+        assert_eq!(prose_chars("https://github.com/tangheng05/checksen"), 0);
+        assert_eq!(prose_chars("github.com/tangheng05"), 0);
+        assert!(
+            prose_chars("Your ABA account is locked, verify at aba-help.top now") >= MIN_TEXT_CHARS
+        );
     }
 
     #[test]

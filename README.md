@@ -32,7 +32,7 @@ Each reply gives one of four levels:
 | --- | --- |
 | 🔴 ហានិភ័យខ្ពស់ (High risk) | Clear scam signs. Don't pay, and don't share any code. |
 | 🟠 គួរឱ្យសង្ស័យ (Suspicious) | Some warning signs. Check through an official number or app first. |
-| ⚪ មិនទាន់ឃើញសញ្ញាបោកប្រាស់ទេ (No scam signs found yet) | No known tricks found. The bot never says a message is "safe". |
+| ⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ (No scam signs found yet) | No known tricks found. The bot never says a message is "safe". |
 | ❔ មិនអាចពិនិត្យបាន (Can't tell) | The image was unclear or couldn't be read. |
 
 Every reply ends by reminding you to check the recipient's name in your own bank app before paying.

@@ -1,5 +1,5 @@
 // Replies are the bot's real output for these messages (rules only), generated from src/verdict.rs.
-const ADVICE_KM = "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ ក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។";
+const ADVICE_KM = "⚠️ មុនពេលបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។";
 const ADVICE_EN = "⚠️ Before paying, always check the recipient's name and the amount in your bank app.";
 
 const SAMPLES = {
@@ -55,7 +55,7 @@ const SAMPLES = {
     message: "ម៉ាក់ផ្ញើលុយ $50 ទៅគណនីកូនហើយ ទិញសៀវភៅណា",
     messageEn: "Mum sent $50 to your account, go buy your books.",
     level: "none",
-    label: "⚪ មិនទាន់ឃើញសញ្ញាបោកប្រាស់ទេ",
+    label: "⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ",
     labelEn: "⚪ No scam signs found yet",
     reasons: ["មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។"],
     reasonsEn: ["No words that scammers usually use, but stay careful."],
