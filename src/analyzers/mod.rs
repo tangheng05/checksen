@@ -1,3 +1,4 @@
+pub mod intent;
 pub mod khqr;
 pub mod link;
 pub mod llm;

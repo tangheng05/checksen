@@ -259,13 +259,13 @@ pub fn check(text: &str) -> Check {
     }
 }
 
-struct Normalized {
-    spaced: String,
-    compact: String,
+pub(super) struct Normalized {
+    pub(super) spaced: String,
+    pub(super) compact: String,
 }
 
 impl Normalized {
-    fn new(text: &str) -> Self {
+    pub(super) fn new(text: &str) -> Self {
         let spaced: String = text
             .to_lowercase()
             .replace("ឲ្យ", "ឱ្យ")
@@ -284,7 +284,7 @@ impl Normalized {
         Self { spaced, compact }
     }
 
-    fn matches(&self, group: &Regex) -> bool {
+    pub(super) fn matches(&self, group: &Regex) -> bool {
         group.is_match(&self.spaced) || group.is_match(&self.compact)
     }
 }

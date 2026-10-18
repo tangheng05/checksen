@@ -8,6 +8,7 @@ use futures::future::BoxFuture;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::intent::Intent;
 use super::{Check, Signal};
 use crate::verdict::{self, Level};
 
@@ -70,6 +71,7 @@ pub struct Classification {
     pub category: ScamCategory,
     pub confidence: Confidence,
     pub cited: Vec<Signal>,
+    pub intent: Option<Intent>,
 }
 
 pub trait Classifier: Send + Sync {
@@ -144,9 +146,22 @@ Official notices from a named bank, wallet, telco, ministry or company are legit
 
 confidence: high when the scam cue is explicit, medium when likely, low when unsure.
 
-cited_signals: from the rule signals listed before the message, the ones your decision relies on. Cite only listed signals; leave it empty if none were listed or none apply.";
+cited_signals: from the rule signals listed before the message, the ones your decision relies on. Cite only listed signals; leave it empty if none were listed or none apply.
 
-const OUTPUT_FIELDS: [&str; 3] = ["category", "confidence", "cited_signals"];
+intent: why the person sent this to the service.
+- check: it is a message, post, offer or notice they received and want checked. Any forwarded or pasted message is check, even if it contains questions.
+- already_scammed: they say they already paid or transferred money, shared a code or password, or lost money or an account.
+- asks_about_contact: they ask whether a phone number, account, person, page or seller is a scammer.
+- asks_about_codes: they ask whether a bank, wallet or company would ask for an OTP, PIN or password.
+- asks_how_to_report: they ask how or where to report a scam.
+- asks_what_bot_does: they ask what this service is or how to use it.
+- asks_privacy: they ask whether their messages are stored, read or private.
+- greeting: hello or small talk.
+- thanks: thanks, ok or similar.
+- other_question: any other question of their own.
+When unsure, answer check.";
+
+const OUTPUT_FIELDS: [&str; 4] = ["category", "confidence", "cited_signals", "intent"];
 
 fn output_schema(object: &str, string: &str, array: &str) -> Value {
     json!({
@@ -158,6 +173,7 @@ fn output_schema(object: &str, string: &str, array: &str) -> Value {
                 "type": array,
                 "items": {"type": string, "enum": Signal::rule_names().collect::<Vec<_>>()},
             },
+            "intent": {"type": string, "enum": Intent::NAMES},
         },
         "required": OUTPUT_FIELDS,
     })
@@ -184,6 +200,8 @@ struct RawClassification {
     category: ScamCategory,
     confidence: Confidence,
     cited_signals: Vec<String>,
+    #[serde(default)]
+    intent: Option<Intent>,
 }
 
 pub fn parse_classification(json: &str) -> anyhow::Result<Classification> {
@@ -196,20 +214,24 @@ pub fn parse_classification(json: &str) -> anyhow::Result<Classification> {
             .iter()
             .filter_map(|name| Signal::from_rule_name(name))
             .collect(),
+        intent: raw.intent,
     })
 }
 
+/// Also returns the model's reading of why the person sent the text, when it was asked.
 pub async fn classify(
     mut check: Check,
     text: &str,
     classifier: &dyn Classifier,
     timeout: Duration,
-) -> Check {
+) -> (Check, Option<Intent>) {
     if verdict::decide(&check) == Level::HighRisk {
-        return check;
+        return (check, None);
     }
+    let mut intent = None;
     match tokio::time::timeout(timeout, classifier.classify(text, &check.signals)).await {
         Ok(Ok(classification)) => {
+            intent = classification.intent;
             let cited = classification
                 .cited
                 .iter()
@@ -236,7 +258,7 @@ pub async fn classify(
             check.signals.push(Signal::ModelUnavailable);
         }
     }
-    check
+    (check, intent)
 }
 
 async fn send_with_retry<T>(
@@ -330,11 +352,14 @@ mod tests {
             category: ScamCategory::Loan,
             confidence,
             cited,
+            intent: None,
         })
     }
 
     async fn run(text: &str, fake: Fake) -> Check {
-        classify(text::check(text), text, &fake, Duration::from_secs(1)).await
+        classify(text::check(text), text, &fake, Duration::from_secs(1))
+            .await
+            .0
     }
 
     struct FakeTranscriber(fn() -> anyhow::Result<Option<String>>);

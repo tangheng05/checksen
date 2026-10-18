@@ -7,11 +7,12 @@ use teloxide::prelude::*;
 use teloxide::types::{ChatAction, Me, MessageEntityKind, PhotoSize, ReplyParameters};
 use url::Url;
 
+use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, Transcriber};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
-use checksen::verdict::{self, Lang, Text};
+use checksen::verdict::{self, Lang, Level, Text};
 
 use crate::guard::{Admission, Guard, ModelCall, Reply};
 use crate::reports;
@@ -312,19 +313,43 @@ fn combine(photo: Photo, mut caption: Vec<Check>, lang: Lang) -> Outcome {
 
 async fn check_text(msg: &Message, message: &str, lang: Lang, services: &Services) -> Outcome {
     let urls = urls_in(msg);
-    if urls.is_empty()
-        && message.chars().count() < MIN_TEXT_CHARS
-        && text::check(message).signals.is_empty()
-    {
-        return Outcome::text(verdict::HELP.get(lang), true);
+    let rules = intent::detect(message);
+    if urls.is_empty() {
+        if let Some(intent @ (Intent::Greeting | Intent::Thanks)) = rules
+            && let Some(answer) = verdict::answer(intent, lang)
+        {
+            return Outcome::text(answer, true);
+        }
+        if message.chars().count() < MIN_TEXT_CHARS && text::check(message).signals.is_empty() {
+            let answer = rules.and_then(|intent| verdict::answer(intent, lang));
+            return Outcome::text(answer.unwrap_or(verdict::HELP.get(lang)), true);
+        }
     }
-    let show_text = urls.is_empty();
-    Outcome::of(&text_checks(message, urls, show_text, services).await, lang)
+
+    let has_links = !urls.is_empty();
+    let (checks, model) = text_checks(message, urls, !has_links, services).await;
+    let intent = intent::decide(rules, model, message);
+    let flagged = has_links
+        || checks
+            .iter()
+            .any(|check| verdict::decide(check) != Level::NoKnownSignals);
+    let verdict = Outcome::of(&checks, lang);
+    match verdict::answer(intent, lang) {
+        Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
+            reply: Reply {
+                text: format!("{answer}\n\n{}", verdict.reply.text),
+                ..verdict.reply
+            },
+            ..verdict
+        },
+        Some(answer) if !flagged => Outcome::text(answer, verdict.cacheable),
+        _ => verdict,
+    }
 }
 
 async fn caption_checks(msg: &Message, services: &Services) -> Vec<Check> {
     match msg.caption() {
-        Some(caption) => text_checks(caption, urls_in(msg), false, services).await,
+        Some(caption) => text_checks(caption, urls_in(msg), false, services).await.0,
         None => Vec::new(),
     }
 }
@@ -335,15 +360,15 @@ async fn text_checks(
     urls: Vec<Url>,
     show_text: bool,
     services: &Services,
-) -> Vec<Check> {
+) -> (Vec<Check>, Option<Intent>) {
     let text_check = text::check(message);
     let classify = message.chars().count() >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
-    let (text_check, link_checks) = tokio::join!(
+    let ((text_check, intent), link_checks) = tokio::join!(
         async {
             if classify {
                 classify_text(text_check, message, services, CLASSIFIER_BUDGET).await
             } else {
-                text_check
+                (text_check, None)
             }
         },
         join_all(urls.into_iter().map(|url| services.links.check(url)))
@@ -359,7 +384,7 @@ async fn text_checks(
         checks.push(text_check);
     }
     checks.extend(link_checks);
-    checks
+    (checks, intent)
 }
 
 async fn classify_text(
@@ -367,7 +392,7 @@ async fn classify_text(
     message: &str,
     services: &Services,
     budget: Duration,
-) -> Check {
+) -> (Check, Option<Intent>) {
     match services.classifier.as_deref() {
         Some(classifier) if services.guard.allow_model_call(ModelCall::Text) => {
             llm::classify(text_check, message, classifier, budget).await
@@ -375,9 +400,9 @@ async fn classify_text(
         Some(_) => {
             tracing::warn!("daily classifier budget used up");
             text_check.signals.push(Signal::ModelUnavailable);
-            text_check
+            (text_check, None)
         }
-        None => text_check,
+        None => (text_check, None),
     }
 }
 
@@ -428,7 +453,7 @@ async fn check_photo(bot: &Bot, photo: &PhotoSize, services: &Services) -> Photo
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
-            let check = classify_text(
+            let (check, _) = classify_text(
                 text::check(&transcript),
                 &transcript,
                 services,

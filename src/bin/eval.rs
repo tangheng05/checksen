@@ -191,7 +191,9 @@ async fn evaluate(
         let is_scam = example.label == "scam";
         let mut check = text::check(&example.text);
         if let Some((_, classifier)) = model {
-            check = llm::classify(check, &example.text, classifier, Duration::from_secs(300)).await;
+            check = llm::classify(check, &example.text, classifier, Duration::from_secs(300))
+                .await
+                .0;
             model_errors += usize::from(check.signals.contains(&Signal::ModelUnavailable));
             eprint!(".");
         }
