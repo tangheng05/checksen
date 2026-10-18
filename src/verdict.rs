@@ -251,7 +251,8 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     let level = decide(lead);
     let top = top_signal(lead, level);
     let summary = summary(lead, level, top, lang);
-    let action = action(lead, level, lang).filter(|action| !summary.contains(action.as_str()));
+    let action =
+        action(lead, level, about.kind, lang).filter(|action| !summary.contains(action.as_str()));
 
     let mut lines = vec![format!("<b>{}</b>", escape(level.label(lang)))];
     if let Some(about) = about_line(about, lang) {
@@ -386,6 +387,11 @@ fn link_summary(link: &LinkInfo, lang: Lang) -> String {
         Some(site) if site.kind == Kind::Shortener => {
             vec![site.name.to_owned(), kind_name(site.kind, lang).to_owned()]
         }
+        Some(site) if site.kind == Kind::Government => vec![
+            host,
+            lang.pick("គេហទំព័ររដ្ឋាភិបាលកម្ពុជា", "Cambodian government site")
+                .to_owned(),
+        ],
         Some(site) => vec![
             site_name(site, lang).to_owned(),
             lang.pick("គេហទំព័រផ្លូវការ", "official site").to_owned(),
@@ -402,7 +408,7 @@ fn link_summary(link: &LinkInfo, lang: Lang) -> String {
     parts.join(" · ")
 }
 
-fn action(check: &Check, level: Level, lang: Lang) -> Option<String> {
+fn action(check: &Check, level: Level, kind: Option<MessageKind>, lang: Lang) -> Option<String> {
     let text = match (&check.subject, level) {
         (_, Level::CantTell) => return None,
         (Subject::Khqr(_) | Subject::Unreadable, Level::HighRisk) => {
@@ -433,15 +439,53 @@ fn action(check: &Check, level: Level, lang: Lang) -> Option<String> {
             "Does this name match the shop or person you mean to pay? If not, don't pay.",
         ),
         (Subject::Link(link), Level::NoKnownSignals) => {
-            return Some(
-                link.site
-                    .and_then(|site| site_note(site, lang))
-                    .unwrap_or_else(|| LINK_ADVICE.get(lang).to_owned()),
-            );
+            return link
+                .site
+                .and_then(|site| site_note(site, lang))
+                .or_else(|| kind_tip(kind, lang).map(str::to_owned))
+                .or_else(|| Some(LINK_ADVICE.get(lang).to_owned()));
         }
-        (Subject::Text | Subject::Unreadable, Level::NoKnownSignals) => return None,
+        (Subject::Text | Subject::Unreadable, Level::NoKnownSignals) => {
+            return kind_tip(kind, lang).map(str::to_owned);
+        }
     };
     Some(text.to_owned())
+}
+
+/// The one thing to remember for a kind of message that scammers often copy.
+fn kind_tip(kind: Option<MessageKind>, lang: Lang) -> Option<&'static str> {
+    let (km, en) = match kind? {
+        MessageKind::JobAd => (
+            "ការងារពិត មិនដែលឱ្យបង់ថ្លៃមុនទេ។ បើគេសុំលុយ ឬលិខិតឆ្លងដែនរបស់អ្នក សូមកុំធ្វើតាម។",
+            "Real jobs never ask you to pay first. If they ask for money or your passport, don't go ahead.",
+        ),
+        MessageKind::LoanOffer => (
+            "កម្ចីពិត មិនដែលឱ្យបង់ថ្លៃមុន ទើបបើកលុយឱ្យទេ។",
+            "Real lenders never ask for a fee before they pay out the loan.",
+        ),
+        MessageKind::Prize => (
+            "រង្វាន់ពិត មិនដែលឱ្យបង់ថ្លៃ ឬប្រាប់លេខកូដ ដើម្បីទទួលទេ។",
+            "Real prizes never need a fee or a code to claim.",
+        ),
+        MessageKind::Investment => (
+            "គ្មានការវិនិយោគណា អាចធានាថាចំណេញបានទេ។ សូមប្រយ័ត្ន មុនពេលដាក់លុយ។",
+            "No real investment can promise a profit. Be careful before you put money in.",
+        ),
+        MessageKind::MoneyRequest => (
+            "សូមតេទៅម្ចាស់ផ្ទាល់ ដើម្បីបញ្ជាក់ មុនពេលផ្ទេរលុយ។",
+            "Call the person directly to confirm before you send any money.",
+        ),
+        MessageKind::ForSale => (
+            "កុំបង់ប្រាក់កក់ ទាល់តែអ្នកប្រាកដថាអ្នកលក់ពិតប្រាកដ។",
+            "Don't pay a deposit until you're sure the seller is real.",
+        ),
+        MessageKind::Promotion
+        | MessageKind::News
+        | MessageKind::Notice
+        | MessageKind::Personal
+        | MessageKind::Other => return None,
+    };
+    Some(lang.pick(km, en))
 }
 
 fn about_line(about: About, lang: Lang) -> Option<String> {
@@ -840,10 +884,7 @@ fn khmer_digits(number: i64) -> String {
 
 fn site_name(site: &Site, lang: Lang) -> &'static str {
     match (site.kind, site.domain) {
-        (Kind::Government, "gov.kh") => lang.pick(
-            "ស្ថាប័នរដ្ឋកម្ពុជា (.gov.kh)",
-            "a Cambodian government office (.gov.kh)",
-        ),
+        (Kind::Government, "gov.kh") => lang.pick("ស្ថាប័នរដ្ឋកម្ពុជា", "a Cambodian government office"),
         (Kind::Government, "nbc.gov.kh") => lang.pick(
             "ធនាគារជាតិនៃកម្ពុជា (Bakong)",
             "National Bank of Cambodia (Bakong)",
@@ -1142,6 +1183,28 @@ mod tests {
             signals: vec![],
         }]);
         assert!(!plain.contains("blockquote") && plain.contains(BANK_APP_ADVICE.km));
+    }
+
+    #[test]
+    fn government_links_and_job_ads_get_plain_lines_and_a_tip() {
+        let link = Check {
+            subject: Subject::Link(LinkInfo {
+                host: "go.gov.kh".to_owned(),
+                redirected_to: None,
+                age_days: None,
+                site: crate::analyzers::sites::identify("go.gov.kh"),
+                title: None,
+            }),
+            signals: vec![],
+        };
+        let about = About {
+            forwarded_from: None,
+            kind: Some(MessageKind::JobAd),
+        };
+        let reply = render(&[link], about, Lang::Km);
+        assert!(reply.contains("go[.]gov[.]kh · គេហទំព័ររដ្ឋាភិបាលកម្ពុជា"));
+        assert!(reply.contains("👉 ការងារពិត មិនដែលឱ្យបង់ថ្លៃមុនទេ"));
+        assert!(!reply.contains(".gov.kh"));
     }
 
     #[test]

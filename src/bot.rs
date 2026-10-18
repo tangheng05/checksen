@@ -544,7 +544,8 @@ fn urls_in(msg: &Message) -> Vec<Url> {
             MessageEntityKind::TextLink { url } => link::parse_http_url(url.as_str()),
             _ => None,
         };
-        if let Some(url) = url.filter(|url| !urls.contains(url)) {
+        // One link per site, so a different site further down still gets checked.
+        if let Some(url) = url.filter(|url| urls.iter().all(|seen| seen.host() != url.host())) {
             urls.push(url);
         }
     }
