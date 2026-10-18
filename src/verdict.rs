@@ -1,31 +1,112 @@
 use khqr_core::{Currency, DecodedKhqr};
 
-use crate::analyzers::link::LinkInfo;
+use crate::analyzers::link::{self, LinkInfo};
 use crate::analyzers::llm::ScamCategory;
 use crate::analyzers::sites::{Kind, Site};
 use crate::analyzers::{Check, Signal, Subject};
 
-pub const HELP_KM: &str = "សូមផ្ញើសារ តំណ (link) កូដ KHQR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។";
-pub const FORGET_KM: &str = "CheckSen មិនបានរក្សាទុកព័ត៌មានអ្វីរបស់អ្នកទេ ដូច្នេះគ្មានអ្វីត្រូវលុបទេ។";
-pub const INTENDED_BUTTON_KM: &str = "✅ ត្រូវ";
-pub const NOT_INTENDED_BUTTON_KM: &str = "❌ មិនត្រូវ";
-pub const INTENDED_KM: &str = "ល្អណាស់។ សូមពិនិត្យឈ្មោះអ្នកទទួលក្នុងកម្មវិធីធនាគារម្តងទៀត មុនចុចបង់ប្រាក់។";
-pub const REPORTED_KM: &str = "អរគុណសម្រាប់ការរាយការណ៍។ កុំបង់ប្រាក់តាម QR នេះ ហើយសូមសួរអ្នកលក់ឱ្យប្រាកដពីគណនីរបស់គេ។";
-pub const REPORT_LIMIT_KM: &str =
-    "ថ្ងៃនេះអ្នករាយការណ៍ច្រើនដងហើយ។ សូមកុំបង់ប្រាក់តាម QR នេះ ហើយរាយការណ៍ម្តងទៀតនៅថ្ងៃស្អែក។";
-pub const REPORT_FAILED_KM: &str = "ពេលនេះមិនអាចរាយការណ៍បានទេ។ សូមកុំបង់ប្រាក់តាម QR នេះ។";
-
-pub fn forgotten_km(removed: u64) -> String {
-    format!("បានលុបការរាយការណ៍របស់អ្នកចំនួន {removed} រួចហើយ។ CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។")
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Lang {
+    Km,
+    En,
 }
-pub const RATE_LIMITED_KM: &str = "អ្នកផ្ញើមកច្រើនពេកក្នុងពេលខ្លី។ សូមរង់ចាំបន្តិច ហើយសាកម្តងទៀត។";
-const BANK_APP_ADVICE_KM: &str = "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ ក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។";
-const LINK_ADVICE_KM: &str =
-    "កុំបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណណាមួយ។ បើចង់ពិនិត្យគណនី សូមបើកកម្មវិធីធនាគារដោយខ្លួនឯង។";
-const NO_TEXT_SIGNALS_KM: &str = "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។";
-const NO_QR_FOUND_KM: &str = "រកមិនឃើញ QR ក្នុងរូបនេះទេ។ សូមថតឱ្យច្បាស់ ឱ្យឃើញ QR ទាំងមូល ហើយផ្ញើម្តងទៀត។";
-const SCREENSHOT_UNREAD_KM: &str =
-    "ពេលនេះមិនអាចអានអក្សរក្នុងរូបនេះបានទេ។ សូមសាកម្តងទៀតបន្តិចទៀត ឬចម្លងសារនោះ ហើយផ្ញើមកជាអក្សរ។";
+
+impl Lang {
+    /// Khmer script wins; otherwise Latin letters mean English.
+    pub fn of(text: &str) -> Option<Self> {
+        if text.chars().any(|c| ('\u{1780}'..='\u{17FF}').contains(&c)) {
+            Some(Self::Km)
+        } else if text.chars().any(|c| c.is_ascii_alphabetic()) {
+            Some(Self::En)
+        } else {
+            None
+        }
+    }
+
+    fn pick<'a>(self, km: &'a str, en: &'a str) -> &'a str {
+        match self {
+            Self::Km => km,
+            Self::En => en,
+        }
+    }
+}
+
+pub struct Text {
+    km: &'static str,
+    en: &'static str,
+}
+
+impl Text {
+    pub fn get(&self, lang: Lang) -> &'static str {
+        lang.pick(self.km, self.en)
+    }
+}
+
+const fn text(km: &'static str, en: &'static str) -> Text {
+    Text { km, en }
+}
+
+pub const HELP: Text = text(
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "Send me a message, link, KHQR code or screenshot you're unsure about. I'll tell you who a QR really pays, where a link goes, and whether a message has scam signs.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+);
+pub const FORGET: Text = text(
+    "CheckSen មិនបានរក្សាទុកព័ត៌មានអ្វីរបស់អ្នកទេ ដូច្នេះគ្មានអ្វីត្រូវលុបទេ។",
+    "CheckSen hasn't stored anything about you, so there's nothing to delete.",
+);
+pub const INTENDED_BUTTON: Text = text("✅ ត្រូវ", "✅ Yes");
+pub const NOT_INTENDED_BUTTON: Text = text("❌ មិនត្រូវ", "❌ No");
+pub const INTENDED: Text = text(
+    "ល្អណាស់។ សូមពិនិត្យឈ្មោះអ្នកទទួលក្នុងកម្មវិធីធនាគារម្តងទៀត មុនចុចបង់ប្រាក់។",
+    "Good. Check the recipient's name in your bank app once more before you pay.",
+);
+pub const REPORTED: Text = text(
+    "អរគុណសម្រាប់ការរាយការណ៍។ កុំបង់ប្រាក់តាម QR នេះ ហើយសូមសួរអ្នកលក់ឱ្យប្រាកដពីគណនីរបស់គេ។",
+    "Thanks for reporting. Don't pay with this QR, and ask the seller to confirm their account.",
+);
+pub const REPORT_LIMIT: Text = text(
+    "ថ្ងៃនេះអ្នករាយការណ៍ច្រើនដងហើយ។ សូមកុំបង់ប្រាក់តាម QR នេះ ហើយរាយការណ៍ម្តងទៀតនៅថ្ងៃស្អែក។",
+    "You've reported a lot today. Please don't pay with this QR, and report again tomorrow.",
+);
+pub const REPORT_FAILED: Text = text(
+    "ពេលនេះមិនអាចរាយការណ៍បានទេ។ សូមកុំបង់ប្រាក់តាម QR នេះ។",
+    "Reporting isn't working right now. Please don't pay with this QR.",
+);
+pub const RATE_LIMITED: Text = text(
+    "អ្នកផ្ញើមកច្រើនពេកក្នុងពេលខ្លី។ សូមរង់ចាំបន្តិច ហើយសាកម្តងទៀត។",
+    "You've sent a lot in a short time. Please wait a little and try again.",
+);
+const BANK_APP_ADVICE: Text = text(
+    "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ ក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។",
+    "⚠️ Before paying, always check the recipient's name and the amount in your bank app.",
+);
+const LINK_ADVICE: Text = text(
+    "កុំបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណណាមួយ។ បើចង់ពិនិត្យគណនី សូមបើកកម្មវិធីធនាគារដោយខ្លួនឯង។",
+    "Never enter a password or OTP code through a link. To check your account, open your bank app yourself.",
+);
+const NO_TEXT_SIGNALS: Text = text(
+    "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។",
+    "No words that scammers usually use, but stay careful.",
+);
+const NO_QR_FOUND: Text = text(
+    "រកមិនឃើញ QR ក្នុងរូបនេះទេ។ សូមថតឱ្យច្បាស់ ឱ្យឃើញ QR ទាំងមូល ហើយផ្ញើម្តងទៀត។",
+    "I couldn't find a QR code in this image. Take a clear photo of the whole QR and send it again.",
+);
+const SCREENSHOT_UNREAD: Text = text(
+    "ពេលនេះមិនអាចអានអក្សរក្នុងរូបនេះបានទេ។ សូមសាកម្តងទៀតបន្តិចទៀត ឬចម្លងសារនោះ ហើយផ្ញើមកជាអក្សរ។",
+    "I can't read the text in this image right now. Try again a bit later, or copy the message and send it as text.",
+);
+
+pub fn forgotten(removed: u64, lang: Lang) -> String {
+    match lang {
+        Lang::Km => {
+            format!("បានលុបការរាយការណ៍របស់អ្នកចំនួន {removed} រួចហើយ។ CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។")
+        }
+        Lang::En => format!(
+            "Deleted {removed} of your reports. CheckSen doesn't keep your messages or images."
+        ),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -36,12 +117,14 @@ pub enum Level {
 }
 
 impl Level {
-    fn label_km(self) -> &'static str {
+    fn label(self, lang: Lang) -> &'static str {
         match self {
-            Self::HighRisk => "🔴 ហានិភ័យខ្ពស់",
-            Self::Suspicious => "🟠 គួរឱ្យសង្ស័យ",
-            Self::NoKnownSignals => "⚪ មិនទាន់ឃើញសញ្ញាបោកប្រាស់ទេ",
-            Self::CantTell => "❔ មិនអាចពិនិត្យបាន",
+            Self::HighRisk => lang.pick("🔴 ហានិភ័យខ្ពស់", "🔴 High risk"),
+            Self::Suspicious => lang.pick("🟠 គួរឱ្យសង្ស័យ", "🟠 Suspicious"),
+            Self::NoKnownSignals => {
+                lang.pick("⚪ មិនទាន់ឃើញសញ្ញាបោកប្រាស់ទេ", "⚪ No scam signs found yet")
+            }
+            Self::CantTell => lang.pick("❔ មិនអាចពិនិត្យបាន", "❔ Can't check"),
         }
     }
 }
@@ -65,126 +148,241 @@ pub fn decide(check: &Check) -> Level {
     }
 }
 
-pub fn screenshot_unread_km() -> String {
+pub fn screenshot_unread(lang: Lang) -> String {
     format!(
-        "{}\n{SCREENSHOT_UNREAD_KM}\n\n{BANK_APP_ADVICE_KM}",
-        Level::CantTell.label_km()
+        "{}\n{}\n\n{}",
+        Level::CantTell.label(lang),
+        SCREENSHOT_UNREAD.get(lang),
+        BANK_APP_ADVICE.get(lang)
     )
 }
 
-pub fn render_km(checks: &[Check]) -> String {
+pub fn render(checks: &[Check], lang: Lang) -> String {
     let mut sections: Vec<String> = if checks.is_empty() {
-        vec![format!("{}\n{NO_QR_FOUND_KM}", Level::CantTell.label_km())]
+        vec![format!(
+            "{}\n{}",
+            Level::CantTell.label(lang),
+            NO_QR_FOUND.get(lang)
+        )]
     } else {
-        checks.iter().map(render_check).collect()
+        checks
+            .iter()
+            .map(|check| render_check(check, lang))
+            .collect()
     };
-    sections.push(BANK_APP_ADVICE_KM.to_owned());
+    sections.push(BANK_APP_ADVICE.get(lang).to_owned());
     sections.join("\n\n")
 }
 
-fn render_check(check: &Check) -> String {
-    let mut lines = vec![decide(check).label_km().to_owned()];
-    lines.extend(check.signals.iter().map(|&signal| reason_km(signal)));
+fn render_check(check: &Check, lang: Lang) -> String {
+    let mut lines = vec![decide(check).label(lang).to_owned()];
+    lines.extend(check.signals.iter().map(|&signal| reason(signal, lang)));
     match &check.subject {
-        Subject::Khqr(payee) => lines.push(render_payee(payee)),
-        Subject::Link(link) => lines.push(render_link(link)),
+        Subject::Khqr(payee) => lines.push(render_payee(payee, lang)),
+        Subject::Link(link) => lines.push(render_link(link, lang)),
         Subject::Text if check.signals.iter().all(|signal| signal.weight() == 0.0) => {
-            lines.push(NO_TEXT_SIGNALS_KM.to_owned())
+            lines.push(NO_TEXT_SIGNALS.get(lang).to_owned())
         }
         Subject::Text | Subject::Unreadable => {}
     }
     lines.join("\n")
 }
 
-fn reason_km(signal: Signal) -> String {
-    let reason = match signal {
-        Signal::NotKhqr => "QR នេះមិនមែន KHQR ឬតំណទេ។ ពេលនេះ CheckSen ពិនិត្យបានតែ KHQR និងតំណប៉ុណ្ណោះ។",
-        Signal::ChecksumInvalid => "QR នេះអាចត្រូវគេកែ ឬខូច (លេខផ្ទៀងផ្ទាត់មិនត្រូវ)។ កុំបង់ប្រាក់តាម QR នេះ។",
-        Signal::DuplicateTag => "QR នេះមានព័ត៌មានជាន់គ្នា ដែលអាចមកពីការកែបន្លំ។ កុំបង់ប្រាក់តាម QR នេះ។",
-        Signal::Malformed => "QR នេះមើលទៅដូច KHQR តែទម្រង់មិនត្រឹមត្រូវ។",
-        Signal::Expired => "QR នេះប្រើបានតែម្តង ហើយផុតកំណត់ហើយ។ សូមសុំ QR ថ្មីពីអ្នកលក់។",
+fn reason(signal: Signal, lang: Lang) -> String {
+    let (km, en) = match signal {
+        Signal::NotKhqr => (
+            "QR នេះមិនមែន KHQR ឬតំណទេ។ ពេលនេះ CheckSen ពិនិត្យបានតែ KHQR និងតំណប៉ុណ្ណោះ។",
+            "This QR isn't a KHQR or a link. For now CheckSen can only check KHQR codes and links.",
+        ),
+        Signal::ChecksumInvalid => (
+            "QR នេះអាចត្រូវគេកែ ឬខូច (លេខផ្ទៀងផ្ទាត់មិនត្រូវ)។ កុំបង់ប្រាក់តាម QR នេះ។",
+            "This QR may have been edited or damaged (its check digits don't match). Don't pay with this QR.",
+        ),
+        Signal::DuplicateTag => (
+            "QR នេះមានព័ត៌មានជាន់គ្នា ដែលអាចមកពីការកែបន្លំ។ កុំបង់ប្រាក់តាម QR នេះ។",
+            "This QR has overlapping details, which can come from tampering. Don't pay with this QR.",
+        ),
+        Signal::Malformed => (
+            "QR នេះមើលទៅដូច KHQR តែទម្រង់មិនត្រឹមត្រូវ។",
+            "This QR looks like a KHQR, but its format is wrong.",
+        ),
+        Signal::Expired => (
+            "QR នេះប្រើបានតែម្តង ហើយផុតកំណត់ហើយ។ សូមសុំ QR ថ្មីពីអ្នកលក់។",
+            "This QR could only be used once and has expired. Ask the seller for a new one.",
+        ),
         Signal::Lookalike(brand) => {
-            return format!("ឈ្មោះគេហទំព័រនេះស្រដៀង {brand} តែមិនមែនគេហទំព័រផ្លូវការទេ។");
+            let brand = brand_name(brand, lang);
+            return match lang {
+                Lang::Km => format!("ឈ្មោះគេហទំព័រនេះស្រដៀង {brand} តែមិនមែនគេហទំព័រផ្លូវការទេ។"),
+                Lang::En => {
+                    format!("This site's name looks like {brand}, but it isn't the official site.")
+                }
+            };
         }
-        Signal::Punycode => "ឈ្មោះគេហទំព័រនេះប្រើអក្សរចម្លែក ដើម្បីឱ្យមើលទៅដូចគេហទំព័រផ្សេង។",
-        Signal::NewDomain => "គេហទំព័រនេះទើបបង្កើតថ្មី មិនទាន់បាន ៣០ ថ្ងៃផង។",
-        Signal::OtpRequest => {
-            "សារនេះសុំលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនពិតៗ មិនដែលសុំលេខទាំងនេះទេ។ កុំប្រាប់នរណាម្នាក់ឡើយ។"
-        }
-        Signal::UpfrontFee => "សារនេះឱ្យបង់លុយមុន ទើបទទួលបានកម្ចី ការងារ ឬរង្វាន់។",
-        Signal::MoveMoneyOut => "សារនេះប្រាប់ឱ្យផ្ទេរលុយចេញពីគណនីរបស់អ្នក ទៅគណនីផ្សេង។",
-        Signal::AccountRental => {
-            "សារនេះសុំជួល ទិញ ឬខ្ចីគណនីធនាគាររបស់អ្នក។ គណនីបែបនេះតែងត្រូវគេប្រើលាងលុយ ហើយអ្នកអាចជាប់ទោសតាមច្បាប់។"
-        }
-        Signal::AuthorityThreat => {
-            "សារនេះអះអាងថាមកពីប៉ូលិស តុលាការ ឬស្ថាប័នរដ្ឋ ហើយគំរាម ឬសុំលុយ។ ស្ថាប័នពិតមិនសុំឱ្យផ្ទេរលុយតាមសារទេ។"
-        }
-        Signal::FamilyImpersonation => {
-            "សារនេះអះអាងថាជាសាច់ញាតិ ឬមិត្តភក្តិដែលប្តូរលេខថ្មី ហើយសុំលុយ។ សូមតេទៅលេខចាស់របស់គាត់ ដើម្បីបញ្ជាក់សិន។"
-        }
-        Signal::AccountThreat => "សារនេះគំរាមថានឹងបិទ ឬផ្អាកគណនីរបស់អ្នក ហើយឱ្យចុចតំណ ឬផ្ទៀងផ្ទាត់។",
-        Signal::LoanBait => "សារនេះសន្យាឱ្យខ្ចីលុយងាយៗ មិនបាច់មានអ្នកធានា ឬទ្រព្យធានា។",
-        Signal::JobBait => "សារនេះសន្យាការងារស្រួលៗ តែបានលុយច្រើនពេក ដូចជាចុចឡាយ ឬវាយអក្សរ។",
-        Signal::PrizeBait => "សារនេះប្រាប់ថាអ្នកឈ្នះរង្វាន់ ឬបានលុយជំនួយ។",
-        Signal::InvestmentBait => "សារនេះធានាថាចំណេញខ្ពស់ ឬមិនខាត។ គ្មានការវិនិយោគណាអាចធានាបែបនេះបានទេ។",
-        Signal::TelegramTakeover => {
-            "សារនេះឱ្យផ្ទៀងផ្ទាត់ ឬការពារគណនី Telegram តាមតំណ។ Telegram មិនផ្ញើសារបែបនេះទេ ហើយតំណនោះអាចលួចគណនីរបស់អ្នក។"
-        }
-        Signal::DonationRequest => {
-            "សារនេះសុំឱ្យបរិច្ចាគលុយចូលគណនីមួយ។ ជនបោកប្រាស់ច្រើនតែយករឿងទាហាន ឬកុមារឈឺមកបញ្ឆោត។ សូមបរិច្ចាគតែតាមអង្គការដែលអ្នកស្គាល់ច្បាស់។"
-        }
-        Signal::Extortion => "សារនេះគំរាមថានឹងផុសរូប ឬប្រាប់អ្នកដទៃ បើអ្នកមិនផ្ញើលុយ។ កុំផ្ញើលុយ ហើយទុកសារនេះជាភស្តុតាង។",
-        Signal::PaymentRedirect => {
-            "សារនេះឱ្យបង់ថ្លៃភ្លើង ថ្លៃសេវា ឬពន្ធ តាមភ្នាក់ងារ ឬគណនីផ្សេង មិនមែនតាមវិធីផ្លូវការទេ។ សូមបង់តាមកម្មវិធីផ្លូវការ ឬតេទៅស្ថាប័ននោះផ្ទាល់។"
-        }
-        Signal::RecruitmentBait => {
-            "សារនេះផ្សាយការងារវាយអក្សរ ឆាត ឬ call center ប្រាក់ខែខ្ពស់ ដែលតែងជាការបោកទៅធ្វើការក្នុងទីតាំងបោកប្រាស់។ គេអាចដកលិខិតឆ្លងដែនរបស់អ្នក ហើយបង្ខំឱ្យធ្វើការ។"
-        }
-        Signal::MalwareFile => {
-            "ឯកសារនេះជាកម្មវិធី (ដូចជា .apk ឬ .exe) មិនមែនឯកសារធម្មតាទេ។ កុំបើក ឬដំឡើង ព្រោះវាអាចចូលគ្រប់គ្រងទូរស័ព្ទរបស់អ្នក។"
-        }
-        Signal::Urgency => "សារនេះប្រញាប់ឱ្យអ្នកធ្វើភ្លាមៗ។",
+        Signal::Punycode => (
+            "ឈ្មោះគេហទំព័រនេះប្រើអក្សរចម្លែក ដើម្បីឱ្យមើលទៅដូចគេហទំព័រផ្សេង។",
+            "This site's name uses unusual letters to look like a different site.",
+        ),
+        Signal::NewDomain => (
+            "គេហទំព័រនេះទើបបង្កើតថ្មី មិនទាន់បាន ៣០ ថ្ងៃផង។",
+            "This site was created less than 30 days ago.",
+        ),
+        Signal::OtpRequest => (
+            "សារនេះសុំលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនពិតៗ មិនដែលសុំលេខទាំងនេះទេ។ កុំប្រាប់នរណាម្នាក់ឡើយ។",
+            "This message asks for an OTP code or password. Real banks and companies never ask for these. Don't tell anyone.",
+        ),
+        Signal::UpfrontFee => (
+            "សារនេះឱ្យបង់លុយមុន ទើបទទួលបានកម្ចី ការងារ ឬរង្វាន់។",
+            "This message asks you to pay first to get a loan, a job or a prize.",
+        ),
+        Signal::MoveMoneyOut => (
+            "សារនេះប្រាប់ឱ្យផ្ទេរលុយចេញពីគណនីរបស់អ្នក ទៅគណនីផ្សេង។",
+            "This message tells you to move money out of your account into another one.",
+        ),
+        Signal::AccountRental => (
+            "សារនេះសុំជួល ទិញ ឬខ្ចីគណនីធនាគាររបស់អ្នក។ គណនីបែបនេះតែងត្រូវគេប្រើលាងលុយ ហើយអ្នកអាចជាប់ទោសតាមច្បាប់។",
+            "This message wants to rent, buy or borrow your bank account. Accounts like this are used to launder money, and you could be charged by law.",
+        ),
+        Signal::AuthorityThreat => (
+            "សារនេះអះអាងថាមកពីប៉ូលិស តុលាការ ឬស្ថាប័នរដ្ឋ ហើយគំរាម ឬសុំលុយ។ ស្ថាប័នពិតមិនសុំឱ្យផ្ទេរលុយតាមសារទេ។",
+            "This message claims to be from the police, a court or a government office, and threatens you or asks for money. Real offices don't ask you to transfer money by message.",
+        ),
+        Signal::FamilyImpersonation => (
+            "សារនេះអះអាងថាជាសាច់ញាតិ ឬមិត្តភក្តិដែលប្តូរលេខថ្មី ហើយសុំលុយ។ សូមតេទៅលេខចាស់របស់គាត់ ដើម្បីបញ្ជាក់សិន។",
+            "This message claims to be a relative or friend with a new number asking for money. Call their old number to check first.",
+        ),
+        Signal::AccountThreat => (
+            "សារនេះគំរាមថានឹងបិទ ឬផ្អាកគណនីរបស់អ្នក ហើយឱ្យចុចតំណ ឬផ្ទៀងផ្ទាត់។",
+            "This message threatens to close or freeze your account and asks you to click a link or verify.",
+        ),
+        Signal::LoanBait => (
+            "សារនេះសន្យាឱ្យខ្ចីលុយងាយៗ មិនបាច់មានអ្នកធានា ឬទ្រព្យធានា។",
+            "This message promises an easy loan with no guarantor or collateral.",
+        ),
+        Signal::JobBait => (
+            "សារនេះសន្យាការងារស្រួលៗ តែបានលុយច្រើនពេក ដូចជាចុចឡាយ ឬវាយអក្សរ។",
+            "This message promises easy work for too much money, like clicking likes or typing.",
+        ),
+        Signal::PrizeBait => (
+            "សារនេះប្រាប់ថាអ្នកឈ្នះរង្វាន់ ឬបានលុយជំនួយ។",
+            "This message says you won a prize or are getting aid money.",
+        ),
+        Signal::InvestmentBait => (
+            "សារនេះធានាថាចំណេញខ្ពស់ ឬមិនខាត។ គ្មានការវិនិយោគណាអាចធានាបែបនេះបានទេ។",
+            "This message promises high profits or no losses. No investment can promise that.",
+        ),
+        Signal::TelegramTakeover => (
+            "សារនេះឱ្យផ្ទៀងផ្ទាត់ ឬការពារគណនី Telegram តាមតំណ។ Telegram មិនផ្ញើសារបែបនេះទេ ហើយតំណនោះអាចលួចគណនីរបស់អ្នក។",
+            "This message asks you to verify or protect your Telegram account through a link. Telegram doesn't send messages like this, and the link can steal your account.",
+        ),
+        Signal::DonationRequest => (
+            "សារនេះសុំឱ្យបរិច្ចាគលុយចូលគណនីមួយ។ ជនបោកប្រាស់ច្រើនតែយករឿងទាហាន ឬកុមារឈឺមកបញ្ឆោត។ សូមបរិច្ចាគតែតាមអង្គការដែលអ្នកស្គាល់ច្បាស់។",
+            "This message asks you to donate money to an account. Scammers often use stories about soldiers or sick children. Only donate through organisations you know well.",
+        ),
+        Signal::Extortion => (
+            "សារនេះគំរាមថានឹងផុសរូប ឬប្រាប់អ្នកដទៃ បើអ្នកមិនផ្ញើលុយ។ កុំផ្ញើលុយ ហើយទុកសារនេះជាភស្តុតាង។",
+            "This message threatens to post photos or tell other people unless you send money. Don't send money, and keep this message as evidence.",
+        ),
+        Signal::PaymentRedirect => (
+            "សារនេះឱ្យបង់ថ្លៃភ្លើង ថ្លៃសេវា ឬពន្ធ តាមភ្នាក់ងារ ឬគណនីផ្សេង មិនមែនតាមវិធីផ្លូវការទេ។ សូមបង់តាមកម្មវិធីផ្លូវការ ឬតេទៅស្ថាប័ននោះផ្ទាល់។",
+            "This message asks you to pay a power bill, fee or tax through an agent or another account, not the official way. Pay through the official app or call the organisation directly.",
+        ),
+        Signal::RecruitmentBait => (
+            "សារនេះផ្សាយការងារវាយអក្សរ ឆាត ឬ call center ប្រាក់ខែខ្ពស់ ដែលតែងជាការបោកទៅធ្វើការក្នុងទីតាំងបោកប្រាស់។ គេអាចដកលិខិតឆ្លងដែនរបស់អ្នក ហើយបង្ខំឱ្យធ្វើការ។",
+            "This message advertises high-paid typing, chat or call-centre work, a common way of luring people into scam compounds. They may take your passport and force you to work.",
+        ),
+        Signal::MalwareFile => (
+            "ឯកសារនេះជាកម្មវិធី (ដូចជា .apk ឬ .exe) មិនមែនឯកសារធម្មតាទេ។ កុំបើក ឬដំឡើង ព្រោះវាអាចចូលគ្រប់គ្រងទូរស័ព្ទរបស់អ្នក។",
+            "This file is a program (like .apk or .exe), not a normal document. Don't open or install it, because it can take control of your phone.",
+        ),
+        Signal::Urgency => (
+            "សារនេះប្រញាប់ឱ្យអ្នកធ្វើភ្លាមៗ។",
+            "This message pushes you to act right away.",
+        ),
         Signal::Reported(reporters) => {
-            return format!("មានអ្នកប្រើ {reporters} នាក់ រាយការណ៍ថាគណនីនេះមិនមែនជាអ្នកទទួលដែលពួកគេចង់បង់ឱ្យទេ។");
+            return match lang {
+                Lang::Km => {
+                    format!("មានអ្នកប្រើ {reporters} នាក់ រាយការណ៍ថាគណនីនេះមិនមែនជាអ្នកទទួលដែលពួកគេចង់បង់ឱ្យទេ។")
+                }
+                Lang::En => format!(
+                    "{reporters} people reported that this account wasn't who they meant to pay."
+                ),
+            };
         }
         Signal::Model { category, .. } => {
-            return format!("AI យល់ថាសារនេះស្រដៀងនឹង{}។", category_km(category));
+            return match lang {
+                Lang::Km => format!("AI យល់ថាសារនេះស្រដៀងនឹង{}។", category_name(category, lang)),
+                Lang::En => format!(
+                    "The AI thinks this message looks like {}.",
+                    category_name(category, lang)
+                ),
+            };
         }
-        Signal::ModelUnavailable => "ពេលនេះ AI មិនអាចពិនិត្យបាន ដូច្នេះលទ្ធផលនេះមកពីការពិនិត្យស្វ័យប្រវត្តិតែប៉ុណ្ណោះ។",
+        Signal::ModelUnavailable => (
+            "ពេលនេះ AI មិនអាចពិនិត្យបាន ដូច្នេះលទ្ធផលនេះមកពីការពិនិត្យស្វ័យប្រវត្តិតែប៉ុណ្ណោះ។",
+            "The AI can't check right now, so this result comes from the automatic checks only.",
+        ),
     };
-    reason.to_owned()
+    lang.pick(km, en).to_owned()
 }
 
-fn category_km(category: ScamCategory) -> &'static str {
-    match category {
-        ScamCategory::Loan => "កម្ចីក្លែងក្លាយ",
-        ScamCategory::Job => "ការងារក្លែងក្លាយ",
-        ScamCategory::Otp => "ការសុំលេខកូដសម្ងាត់",
-        ScamCategory::Prize => "រង្វាន់ក្លែងក្លាយ",
-        ScamCategory::Account => "ការគំរាមបិទគណនី",
-        ScamCategory::Authority => "ការក្លែងខ្លួនជាអាជ្ញាធរ",
-        ScamCategory::Investment => "ការវិនិយោគក្លែងក្លាយ",
-        ScamCategory::Mule => "ការជួល ឬទិញគណនីធនាគារ",
-        ScamCategory::Family => "ការក្លែងខ្លួនជាសាច់ញាតិ ឬមិត្តភក្តិ",
-        ScamCategory::Telegram => "ការលួចគណនី Telegram",
-        ScamCategory::Malware => "កម្មវិធីព្យាបាទ",
-        ScamCategory::Charity => "ការសុំបរិច្ចាគក្លែងក្លាយ",
-        ScamCategory::Shop => "ការលក់ទំនិញក្លែងក្លាយ",
-        ScamCategory::Gambling => "ល្បែងស៊ីសង ឬឆ្នោតខុសច្បាប់",
-        ScamCategory::Extortion => "ការគំរាមយកលុយ",
-        ScamCategory::Recruitment => "ការជ្រើសរើសបុគ្គលិកក្លែងក្លាយ",
-        ScamCategory::OtherScam | ScamCategory::None => "ការបោកប្រាស់",
+fn brand_name(brand: &str, lang: Lang) -> &str {
+    if brand == link::GOVERNMENT {
+        lang.pick(
+            "គេហទំព័ររដ្ឋាភិបាល (gov.kh)",
+            "a Cambodian government site (gov.kh)",
+        )
+    } else {
+        brand
     }
 }
 
-fn render_payee(payee: &DecodedKhqr) -> String {
+fn category_name(category: ScamCategory, lang: Lang) -> &'static str {
+    let (km, en) = match category {
+        ScamCategory::Loan => ("កម្ចីក្លែងក្លាយ", "a fake loan"),
+        ScamCategory::Job => ("ការងារក្លែងក្លាយ", "a fake job"),
+        ScamCategory::Otp => ("ការសុំលេខកូដសម្ងាត់", "a request for a secret code"),
+        ScamCategory::Prize => ("រង្វាន់ក្លែងក្លាយ", "a fake prize"),
+        ScamCategory::Account => ("ការគំរាមបិទគណនី", "a threat to close your account"),
+        ScamCategory::Authority => ("ការក្លែងខ្លួនជាអាជ្ញាធរ", "someone posing as the authorities"),
+        ScamCategory::Investment => ("ការវិនិយោគក្លែងក្លាយ", "a fake investment"),
+        ScamCategory::Mule => ("ការជួល ឬទិញគណនីធនាគារ", "renting or buying bank accounts"),
+        ScamCategory::Family => (
+            "ការក្លែងខ្លួនជាសាច់ញាតិ ឬមិត្តភក្តិ",
+            "someone posing as family or a friend",
+        ),
+        ScamCategory::Telegram => ("ការលួចគណនី Telegram", "a Telegram account takeover"),
+        ScamCategory::Malware => ("កម្មវិធីព្យាបាទ", "harmful software"),
+        ScamCategory::Charity => ("ការសុំបរិច្ចាគក្លែងក្លាយ", "a fake donation request"),
+        ScamCategory::Shop => ("ការលក់ទំនិញក្លែងក្លាយ", "a fake seller"),
+        ScamCategory::Gambling => ("ល្បែងស៊ីសង ឬឆ្នោតខុសច្បាប់", "illegal gambling or a lottery"),
+        ScamCategory::Extortion => ("ការគំរាមយកលុយ", "extortion"),
+        ScamCategory::Recruitment => ("ការជ្រើសរើសបុគ្គលិកក្លែងក្លាយ", "fake recruitment"),
+        ScamCategory::OtherScam | ScamCategory::None => ("ការបោកប្រាស់", "a scam"),
+    };
+    lang.pick(km, en)
+}
+
+fn render_payee(payee: &DecodedKhqr, lang: Lang) -> String {
     let mut lines = vec![
-        "QR នេះបង់ប្រាក់ទៅ៖".to_owned(),
-        format!("• ឈ្មោះអ្នកទទួល៖ {}", inert(&payee.merchant_name)),
-        format!("• គណនី៖ {}", inert(&payee.bakong_account_id)),
+        lang.pick("QR នេះបង់ប្រាក់ទៅ៖", "This QR pays:").to_owned(),
+        format!(
+            "{} {}",
+            lang.pick("• ឈ្មោះអ្នកទទួល៖", "• Recipient:"),
+            inert(&payee.merchant_name)
+        ),
+        format!(
+            "{} {}",
+            lang.pick("• គណនី៖", "• Account:"),
+            inert(&payee.bakong_account_id)
+        ),
     ];
     if let Some(bank) = &payee.acquiring_bank {
-        lines.push(format!("• ធនាគារ៖ {}", inert(bank)));
+        lines.push(format!(
+            "{} {}",
+            lang.pick("• ធនាគារ៖", "• Bank:"),
+            inert(bank)
+        ));
     }
     if let Some(amount) = &payee.transaction_amount {
         let currency = match payee.currency() {
@@ -193,82 +391,142 @@ fn render_payee(payee: &DecodedKhqr) -> String {
             _ => payee.transaction_currency.as_str(),
         };
         lines.push(format!(
-            "• ចំនួនទឹកប្រាក់៖ {} {}",
+            "{} {} {}",
+            lang.pick("• ចំនួនទឹកប្រាក់៖", "• Amount:"),
             visible(amount),
             visible(currency)
         ));
     }
-    lines.push(format!("• ទីក្រុង៖ {}", inert(&payee.merchant_city)));
-    lines.push("តើឈ្មោះនេះត្រូវនឹងហាង ឬអ្នកដែលអ្នកចង់បង់ឱ្យទេ? បើមិនត្រូវ កុំបង់។".to_owned());
+    lines.push(format!(
+        "{} {}",
+        lang.pick("• ទីក្រុង៖", "• City:"),
+        inert(&payee.merchant_city)
+    ));
+    lines.push(
+        lang.pick(
+            "តើឈ្មោះនេះត្រូវនឹងហាង ឬអ្នកដែលអ្នកចង់បង់ឱ្យទេ? បើមិនត្រូវ កុំបង់។",
+            "Does this name match the shop or person you mean to pay? If not, don't pay.",
+        )
+        .to_owned(),
+    );
     lines.join("\n")
 }
 
-fn render_link(link: &LinkInfo) -> String {
-    let mut lines = vec![format!("• គេហទំព័រ៖ {}", defang(&link.host))];
+fn render_link(link: &LinkInfo, lang: Lang) -> String {
+    let mut lines = vec![format!(
+        "{} {}",
+        lang.pick("• គេហទំព័រ៖", "• Site:"),
+        defang(&link.host)
+    )];
     if let Some(destination) = &link.redirected_to {
-        lines.push(format!("• នាំបន្តទៅ៖ {}", defang(destination)));
+        lines.push(format!(
+            "{} {}",
+            lang.pick("• នាំបន្តទៅ៖", "• Redirects to:"),
+            defang(destination)
+        ));
     }
+    let owner = lang.pick("• ម្ចាស់គេហទំព័រ៖", "• Owner:");
     lines.push(match link.site {
-        Some(site) if site.kind == Kind::Hosting => format!("• បង្កើតលើ៖ {}", site.name),
-        Some(site) if site.kind == Kind::Government => format!("• ម្ចាស់គេហទំព័រ៖ {}", site.name),
-        Some(site) => format!("• ម្ចាស់គេហទំព័រ៖ {} ({})", site.name, kind_km(site.kind)),
-        None => "• ម្ចាស់គេហទំព័រ៖ មិនមែនជាគេហទំព័រល្បី ដែល CheckSen ស្គាល់ទេ".to_owned(),
+        Some(site) if site.kind == Kind::Hosting => {
+            format!("{} {}", lang.pick("• បង្កើតលើ៖", "• Built on:"), site.name)
+        }
+        Some(site) if site.kind == Kind::Government => {
+            format!("{owner} {}", site_name(site, lang))
+        }
+        Some(site) => format!("{owner} {} ({})", site.name, kind_name(site.kind, lang)),
+        None => format!(
+            "{owner} {}",
+            lang.pick(
+                "មិនមែនជាគេហទំព័រល្បី ដែល CheckSen ស្គាល់ទេ",
+                "not a well-known site that CheckSen knows"
+            )
+        ),
     });
     if let Some(days) = link.age_days {
-        let age = if days >= 365 {
-            format!("{} ឆ្នាំ", days / 365)
-        } else {
-            format!("{days} ថ្ងៃ")
+        let age = match (lang, days / 365) {
+            (Lang::Km, 0) => format!("{days} ថ្ងៃ"),
+            (Lang::Km, years) => format!("{years} ឆ្នាំ"),
+            (Lang::En, 0) if days == 1 => "1 day".to_owned(),
+            (Lang::En, 0) => format!("{days} days"),
+            (Lang::En, 1) => "1 year".to_owned(),
+            (Lang::En, years) => format!("{years} years"),
         };
-        lines.push(format!("• អាយុគេហទំព័រ៖ {age}"));
+        lines.push(format!(
+            "{} {age}",
+            lang.pick("• អាយុគេហទំព័រ៖", "• Site age:")
+        ));
     }
-    if let Some(note) = link.site.and_then(site_note_km) {
+    if let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
         lines.push(note);
     }
-    lines.push(LINK_ADVICE_KM.to_owned());
+    lines.push(LINK_ADVICE.get(lang).to_owned());
     lines.join("\n")
 }
 
-fn site_note_km(site: &Site) -> Option<String> {
-    let name = site.name;
-    match site.kind {
-        Kind::Hosting => Some(format!(
-            "អ្នកណាក៏អាចបង្កើតគេហទំព័រលើ {name} បាន ដោយឥតគិតថ្លៃ។ កុំទុកចិត្ត ដោយសារតែឈ្មោះក្នុងតំណ។"
-        )),
-        Kind::Shortener => {
-            Some("នេះជាតំណខ្លី ដែលលាក់គេហទំព័រពិត ហើយ CheckSen មិនអាចដឹងថាវានាំទៅណាទេ។ សូមប្រយ័ត្ន។".to_owned())
-        }
-        kind if kind.anyone_can_post() => Some(format!(
-            "នេះជាគេហទំព័រពិតរបស់ {name} តែអ្នកណាក៏អាចបង្ហោះលើវាបាន។ សូមមើលថាអ្នកណាជាអ្នកបង្ហោះ មុនទុកចិត្ត។"
-        )),
-        _ => None,
+fn site_name(site: &Site, lang: Lang) -> &'static str {
+    match (site.kind, site.domain) {
+        (Kind::Government, "gov.kh") => lang.pick(
+            "ស្ថាប័នរដ្ឋកម្ពុជា (.gov.kh)",
+            "a Cambodian government office (.gov.kh)",
+        ),
+        (Kind::Government, "nbc.gov.kh") => lang.pick(
+            "ធនាគារជាតិនៃកម្ពុជា (Bakong)",
+            "National Bank of Cambodia (Bakong)",
+        ),
+        _ => site.name,
     }
 }
 
-fn kind_km(kind: Kind) -> &'static str {
-    match kind {
-        Kind::Bank => "ធនាគារ",
-        Kind::Finance => "ស្ថាប័នហិរញ្ញវត្ថុ",
-        Kind::Wallet => "កាបូបលុយអេឡិចត្រូនិក",
-        Kind::Telecom => "ក្រុមហ៊ុនទូរស័ព្ទ",
-        Kind::Government => "ស្ថាប័នរដ្ឋ",
-        Kind::Messaging => "កម្មវិធីផ្ញើសារ",
-        Kind::Social => "បណ្តាញសង្គម",
-        Kind::Video => "គេហទំព័រវីដេអូ",
-        Kind::Code => "កន្លែងរក្សាទុក និងចែករំលែកកូដកម្មវិធី",
-        Kind::Files => "សេវាឯកសារ និងទម្រង់បំពេញ",
-        Kind::Email => "សេវាអ៊ីមែល",
-        Kind::Tech => "ក្រុមហ៊ុនបច្ចេកវិទ្យា",
-        Kind::AppStore => "ហាងកម្មវិធីទូរស័ព្ទ",
-        Kind::Shopping => "ហាងទំនិញអនឡាញ",
-        Kind::Classifieds => "គេហទំព័រលក់ទិញ",
-        Kind::News => "សារព័ត៌មាន",
-        Kind::Reference => "សព្វវចនាធិប្បាយអនឡាញ",
-        Kind::Ai => "សេវា AI",
-        Kind::Ride => "កម្មវិធីហៅឡាន និងកុម្ម៉ង់ម្ហូប",
-        Kind::Shortener => "សេវាតំណខ្លី",
-        Kind::Hosting => "សេវាបង្កើតគេហទំព័រ",
-    }
+fn site_note(site: &Site, lang: Lang) -> Option<String> {
+    let name = site.name;
+    Some(match (site.kind, lang) {
+        (Kind::Hosting, Lang::Km) => format!(
+            "អ្នកណាក៏អាចបង្កើតគេហទំព័រលើ {name} បាន ដោយឥតគិតថ្លៃ។ កុំទុកចិត្ត ដោយសារតែឈ្មោះក្នុងតំណ។"
+        ),
+        (Kind::Hosting, Lang::En) => format!(
+            "Anyone can make a site on {name} for free. Don't trust it just because of the name in the link."
+        ),
+        (Kind::Shortener, _) => lang
+            .pick(
+                "នេះជាតំណខ្លី ដែលលាក់គេហទំព័រពិត ហើយ CheckSen មិនអាចដឹងថាវានាំទៅណាទេ។ សូមប្រយ័ត្ន។",
+                "This is a short link that hides the real site, and CheckSen couldn't see where it goes. Be careful.",
+            )
+            .to_owned(),
+        (kind, Lang::Km) if kind.anyone_can_post() => format!(
+            "នេះជាគេហទំព័រពិតរបស់ {name} តែអ្នកណាក៏អាចបង្ហោះលើវាបាន។ សូមមើលថាអ្នកណាជាអ្នកបង្ហោះ មុនទុកចិត្ត។"
+        ),
+        (kind, Lang::En) if kind.anyone_can_post() => format!(
+            "This is the real {name}, but anyone can post on it. Check who posted this before you trust it."
+        ),
+        _ => return None,
+    })
+}
+
+fn kind_name(kind: Kind, lang: Lang) -> &'static str {
+    let (km, en) = match kind {
+        Kind::Bank => ("ធនាគារ", "bank"),
+        Kind::Finance => ("ស្ថាប័នហិរញ្ញវត្ថុ", "financial institution"),
+        Kind::Wallet => ("កាបូបលុយអេឡិចត្រូនិក", "e-wallet"),
+        Kind::Telecom => ("ក្រុមហ៊ុនទូរស័ព្ទ", "mobile network"),
+        Kind::Government => ("ស្ថាប័នរដ្ឋ", "government"),
+        Kind::Messaging => ("កម្មវិធីផ្ញើសារ", "messaging app"),
+        Kind::Social => ("បណ្តាញសង្គម", "social network"),
+        Kind::Video => ("គេហទំព័រវីដេអូ", "video site"),
+        Kind::Code => ("កន្លែងរក្សាទុក និងចែករំលែកកូដកម្មវិធី", "code hosting site"),
+        Kind::Files => ("សេវាឯកសារ និងទម្រង់បំពេញ", "documents and forms"),
+        Kind::Email => ("សេវាអ៊ីមែល", "email"),
+        Kind::Tech => ("ក្រុមហ៊ុនបច្ចេកវិទ្យា", "tech company"),
+        Kind::AppStore => ("ហាងកម្មវិធីទូរស័ព្ទ", "app store"),
+        Kind::Shopping => ("ហាងទំនិញអនឡាញ", "online shop"),
+        Kind::Classifieds => ("គេហទំព័រលក់ទិញ", "buy and sell site"),
+        Kind::News => ("សារព័ត៌មាន", "news"),
+        Kind::Reference => ("សព្វវចនាធិប្បាយអនឡាញ", "online encyclopedia"),
+        Kind::Ai => ("សេវា AI", "AI service"),
+        Kind::Ride => ("កម្មវិធីហៅឡាន និងកុម្ម៉ង់ម្ហូប", "ride and food delivery app"),
+        Kind::Shortener => ("សេវាតំណខ្លី", "link shortener"),
+        Kind::Hosting => ("សេវាបង្កើតគេហទំព័រ", "website builder"),
+    };
+    lang.pick(km, en)
 }
 
 fn defang(host: &str) -> String {
@@ -304,6 +562,10 @@ fn inert(value: &str) -> String {
 mod tests {
     use super::*;
     use crate::analyzers::khqr::{self, tests::INDIVIDUAL_KHR_500};
+
+    fn render_km(checks: &[Check]) -> String {
+        render(checks, Lang::Km)
+    }
 
     fn check_with(signals: Vec<Signal>, valid: bool) -> Check {
         let subject = if valid {
@@ -396,35 +658,38 @@ mod tests {
 
     #[test]
     fn every_reply_sends_user_to_bank_app_and_never_says_safe() {
-        let replies = [
-            screenshot_unread_km(),
-            render_km(&[]),
-            render_km(&[khqr::check(INDIVIDUAL_KHR_500)]),
-            render_km(&[check_with(vec![Signal::ChecksumInvalid], false)]),
-            render_km(&[check_with(vec![Signal::Expired], true)]),
-            render_km(&[check_with(vec![Signal::NotKhqr], false)]),
-            render_km(&[link_check(vec![
-                Signal::Lookalike("ABA"),
-                Signal::NewDomain,
-            ])]),
-            render_km(&[link_check(vec![])]),
-            render_km(&[crate::analyzers::text::check("សូមផ្ញើលេខកូដ OTP មកខ្ញុំ")]),
-            render_km(&[crate::analyzers::text::check("See you at the café at 6")]),
-            render_km(&[Check {
-                subject: Subject::Text,
-                signals: vec![Signal::ModelUnavailable],
-            }]),
-            render_km(&[Check {
-                subject: Subject::Text,
-                signals: vec![Signal::Model {
-                    category: ScamCategory::Prize,
-                    cited: false,
-                }],
-            }]),
-        ];
-        for reply in replies {
-            assert!(reply.ends_with(BANK_APP_ADVICE_KM), "{reply}");
-            assert!(!reply.contains("សុវត្ថិភាព") && !reply.to_lowercase().contains("safe"));
+        for lang in [Lang::Km, Lang::En] {
+            let render_km = |checks: &[Check]| render(checks, lang);
+            let replies = [
+                screenshot_unread(lang),
+                render_km(&[]),
+                render_km(&[khqr::check(INDIVIDUAL_KHR_500)]),
+                render_km(&[check_with(vec![Signal::ChecksumInvalid], false)]),
+                render_km(&[check_with(vec![Signal::Expired], true)]),
+                render_km(&[check_with(vec![Signal::NotKhqr], false)]),
+                render_km(&[link_check(vec![
+                    Signal::Lookalike("ABA"),
+                    Signal::NewDomain,
+                ])]),
+                render_km(&[link_check(vec![])]),
+                render_km(&[crate::analyzers::text::check("សូមផ្ញើលេខកូដ OTP មកខ្ញុំ")]),
+                render_km(&[crate::analyzers::text::check("See you at the café at 6")]),
+                render_km(&[Check {
+                    subject: Subject::Text,
+                    signals: vec![Signal::ModelUnavailable],
+                }]),
+                render_km(&[Check {
+                    subject: Subject::Text,
+                    signals: vec![Signal::Model {
+                        category: ScamCategory::Prize,
+                        cited: false,
+                    }],
+                }]),
+            ];
+            for reply in replies {
+                assert!(reply.ends_with(BANK_APP_ADVICE.get(lang)), "{reply}");
+                assert!(!reply.contains("សុវត្ថិភាព") && !reply.to_lowercase().contains("safe"));
+            }
         }
     }
 
@@ -432,6 +697,13 @@ mod tests {
     fn valid_reply_shows_payee() {
         let reply = render_km(&[khqr::check(INDIVIDUAL_KHR_500)]);
         assert!(reply.contains("jonhsmith@nbcq") && reply.contains("500 KHR"));
+    }
+
+    #[test]
+    fn language_follows_script() {
+        assert_eq!(Lang::of("សួស្តី hi"), Some(Lang::Km));
+        assert_eq!(Lang::of("Your account is locked"), Some(Lang::En));
+        assert_eq!(Lang::of("012 345 678"), None);
     }
 
     #[test]
@@ -461,6 +733,21 @@ mod tests {
         assert!(reply("www.ababank.com").contains("ABA (ធនាគារ)"));
         assert!(reply("aba-gift.github.io").contains("បង្កើតលើ៖ GitHub Pages"));
         assert!(reply("example.com").contains("មិនមែនជាគេហទំព័រល្បី"));
+        let english = render(
+            &[Check {
+                subject: Subject::Link(LinkInfo {
+                    host: "github.com".to_owned(),
+                    redirected_to: None,
+                    age_days: Some(365 * 19),
+                    site: crate::analyzers::sites::identify("github.com"),
+                }),
+                signals: vec![],
+            }],
+            Lang::En,
+        );
+        assert!(
+            english.contains("• Owner: GitHub (code hosting site)") && english.contains("19 years")
+        );
     }
 
     #[test]

@@ -90,7 +90,11 @@ const SITES: &[Site] = &[
     site("smart.com.kh", "Smart", Telecom),
     site("cellcard.com.kh", "Cellcard", Telecom),
     site("metfone.com.kh", "Metfone", Telecom),
-    site("nbc.gov.kh", "ធនាគារជាតិនៃកម្ពុជា (Bakong)", Government),
+    site(
+        "nbc.gov.kh",
+        "National Bank of Cambodia (Bakong)",
+        Government,
+    ),
     site("telegram.org", "Telegram", Messaging),
     site("t.me", "Telegram", Messaging),
     site("telegram.me", "Telegram", Messaging),
@@ -206,7 +210,7 @@ const SITES: &[Site] = &[
     site("000webhostapp.com", "000webhost", Hosting),
 ];
 
-static GOVERNMENT: Site = site("gov.kh", "ស្ថាប័នរដ្ឋកម្ពុជា (.gov.kh)", Government);
+static GOVERNMENT: Site = site("gov.kh", "Cambodian government (.gov.kh)", Government);
 
 pub fn identify(host: &str) -> Option<&'static Site> {
     let registrable = psl::domain_str(host).unwrap_or(host);

@@ -5,11 +5,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use moka::sync::Cache;
 
+use checksen::verdict::Lang;
+
 const CHECKS_PER_WINDOW: u32 = 30;
 const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
 const MODEL_CALLS_PER_DAY: u32 = 5_000;
 const SCREENSHOT_CALLS_PER_DAY: u32 = 1_000;
+const LANGUAGE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 
 pub struct Reply {
     pub text: String,
@@ -43,6 +46,7 @@ pub struct Guard {
     checks: Cache<u64, Arc<AtomicU32>>,
     replies: Cache<u64, Arc<Reply>>,
     model_calls: Cache<(ModelCall, u64), Arc<AtomicU32>>,
+    languages: Cache<u64, Lang>,
 }
 
 impl Guard {
@@ -60,6 +64,10 @@ impl Guard {
             model_calls: Cache::builder()
                 .max_capacity(8)
                 .time_to_live(Duration::from_secs(25 * 60 * 60))
+                .build(),
+            languages: Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(LANGUAGE_TTL)
                 .build(),
         }
     }
@@ -87,6 +95,16 @@ impl Guard {
             .model_calls
             .get_with((call, day), || Arc::new(AtomicU32::new(0)));
         calls.fetch_add(1, Ordering::Relaxed) < call.daily_limit()
+    }
+
+    /// What the sender types in wins over the language of what they forward.
+    pub fn language(&self, sender: u64, typed: Option<Lang>, forwarded: Option<Lang>) -> Lang {
+        let key = self.key(("lang", sender));
+        if let Some(lang) = typed {
+            self.languages.insert(key, lang);
+            return lang;
+        }
+        self.languages.get(&key).or(forwarded).unwrap_or(Lang::Km)
     }
 
     pub fn cached(&self, key: u64) -> Option<Arc<Reply>> {
@@ -130,6 +148,17 @@ mod tests {
         }
         assert!(!guard.allow_model_call(ModelCall::Screenshot));
         assert!(guard.allow_model_call(ModelCall::Text));
+    }
+
+    #[test]
+    fn typed_language_sticks_over_forwarded_content() {
+        let guard = Guard::new();
+        assert_eq!(guard.language(1, None, None), Lang::Km);
+        assert_eq!(guard.language(1, None, Some(Lang::En)), Lang::En);
+        assert_eq!(guard.language(1, Some(Lang::Km), None), Lang::Km);
+        assert_eq!(guard.language(1, None, Some(Lang::En)), Lang::Km);
+        assert_eq!(guard.language(2, Some(Lang::En), None), Lang::En);
+        assert_eq!(guard.language(2, None, Some(Lang::Km)), Lang::En);
     }
 
     #[test]

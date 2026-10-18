@@ -11,7 +11,7 @@ use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, Transcriber};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
-use checksen::verdict;
+use checksen::verdict::{self, Lang};
 
 use crate::guard::{Admission, Guard, ModelCall, Reply};
 use crate::reports;
@@ -24,13 +24,21 @@ const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
 const SCREENSHOT_CLASSIFIER_BUDGET: Duration = Duration::from_secs(10);
 const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
 
+struct Deps<'a> {
+    links: &'a LinkChecker,
+    classifier: Option<&'a dyn Classifier>,
+    transcriber: Option<&'a dyn Transcriber>,
+    guard: &'a Guard,
+    store: Option<&'a Store>,
+}
+
 struct Outcome {
     reply: Reply,
     cacheable: bool,
 }
 
 impl Outcome {
-    fn of(checks: &[Check]) -> Self {
+    fn of(checks: &[Check], lang: Lang) -> Self {
         let mut payees = checks.iter().filter_map(|check| match &check.subject {
             Subject::Khqr(payee) => Some(payee.bakong_account_id.clone()),
             _ => None,
@@ -41,7 +49,7 @@ impl Outcome {
         };
         Self {
             reply: Reply {
-                text: verdict::render_km(checks),
+                text: verdict::render(checks, lang),
                 account,
             },
             cacheable: !checks.iter().any(|check| {
@@ -71,24 +79,26 @@ pub async fn handle(
     guard: Arc<Guard>,
     store: Option<Arc<Store>>,
 ) -> ResponseResult<()> {
-    if msg.text().is_some_and(|text| text.starts_with("/forget")) {
-        let reply = reports::forget_reply(store.as_deref(), msg.from.as_ref()).await;
-        bot.send_message(msg.chat.id, reply).await?;
-        return Ok(());
-    }
-    let Some(key) = cache_key(&guard, &msg) else {
-        bot.send_message(msg.chat.id, verdict::HELP_KM).await?;
-        return Ok(());
-    };
-
     let sender = msg
         .from
         .as_ref()
         .map_or(msg.chat.id.0 as u64, |user| user.id.0);
+    let lang = language(&guard, sender, &msg);
+    if msg.text().is_some_and(|text| text.starts_with("/forget")) {
+        let reply = reports::forget_reply(store.as_deref(), msg.from.as_ref(), lang).await;
+        bot.send_message(msg.chat.id, reply).await?;
+        return Ok(());
+    }
+    let Some(key) = cache_key(&guard, &msg, lang) else {
+        bot.send_message(msg.chat.id, verdict::HELP.get(lang))
+            .await?;
+        return Ok(());
+    };
+
     match guard.admit(sender) {
         Admission::Allowed => {}
         Admission::LimitReached => {
-            bot.send_message(msg.chat.id, verdict::RATE_LIMITED_KM)
+            bot.send_message(msg.chat.id, verdict::RATE_LIMITED.get(lang))
                 .await?;
             return Ok(());
         }
@@ -98,16 +108,14 @@ pub async fn handle(
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let outcome = check(
-                &bot,
-                &msg,
-                &links,
-                classifier.as_deref(),
-                transcriber.as_deref(),
-                &guard,
-                store.as_deref(),
-            )
-            .await;
+            let deps = Deps {
+                links: &links,
+                classifier: classifier.as_deref(),
+                transcriber: transcriber.as_deref(),
+                guard: &guard,
+                store: store.as_deref(),
+            };
+            let outcome = check(&bot, &msg, lang, &deps).await;
             let reply = Arc::new(outcome.reply);
             if outcome.cacheable {
                 guard.store(key, reply.clone());
@@ -116,7 +124,7 @@ pub async fn handle(
         }
     };
 
-    let keyboard = reports::keyboard(store.as_deref(), reply.account.as_deref());
+    let keyboard = reports::keyboard(store.as_deref(), reply.account.as_deref(), lang);
     let request = bot.send_message(msg.chat.id, reply.text.as_str());
     match keyboard {
         Some(keyboard) => request.reply_markup(keyboard).await?,
@@ -130,17 +138,31 @@ fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
         .and_then(|sizes| sizes.iter().max_by_key(|size| size.width * size.height))
 }
 
-fn cache_key(guard: &Guard, msg: &Message) -> Option<u64> {
+fn language(guard: &Guard, sender: u64, msg: &Message) -> Lang {
+    let written = msg
+        .text()
+        .or(msg.caption())
+        .filter(|text| !text.starts_with('/'))
+        .and_then(Lang::of);
+    if msg.forward_origin().is_some() {
+        guard.language(sender, None, written)
+    } else {
+        guard.language(sender, written, None)
+    }
+}
+
+fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     if let Some(photo) = largest_photo(msg) {
-        return Some(guard.key((RULES_VERSION, "photo", &photo.file.unique_id.0)));
+        return Some(guard.key((RULES_VERSION, lang, "photo", &photo.file.unique_id.0)));
     }
     if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
         let urls: Vec<String> = urls_in(msg).iter().map(Url::to_string).collect();
-        return Some(guard.key((RULES_VERSION, "text", message, urls)));
+        return Some(guard.key((RULES_VERSION, lang, "text", message, urls)));
     }
     msg.document().map(|document| {
         guard.key((
             RULES_VERSION,
+            lang,
             "document",
             &document.file.unique_id.0,
             msg.caption().unwrap_or_default(),
@@ -148,57 +170,46 @@ fn cache_key(guard: &Guard, msg: &Message) -> Option<u64> {
     })
 }
 
-async fn check(
-    bot: &Bot,
-    msg: &Message,
-    links: &LinkChecker,
-    classifier: Option<&dyn Classifier>,
-    transcriber: Option<&dyn Transcriber>,
-    guard: &Guard,
-    store: Option<&Store>,
-) -> Outcome {
+async fn check(bot: &Bot, msg: &Message, lang: Lang, deps: &Deps<'_>) -> Outcome {
     if let Some(photo) = largest_photo(msg) {
         let image = match download_photo(bot, photo).await {
             Ok(image) => image,
             Err(error) => {
                 tracing::warn!(%error, "photo download failed");
-                return Outcome::text(verdict::render_km(&[]), false);
+                return Outcome::text(verdict::render(&[], lang), false);
             }
         };
-        return check_photo(image, links, classifier, transcriber, guard, store).await;
+        return check_photo(image, lang, deps).await;
     }
     if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
-        return Outcome::of(&reports::with_reports(vec![khqr::check(payload)], store).await);
+        return Outcome::of(
+            &reports::with_reports(vec![khqr::check(payload)], deps.store).await,
+            lang,
+        );
     }
     if let Some(message) = msg.text() {
-        return check_text(msg, message, links, classifier, guard).await;
+        return check_text(msg, message, lang, deps).await;
     }
     let file_name = msg
         .document()
         .and_then(|document| document.file_name.as_deref())
         .unwrap_or_default();
     let described = format!("{file_name} {}", msg.caption().unwrap_or_default());
-    Outcome::of(&[text::check(&described)])
+    Outcome::of(&[text::check(&described)], lang)
 }
 
-async fn check_text(
-    msg: &Message,
-    message: &str,
-    links: &LinkChecker,
-    classifier: Option<&dyn Classifier>,
-    guard: &Guard,
-) -> Outcome {
+async fn check_text(msg: &Message, message: &str, lang: Lang, deps: &Deps<'_>) -> Outcome {
     let urls = urls_in(msg);
     let text_check = text::check(message);
     if text_check.signals.is_empty() && urls.is_empty() && message.chars().count() < MIN_TEXT_CHARS
     {
-        return Outcome::text(verdict::HELP_KM, true);
+        return Outcome::text(verdict::HELP.get(lang), true);
     }
 
     let show_text = urls.is_empty();
     let (text_check, link_checks) = tokio::join!(
-        classify_text(text_check, message, classifier, guard, CLASSIFIER_BUDGET),
-        join_all(urls.into_iter().map(|url| links.check(url)))
+        classify_text(text_check, message, deps, CLASSIFIER_BUDGET),
+        join_all(urls.into_iter().map(|url| deps.links.check(url)))
     );
 
     let mut checks = Vec::new();
@@ -206,18 +217,17 @@ async fn check_text(
         checks.push(text_check);
     }
     checks.extend(link_checks);
-    Outcome::of(&checks)
+    Outcome::of(&checks, lang)
 }
 
 async fn classify_text(
     mut text_check: Check,
     message: &str,
-    classifier: Option<&dyn Classifier>,
-    guard: &Guard,
+    deps: &Deps<'_>,
     budget: Duration,
 ) -> Check {
-    match classifier {
-        Some(classifier) if guard.allow_model_call(ModelCall::Text) => {
+    match deps.classifier {
+        Some(classifier) if deps.guard.allow_model_call(ModelCall::Text) => {
             llm::classify(text_check, message, classifier, budget).await
         }
         Some(_) => {
@@ -237,14 +247,7 @@ async fn download_photo(bot: &Bot, photo: &PhotoSize) -> anyhow::Result<Vec<u8>>
     Ok(bytes)
 }
 
-async fn check_photo(
-    image: Vec<u8>,
-    links: &LinkChecker,
-    classifier: Option<&dyn Classifier>,
-    transcriber: Option<&dyn Transcriber>,
-    guard: &Guard,
-    store: Option<&Store>,
-) -> Outcome {
+async fn check_photo(image: Vec<u8>, lang: Lang, deps: &Deps<'_>) -> Outcome {
     let decoded = tokio::task::spawn_blocking(move || {
         let payloads = khqr::payloads_from_image(&image);
         (image, payloads)
@@ -254,42 +257,41 @@ async fn check_photo(
         Ok(decoded) => decoded,
         Err(error) => {
             tracing::warn!(%error, "QR decoding failed");
-            return Outcome::text(verdict::render_km(&[]), false);
+            return Outcome::text(verdict::render(&[], lang), false);
         }
     };
     if !payloads.is_empty() {
         let checks = join_all(
             payloads
                 .iter()
-                .map(|payload| analyzers::check_qr_payload(payload, links)),
+                .map(|payload| analyzers::check_qr_payload(payload, deps.links)),
         )
         .await;
-        return Outcome::of(&reports::with_reports(checks, store).await);
+        return Outcome::of(&reports::with_reports(checks, deps.store).await, lang);
     }
 
-    let Some(transcriber) = transcriber else {
-        return Outcome::of(&[]);
+    let Some(transcriber) = deps.transcriber else {
+        return Outcome::of(&[], lang);
     };
-    if !guard.allow_model_call(ModelCall::Screenshot) {
+    if !deps.guard.allow_model_call(ModelCall::Screenshot) {
         tracing::warn!("daily screenshot budget used up");
-        return Outcome::text(verdict::screenshot_unread_km(), false);
+        return Outcome::text(verdict::screenshot_unread(lang), false);
     }
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
             let check = classify_text(
                 text::check(&transcript),
                 &transcript,
-                classifier,
-                guard,
+                deps,
                 SCREENSHOT_CLASSIFIER_BUDGET,
             )
             .await;
-            Outcome::of(&[check])
+            Outcome::of(&[check], lang)
         }
-        Ok(None) => Outcome::of(&[]),
+        Ok(None) => Outcome::of(&[], lang),
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
-            Outcome::text(verdict::screenshot_unread_km(), false)
+            Outcome::text(verdict::screenshot_unread(lang), false)
         }
     }
 }

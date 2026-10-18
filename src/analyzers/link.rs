@@ -20,7 +20,7 @@ const NEW_DOMAIN_DAYS: i64 = 30;
 const REDIRECT_BUDGET: Duration = Duration::from_secs(3);
 const TOTAL_BUDGET: Duration = Duration::from_secs(4);
 const RDAP_BOOTSTRAP: &str = "https://data.iana.org/rdap/dns.json";
-const GOVERNMENT: &str = "គេហទំព័ររដ្ឋាភិបាល (gov.kh)";
+pub const GOVERNMENT: &str = "gov.kh";
 
 struct Brand {
     name: &'static str,

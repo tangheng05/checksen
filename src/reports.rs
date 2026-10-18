@@ -4,29 +4,33 @@ use teloxide::prelude::*;
 use teloxide::types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, User};
 
 use checksen::analyzers::{Check, Signal, Subject};
-use checksen::verdict;
+use checksen::verdict::{self, Lang};
 
 use crate::store::{REPORT_THRESHOLD, ReportOutcome, Store};
 
-pub fn keyboard(store: Option<&Store>, account: Option<&str>) -> Option<InlineKeyboardMarkup> {
+pub fn keyboard(
+    store: Option<&Store>,
+    account: Option<&str>,
+    lang: Lang,
+) -> Option<InlineKeyboardMarkup> {
     let (store, account) = store.zip(account)?;
     let yes = store.callback_data(true, account)?;
     let no = store.callback_data(false, account)?;
     Some(InlineKeyboardMarkup::new([[
-        InlineKeyboardButton::callback(verdict::INTENDED_BUTTON_KM, yes),
-        InlineKeyboardButton::callback(verdict::NOT_INTENDED_BUTTON_KM, no),
+        InlineKeyboardButton::callback(verdict::INTENDED_BUTTON.get(lang), yes),
+        InlineKeyboardButton::callback(verdict::NOT_INTENDED_BUTTON.get(lang), no),
     ]]))
 }
 
-pub async fn forget_reply(store: Option<&Store>, user: Option<&User>) -> String {
+pub async fn forget_reply(store: Option<&Store>, user: Option<&User>, lang: Lang) -> String {
     let (Some(store), Some(user)) = (store, user) else {
-        return verdict::FORGET_KM.to_owned();
+        return verdict::FORGET.get(lang).to_owned();
     };
     match store.forget(user.id.0).await {
-        Ok(removed) => verdict::forgotten_km(removed),
+        Ok(removed) => verdict::forgotten(removed, lang),
         Err(error) => {
             tracing::warn!(%error, "forget failed");
-            verdict::REPORT_FAILED_KM.to_owned()
+            verdict::REPORT_FAILED.get(lang).to_owned()
         }
     }
 }
@@ -54,19 +58,20 @@ pub async fn handle_callback(
         tracing::warn!(%error, "could not remove report buttons");
     }
 
+    let lang = message.text().and_then(Lang::of).unwrap_or(Lang::Km);
     let reply = if intended {
-        verdict::INTENDED_KM
+        &verdict::INTENDED
     } else {
         match store.report(&account, query.from.id.0).await {
-            Ok(ReportOutcome::Recorded | ReportOutcome::AlreadyReported) => verdict::REPORTED_KM,
-            Ok(ReportOutcome::DailyLimit) => verdict::REPORT_LIMIT_KM,
+            Ok(ReportOutcome::Recorded | ReportOutcome::AlreadyReported) => &verdict::REPORTED,
+            Ok(ReportOutcome::DailyLimit) => &verdict::REPORT_LIMIT,
             Err(error) => {
                 tracing::warn!(%error, "report failed");
-                verdict::REPORT_FAILED_KM
+                &verdict::REPORT_FAILED
             }
         }
     };
-    bot.send_message(message.chat.id, reply).await?;
+    bot.send_message(message.chat.id, reply.get(lang)).await?;
     Ok(())
 }
 
