@@ -19,7 +19,7 @@ const SAMPLES = {
     ],
   },
   khqr: {
-    photo: true,
+    photo: { name: "SOK DARA", amount: "50,000", currency: "KHR" },
     messageEn: "A photo of a KHQR code someone sent to pay into.",
     level: "high",
     label: "🔴 ហានិភ័យខ្ពស់",
@@ -79,14 +79,29 @@ function gloss(text) {
   return english ? element("span", "gloss", text) : null;
 }
 
+function khqrCard({ name, amount, currency }) {
+  const card = element("div", "khqr-card");
+  card.setAttribute("role", "img");
+  card.setAttribute("aria-label", english ? `Photo of a KHQR code: ${name}, ${amount} ${currency}` : `រូបថតកូដ KHQR៖ ${name} ${amount} ${currency}`);
+  const head = element("div", "khqr-head");
+  head.append(element("b", "", "KHQR"));
+  const body = element("div", "khqr-body");
+  const total = element("span", "khqr-amount", amount);
+  total.append(element("small", "", currency));
+  body.append(element("span", "khqr-name", name), total);
+  const code = element("div", "khqr-code");
+  const qr = element("img");
+  qr.src = "/assets/khqr-demo.svg";
+  qr.alt = "";
+  code.append(qr, element("span", "khqr-mark", "៛"));
+  card.append(head, body, element("hr"), code);
+  return card;
+}
+
 function userBubble(sample) {
   if (sample.photo) {
     const bubble = element("div", "bubble user photo");
-    const card = element("div", "khqr-card");
-    card.setAttribute("role", "img");
-    card.setAttribute("aria-label", english ? "Photo of a KHQR code" : "រូបថតកូដ KHQR");
-    card.append(element("b", "", "KHQR"), element("i"));
-    bubble.append(card);
+    bubble.append(khqrCard(sample.photo));
     const note = gloss(sample.messageEn);
     if (note) bubble.append(note);
     return bubble;
