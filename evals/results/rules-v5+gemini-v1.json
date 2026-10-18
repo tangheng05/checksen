@@ -1,0 +1,254 @@
+{
+  "all": {
+    "caught": 44,
+    "false_alarms": 3,
+    "false_positive_rate": 0.07317073170731707,
+    "legit": 41,
+    "recall": 0.9565217391304348,
+    "scams": 46
+  },
+  "categories": {
+    "account": {
+      "caught": 7,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 7
+    },
+    "authority": {
+      "caught": 3,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 3
+    },
+    "charity": {
+      "caught": 2,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 2
+    },
+    "extortion": {
+      "caught": 2,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 2
+    },
+    "family": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "gambling": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "investment": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "job": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "legit-bank": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 10,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-delivery": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 2,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-gov": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 1,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-loan": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 1,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-otp": {
+      "caught": 0,
+      "false_alarms": 1,
+      "false_positive_rate": 0.2,
+      "legit": 5,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-promo": {
+      "caught": 0,
+      "false_alarms": 2,
+      "false_positive_rate": 0.14285714285714285,
+      "legit": 14,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-telco": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 5,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "legit-warning": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 3,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "loan": {
+      "caught": 4,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 4
+    },
+    "malware": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "mule": {
+      "caught": 3,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 3
+    },
+    "otp": {
+      "caught": 1,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 1
+    },
+    "prize": {
+      "caught": 6,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 0.8571428571428571,
+      "scams": 7
+    },
+    "recruitment": {
+      "caught": 4,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 4
+    },
+    "shop": {
+      "caught": 2,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 0.6666666666666666,
+      "scams": 3
+    },
+    "telegram-takeover": {
+      "caught": 5,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 5
+    }
+  },
+  "dataset": "evals/data/v1.jsonl",
+  "examples": 87,
+  "false_alarms": [
+    "v1-legit-otp-05",
+    "v1-legit-promo-02",
+    "v1-legit-promo-13"
+  ],
+  "missed": [
+    "v1-scam-prize-05",
+    "v1-scam-shop-01"
+  ],
+  "model_errors": 0,
+  "rules_version": 5,
+  "splits": {
+    "dev": {
+      "caught": 35,
+      "false_alarms": 2,
+      "false_positive_rate": 0.06060606060606061,
+      "legit": 33,
+      "recall": 0.9459459459459459,
+      "scams": 37
+    },
+    "test": {
+      "caught": 9,
+      "false_alarms": 1,
+      "false_positive_rate": 0.125,
+      "legit": 8,
+      "recall": 1.0,
+      "scams": 9
+    }
+  },
+  "strata": {
+    "reconstructed": {
+      "caught": 30,
+      "false_alarms": 1,
+      "false_positive_rate": 0.1,
+      "legit": 10,
+      "recall": 1.0,
+      "scams": 30
+    },
+    "verbatim": {
+      "caught": 14,
+      "false_alarms": 2,
+      "false_positive_rate": 0.06451612903225806,
+      "legit": 31,
+      "recall": 0.875,
+      "scams": 16
+    }
+  },
+  "variant": "rules-v5+gemini"
+}

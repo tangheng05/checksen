@@ -47,8 +47,8 @@ Every change is scored against labelled real-world messages in CI. Recall is the
 
 | Benchmark | Rules only | Rules + Gemini |
 | --- | --- | --- |
-| v1: 87 real messages, mostly English | 80.4% recall, 0% false positives | 93.5% recall, 7.3% false positives |
-| v2: 162 real Khmer messages | 52.9% recall, 3.1% false positives | 88.2% recall, 5.5% false positives |
+| v1: 87 real messages, mostly English | 80.4% recall, 0% false positives | 95.7% recall, 7.3% false positives |
+| v2: 162 real Khmer messages | 52.9% recall, 3.1% false positives | 94.1% recall, 3.9% false positives |
 
 The data, labels and how they were collected are in [`evals/`](evals/README.md). A pull request that lowers recall or raises false positives on the rules-only benchmark fails CI.
 
