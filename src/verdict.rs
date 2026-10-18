@@ -575,10 +575,19 @@ fn detail_section(
     if labeled {
         lines.push(level.label(lang).to_owned());
     }
+    // A file's antivirus results already have their own lines, so their sentences aren't repeated.
+    let scan_lines = matches!(check.subject, Subject::File(_));
     lines.extend(
         shown_signals(check, level)
             .into_iter()
             .filter(|&signal| Some(signal) != skip)
+            .filter(|signal| {
+                !(scan_lines
+                    && matches!(
+                        signal,
+                        Signal::KnownMalware(_) | Signal::FlaggedByFewEngines(_)
+                    ))
+            })
             .map(|signal| reason(signal, lang)),
     );
     match &check.subject {
@@ -1437,6 +1446,22 @@ mod tests {
             Lang::En,
         );
         assert!(big.contains("Couldn't look inside: the file is over 20 MB"));
+    }
+
+    #[test]
+    fn antivirus_results_are_not_repeated_in_file_details() {
+        use crate::analyzers::file::{Content, Scans, VirusTotal, inspect};
+        let scans = Scans {
+            clamav_clean: Some(false),
+            virustotal: Some(VirusTotal::Seen {
+                malicious: 66,
+                engines: 68,
+            }),
+        };
+        let reply = render_km(&[inspect("eicar.txt", None, Content::Bytes(b"X5O!"), scans)]);
+        assert_eq!(reply.matches("ClamAV").count(), 1);
+        assert_eq!(reply.matches("VirusTotal").count(), 2);
+        assert!(reply.contains("• ClamAV: រកឃើញមេរោគ"));
     }
 
     #[test]
