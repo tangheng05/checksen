@@ -35,6 +35,10 @@ Each reply gives one of four levels: **High risk**, **Suspicious**, **No known r
 
 Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, and Gemini (free tier), with Claude Haiku as an option. Webhooks and Google Web Risk are planned.
 
+## Website
+
+`web/` is a static site with no build step (Khmer at `/`, English at `/en/`). Preview it with `python3 -m http.server -d web`. On Vercel, import the repo, set Root Directory to `web` and Framework Preset to Other.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

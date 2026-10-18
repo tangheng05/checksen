@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CheckSen: check suspicious messages, links and KHQR codes before you pay</title>
+  <meta name="description" content="Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram. It replies in Khmer with a risk level and the reasons. Free.">
+  <meta name="theme-color" content="#0E716B">
+  <link rel="alternate" hreflang="km" href="/">
+  <link rel="alternate" hreflang="en" href="/en/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CheckSen: check first, then pay">
+  <meta property="og:description" content="Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram.">
+  <meta property="og:image" content="/assets/telegram-bot-photo-640.png">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon-180.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,700;125,800&family=Kantumruy+Pro:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="wrap site-header">
+    <a class="logo" href="/en/" aria-label="CheckSen">
+      <img class="on-light" src="/assets/checksen-logo-horizontal.svg" alt="CheckSen" width="207" height="40">
+      <img class="on-dark" src="/assets/checksen-logo-horizontal-on-dark.svg" alt="CheckSen" width="207" height="40">
+    </a>
+    <a class="lang-switch" href="/" hreflang="km" lang="km">ខ្មែរ</a>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <div>
+        <h1>Check first,<br>then pay.</h1>
+        <p class="lede">Forward a suspicious message, link, KHQR code or screenshot to CheckSen on Telegram. Within seconds it replies in Khmer with a risk level and the reasons. It's free.</p>
+        <div class="cta-row">
+          <a class="cta" href="https://t.me/CheckSen_bot">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5ZM9.7 14.3l-.5 3.5-1.3-4.1 10.4-6.6-8.6 7.2Z"/></svg>
+            Open CheckSen in Telegram
+          </a>
+          <div class="qr">
+            <img src="/assets/telegram-qr.svg" alt="QR code for t.me/CheckSen_bot" width="88" height="88">
+            <span>or scan with your phone</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div class="phone">
+          <div class="phone-bar">
+            <img src="/assets/checksen-bot-photo.svg" alt="" width="38" height="38">
+            <div><strong>CheckSen</strong><span>bot</span></div>
+          </div>
+          <div class="thread" aria-live="polite">
+            <div class="bubble user" lang="km">សួស្តីបង ខ្ញុំមកពីធនាគារ ABA។ គណនីរបស់បងនឹងត្រូវបង្កកក្នុងរយៈពេល ២៤ម៉ោង។ សូមផ្ញើលេខកូដ OTP ដែលបងទើបទទួលបាន មកខ្ញុំភ្លាមៗ ដើម្បីដោះសោ។<span class="gloss" lang="en">Hi, I'm from ABA Bank. Your account will be frozen within 24 hours. Send me the OTP code you just received right away to unlock it.</span></div>
+            <div class="bubble bot" lang="km"><span class="level high">🔴 ហានិភ័យខ្ពស់</span>សារនេះសុំលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនពិតៗ មិនដែលសុំលេខទាំងនេះទេ។ កុំប្រាប់នរណាម្នាក់ឡើយ។
+សារនេះប្រញាប់ឱ្យអ្នកធ្វើភ្លាមៗ។
+
+⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់ ក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។<span class="gloss" lang="en">🔴 High risk
+This message asks for an OTP code or password. Real banks and companies never ask for these. Don't tell anyone.
+This message pushes you to act right away.
+
+⚠️ Before paying, always check the recipient's name and the amount in your bank app.</span></div>
+          </div>
+        </div>
+        <div class="samples">
+          <p>Try an example:</p>
+          <ul class="chips">
+            <li><button type="button" data-sample="otp" aria-pressed="true">OTP request</button></li>
+            <li><button type="button" data-sample="khqr" aria-pressed="false">Edited KHQR</button></li>
+            <li><button type="button" data-sample="loan" aria-pressed="false">Easy loan</button></li>
+            <li><button type="button" data-sample="job" aria-pressed="false">Typing job</button></li>
+            <li><button type="button" data-sample="family" aria-pressed="false">Normal message</button></li>
+          </ul>
+          <p class="demo-note">These examples run on this page only. Nothing is sent anywhere.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2>What you can send</h2>
+        <ul class="diamonds two">
+          <li><strong>A message</strong><p>Checks for tricks scammers use in Khmer and English: asking for an OTP, fees before a loan, job or prize, threats to close your account, and fake police.</p></li>
+          <li><strong>A link</strong><p>Shows where it really leads, whether the site is brand new, and whether it imitates a bank, wallet, Telegram or government site.</p></li>
+          <li><strong>A KHQR code</strong><p>Shows the real recipient name, account, bank and amount, and checks whether the code was edited.</p></li>
+          <li><strong>A screenshot</strong><p>Reads the text in an SMS or chat screenshot and checks it like a message.</p></li>
+          <li><strong>A file</strong><p>Warns when a file is really an app in disguise, such as .apk or .pdf.scr.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section band">
+      <div class="wrap">
+        <h2>How to read a reply</h2>
+        <ul class="levels">
+          <li class="high"><strong>🔴 High risk</strong><p>Clear scam signs. Don't pay, and don't share any code.</p></li>
+          <li class="suspicious"><strong>🟠 Suspicious</strong><p>Some warning signs. Check through an official number or app before doing anything.</p></li>
+          <li><strong>⚪ No scam signs found yet</strong><p>No known tricks were found, but CheckSen never says a message is safe.</p></li>
+          <li><strong>❔ Can't tell</strong><p>The image was unclear or couldn't be read. Send it again.</p></li>
+        </ul>
+        <p class="reminder">Every reply reminds you to check the recipient's name in your own bank app before paying.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2>Common scam signs in Cambodia</h2>
+        <p class="intro">Banks, ministries and police in Cambodia warn about these tricks again and again.</p>
+        <ul class="diamonds two">
+          <li><p>Asks for an OTP or PIN, even when it claims to be your bank.</p></li>
+          <li><p>Asks for a fee, tax or deposit before you get a loan, job or prize.</p></li>
+          <li><p>Threatens to freeze or close your account unless you click a link now.</p></li>
+          <li><p>Claims to be a relative with a new number who needs money.</p></li>
+          <li><p>Offers high-paid typing or call-centre work in Poipet, Sihanoukville or Bavet.</p></li>
+          <li><p>Asks you to pay a power bill or government fee through an agent or a personal account.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2>Privacy</h2>
+        <ul class="diamonds">
+          <li><p>CheckSen doesn't save your messages or images. Replies are kept in memory for an hour, keyed only by a hash of the content.</p></li>
+          <li><p>When AI is needed, message text and screenshots are sent to Google Gemini's free tier. Google may use them to improve its products and people may review them, so hide account numbers and personal details before you send.</p></li>
+          <li><p>If you tap ❌ on a KHQR check, CheckSen stores a report against that account, linked only to a keyed hash of your Telegram ID. An account shows as reported only after 3 different people report it.</p></li>
+          <li><p>Send /forget to CheckSen to delete every report linked to you.</p></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>CheckSen is an independent project, not a bank or government service. Its code is open source (MIT).</p>
+      <nav aria-label="Links">
+        <a href="https://t.me/CheckSen_bot">Telegram</a>
+        <a href="https://github.com/tangheng05/checksen">GitHub</a>
+        <a href="/" hreflang="km" lang="km">ខ្មែរ</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="/demo.js" defer></script>
+</body>
+</html>
