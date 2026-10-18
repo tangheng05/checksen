@@ -4,12 +4,12 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 3;
+pub const RULES_VERSION: u32 = 4;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
 const SECRET_CODE_EN: &str = r"(?:otp|pin|password|passcode|one[- ]time (?:password|pin|code)|(?:verification|security|sms) code|\d[- ]digit code|code (?:we|i|you) (?:just )?(?:sent|received|got))\b";
-const NEWS_OR_WARNING: &str = r"ព័ត៌មាន៖|ក្រើនរំលឹក|ជនសង្ស័យ|\bnews\b|\bwarns\b|\bnever (?:ask|charge)";
+const NEWS_OR_WARNING: &str = r"ព័ត៌មាន៖|ក្រើនរំលឹក|ជនសង្ស័យ|ជនឆបោក|ជនខិលខូច|ជនរងគ្រោះ|ក្លែងបន្លំ|ការបន្លំ|បញ្ឆោត|សូមប្រយ័ត្ន|\bnews\b|\bwarns\b|\bnever (?:ask|charge)";
 const ACCOUNT_PROBLEM: &str = r"គណនី.{0,20}(?:ខូច|មានបញ្ហា)|\baccount\b.{0,30}\b(?:compromised|damaged|at risk|has a problem)|\bproblem with your (?:bank )?account";
 
 struct Rule {
@@ -46,14 +46,16 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             Signal::OtpRequest,
             &[&format!(
                 concat!(
-                    r"(?:សូម|ជួយ)(?:ផ្ញើ|ប្រាប់|ផ្តល់).{{0,20}}{km}|{km}.{{0,80}}ជួយប្រាប់",
+                    r"(?:សូម|ជួយ|ត្រូវ)(?:ស៊ែរ|ផ្ញើ|ប្រាប់|ផ្តល់|ចែករំលែក).{{0,20}}{km}|{km}.{{0,80}}ជួយប្រាប់",
                     r"|\b(?:send|give|tell|share|forward|provide|reply with|type)\b.{{0,30}}\b{en}",
                     r"|\bcode\b.{{0,80}}\bsend (?:it|them) (?:back|to me)",
                 ),
                 km = SECRET_CODE_KM,
                 en = SECRET_CODE_EN,
             )],
-            Some(r"កុំ(?:ប្រាប់|ផ្ញើ|ចែករំលែក)|\b(?:do not|don't|never) (?:share|give|send|tell)"),
+            Some(
+                r"(?:កុំ|មិនត្រូវ|មិនដែល)(?:ប្រាប់|ផ្ញើ|ផ្តល់|ចែករំលែក)|\b(?:do not|don't|never) (?:share|give|send|tell)",
+            ),
         ),
         Rule::new(
             Signal::UpfrontFee,
@@ -61,7 +63,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"កម្ចី|ការងារ|រង្វាន់|កញ្ចប់|ឥវ៉ាន់|ភារកិច្ច|\b(?:loan|job|hiring|prize|reward|parcel|package|task|won|winner|winnings|claim)\b",
                 concat!(
                     r"បង់.{0,30}មុន(?:សិន|ពេល(?:បើក|ទទួល))|ជាមុន|ថ្លៃសេវា|ថ្លៃរដ្ឋបាល|ថ្លៃពិនិត្យ|ថ្លៃដំណើរការ|ថ្លៃឯកសណ្ឋាន|ថ្លៃបណ្តុះបណ្តាល",
-                    r"|ថ្លៃដឹកជញ្ជូន|បង់ពន្ធ|ប្រាក់កក់|ប្រាក់ធានា|ដាក់ប្រាក់",
+                    r"|ថ្លៃដឹកជញ្ជូន|បង់ពន្ធ|ប្រាក់កក់|ប្រាក់ធានា|ដាក់ប្រាក់|ចំណាយ(?:ប្រាក់)?.{0,20}ដើម្បី(?:ទទួល|បើក)",
                     r"|\b(?:processing|admin|administration|registration|insurance|delivery|redelivery|activation|unlock|commission|service) fee",
                     r"|\bpay\b.{0,40}\b(?:first (?:to|before)|to (?:claim|receive|release|unlock))\b|\bfirst pay|\bupfront\b",
                     r"|\btransfer the fee|\b(?:pay|send|make|transfer)\b.{0,20}\bdeposit\b|\bdeposit (?:of|fee)\b",
@@ -93,10 +95,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"ប៉ូលិស|នគរបាល|តុលាការ|ពន្ធដារ|លាងលុយ|\b(?:police|court|customs|tax|money laundering|warrant)\b",
                 r"ត្រូវចាប់ខ្លួន|នឹងត្រូវផាក|បង់ប្រាក់ពិន័យ|ផ្ទេរ|ផ្ញើលុយ|ដោះលែង|ទូទាត់|កុំប្រាប់នរណា|\b(?:arrest|fine|transfer|pay|don't tell anyone)\b",
             ],
-            Some(concat!(
-                r"សាខា|\bbranch\b|",
-                r"ព័ត៌មាន៖|ក្រើនរំលឹក|ជនសង្ស័យ|\bnews\b|\bwarns\b|\bnever (?:ask|charge)"
-            )),
+            Some(&format!(r"សាខា|\bbranch\b|{NEWS_OR_WARNING}")),
         ),
         Rule::new(
             Signal::AccountThreat,
@@ -114,9 +113,8 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"គណនី|កាបូប|\b(?:account|wallet)\b",
                 r"ចុច|តំណ|\b(?:click|tap)\b|\b(?:this|the) link\b|\blink below\b|https?://",
             ],
-            Some(concat!(
-                r"កុំចុច|\b(?:do not|don['’]t|never) click|",
-                r"ព័ត៌មាន៖|ក្រើនរំលឹក|ជនសង្ស័យ|\bnews\b|\bwarns\b|\bnever (?:ask|charge)"
+            Some(&format!(
+                r"កុំចុច|\b(?:do not|don['’]t|never) click|{NEWS_OR_WARNING}"
             )),
         ),
         Rule::new(
@@ -124,6 +122,14 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             &[
                 ACCOUNT_PROBLEM,
                 r"(?:បញ្ជាក់|ផ្តល់|ផ្ញើ|ផ្ទៀងផ្ទាត់).{0,20}ព័ត៌មាន|\b(?:confirm|provide|send|update|verify)\b.{0,20}\b(?:details|information|info)\b",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
+            Signal::AccountThreat,
+            &[
+                r"ហ្វេសប៊ុក|ផេក|ទំព័រ|\b(?:facebook|page)\b",
+                r"ខុស(?:ទៅ)?នឹងគោលការណ៍|រំលោភ(?:បំពាន)?គោលការណ៍|\bviolat\w* (?:our|the|community)",
             ],
             Some(NEWS_OR_WARNING),
         ),
@@ -138,7 +144,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         Rule::new(
             Signal::LoanBait,
             &[concat!(
-                r"មិនត្រូវការអ្នកធានា|គ្មានអ្នកធានា|មិនចាំបាច់មាន(?:ប្លង់|អ្នកធានា)|អនុម័តលឿន|អនុម័តភ្លាម|មិនពិនិត្យប្រវត្តិ|ខ្ចីលុយងាយ|ការប្រាក់ទាប",
+                r"(?:មិនត្រូវការ|គ្មាន|អត់)(?:អ្នក|ទ្រព្យ)ធានា|មិនចាំបាច់មាន(?:ប្លង់|អ្នកធានា)|អនុម័តលឿន|អនុម័តភ្លាម|មិនពិនិត្យប្រវត្តិ|ខ្ចីលុយងាយ|ការប្រាក់ទាប",
                 r"|កម្ចីរហ័ស|(?:អត្តសញ្ញាណប័ណ្ណ|\bid\b).{0,40}(?:selfie|សែលហ្វី)",
                 r"|\bno (?:guarantor|collateral|credit check)|\b(?:instant|quick|easy) loan|\b(?:fast|instant) approval|\bapprov\w* in \d+ minutes|\bapproved today",
             )],
@@ -148,7 +154,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             Signal::JobBait,
             &[concat!(
                 r"ចុចឡាយ|ចុចតែ|ការងារងាយស្រួល|ធ្វើការនៅផ្ទះ|ធ្វើពីផ្ទះ|វាយអក្សរ.{0,60}(?:ប្រាក់ខែ|រកបាន|\$|ដុល្លារ)|មិនត្រូវការបទពិសោធន៍|ភារកិច្ច.{0,20}(?:រកលុយ|កម្រៃ)",
-                r"|រកបាន.{0,20}ក្នុងមួយថ្ងៃ",
+                r"|រកបាន.{0,20}ក្នុងមួយថ្ងៃ|(?:រកលុយ|រកប្រាក់|ទទួលបាន(?:ទឹក)?(?:ប្រាក់|លុយ)).{0,15}(?:គ្រាន់តែ|ត្រឹមតែ)(?:មើលវីដេអូ|ចុច|វាយអក្សរ)",
                 r"|\b(?:like and follow|follow and like|typing job|data entry|work from home|no experience needed|per task)\b",
                 r"|\bearn \$?\d+ (?:per|a) (?:task|day|hour)|\b(?:earn|get paid|make money)\b.{0,30}\bwatch(?:ing)? videos|មើលវីដេអូ.{0,20}(?:រកលុយ|ទទួលបានលុយ)",
             )],
@@ -158,6 +164,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             Signal::PrizeBait,
             &[concat!(
                 r"អ្នកបានឈ្នះ|អ្នកជាអ្នកឈ្នះ|អ្នក(?:បាន)?ទទួលបាន(?:ប្រាក់)?រង្វាន់|អ្នកត្រូវបានជ្រើសរើស.{0,30}(?:រង្វាន់|ថវិកា)|ថវិកាជំនួយ",
+                r"|ស្ទង់មតិ.{0,60}(?:ឈ្នះ|រង្វាន់)|(?:ឈ្នះ|ទទួលបាន)រង្វាន់.{0,40}គ្រាន់តែ(?:ឆ្លើយ|ចែករំលែក|ស៊ែរ|ចុច)",
                 r"|\byou(?:'ve| have)? won\b|\byou (?:are|have been selected as) (?:the |a )?(?:lucky )?winner",
                 r"|\bclaim your (?:prize|reward|winnings)|\breceive your (?:cash )?(?:prize|reward)",
             )],
@@ -179,25 +186,27 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"ផ្ទៀងផ្ទាត់|លុប|\b(?:verif\w*|delete\w*|24 ?hours?|premium|security)\b|24ម៉ោង",
                 r"ចុច|តំណ|\b(?:click|link)\b|https?://",
             ],
-            Some(r"\b(?:do not|don't|never) (?:give|share)|កុំ(?:ប្រាប់|ផ្ញើ|ចែករំលែក)"),
+            Some(&format!(
+                r"\b(?:do not|don't|never) (?:give|share)|កុំ(?:ប្រាប់|ផ្ញើ|ចែករំលែក)|{NEWS_OR_WARNING}"
+            )),
         ),
         Rule::new(
             Signal::TelegramTakeover,
             &[r"\bfree premium\b|\bpremium gift\b|\bgift\b.{0,20}\bpremium\b"],
-            None,
+            Some(NEWS_OR_WARNING),
         ),
         Rule::new(
             Signal::DonationRequest,
             &[
-                r"បរិច្ចាគ|ឧបត្ថម្ភ|\bdonat(?:e|ed|ion|ions)\b",
-                r"គណនី|ផ្ទេរ|\bqr\b|\b(?:transfer|account|aba|wing|acleda|bakong)\b",
+                r"បរិច្ចាគ|ឧបត្ថម្ភ|ប្រមូល(?:មូលនិធិ|ទុន|ថវិកា)|តាម(?:សទ្ធា|សិទ្ធា)|\bdonat(?:e|ed|ion|ions)\b",
+                r"គណនី|ផ្ទេរ|បាញ់លុយ|បញ្ចូលទឹកប្រាក់|\bqr\b|\b(?:transfer|account|aba|wing|acleda|bakong|true ?money)\b",
             ],
             Some(NEWS_OR_WARNING),
         ),
         Rule::new(
             Signal::Extortion,
             &[
-                r"អ្នកធានា|បំណុល|ជំពាក់|បើមិនបង់|\b(?:guarantor|co-debtor|debts?|owes?)\b|\bpay\b.{0,60}\bor (?:we|i) will\b",
+                r"អ្នកធានា|បំណុល|ជំពាក់|បើមិនបង់|បើ.{0,40}មិន.{0,40}(?:ផ្ញើ|ផ្ទេរ|បង់)(?:លុយ|ប្រាក់)|(?:ផ្ញើ|ផ្ទេរ|បង់)(?:លុយ|ប្រាក់).{0,60}លុប|\b(?:guarantor|co-debtor|debts?|owes?)\b|\bpay\b.{0,60}\bor (?:we|i) will\b",
                 r"ផុស|បង្ហោះ|\b(?:post|publish|share|expose|leak)\w*\b.{0,40}\b(?:photos?|pictures?|videos?|facebook|online|everyone|contacts)\b|\bon facebook\b",
             ],
             Some(NEWS_OR_WARNING),
@@ -261,6 +270,8 @@ impl Normalized {
             .to_lowercase()
             .replace("ឲ្យ", "ឱ្យ")
             .replace("អោយ", "ឱ្យ")
+            .replace("ឭ", "លឹ")
+            .replace("ឮ", "លឺ")
             .replace("\u{17D2}\u{178A}", "\u{17D2}\u{178F}")
             .chars()
             .filter(|c| !matches!(c, '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{FEFF}'))
@@ -420,6 +431,24 @@ mod tests {
                 Signal::InvestmentBait,
                 "Invest with us now for high returns in just a few days",
             ),
+            (Signal::OtpRequest, "សូមចែករំលែកលេខកូដ OTP មកកាន់យើងខ្ញុំ"),
+            (Signal::OtpRequest, "ដើម្បីដោះសោគណនី អ្នកត្រូវផ្តល់លេខសម្ងាត់មកយើង"),
+            (
+                Signal::DonationRequest,
+                "យើងកំពុងប្រមូលមូលនិធិជួយជនរងទុក្ខ សូមបញ្ចូលទឹកប្រាក់តាម True Money",
+            ),
+            (Signal::Extortion, "បើមិនចង់ឱ្យខ្ញុំបង្ហោះវីដេអូនេះទេ ផ្ញើលុយមក ខ្ញុំនឹងលុបចោល"),
+            (Signal::LoanBait, "កម្ចីអនឡាញ អត់ទ្រព្យធានា បើកលុយភ្លាម"),
+            (Signal::JobBait, "រកលុយបានរាល់ថ្ងៃ ដោយគ្រាន់តែមើលវីដេអូ"),
+            (Signal::PrizeBait, "ចូលរួមស្ទង់មតិខ្លីមួយ ដើម្បីឈ្នះរង្វាន់ ៥០០ ដុល្លារ"),
+            (
+                Signal::UpfrontFee,
+                "អ្នកឈ្នះរង្វាន់ម៉ូតូ សូមចំណាយប្រាក់ ២ ដុល្លារ ដើម្បីទទួលរង្វាន់",
+            ),
+            (
+                Signal::AccountThreat,
+                "ផេករបស់អ្នកខុសនឹងគោលការណ៍ សូមចុចតំណដើម្បីផ្ទៀងផ្ទាត់",
+            ),
         ];
         for (signal, text) in cases {
             assert!(signals(text).contains(&signal), "{signal:?}: {text}");
@@ -517,6 +546,9 @@ mod tests {
             "ACLEDA SMS alert tells you about each cash deposit and overdraft loan repayment on your account.",
             "Sending SMS codes to your country is expensive. Get Telegram Premium for $1 for 1 week to receive the code.",
             "If someone asks you to verify your account or confirm account details, don’t click any links.",
+            "សូមក្រើនរំឭកថា ធនាគារមិនដែលផ្តល់លេខសម្ងាត់ ឬសុំលេខកូដ OTP តាមតេឡេក្រាមទេ ហើយកុំចុចតំណ",
+            "ជនឆបោកបង្កើតផេកក្លែងក្លាយ ហើយសន្យាថាអ្នកបានឈ្នះរង្វាន់ បើចុចតំណ",
+            "ចូលរួមប្រូម៉ូសិន ដើម្បីមានឱកាសឈ្នះរង្វាន់ ដោយគ្រាន់តែទូទាត់តាម KHQR",
         ] {
             assert!(signals(text).is_empty(), "{:?}: {text}", signals(text));
         }

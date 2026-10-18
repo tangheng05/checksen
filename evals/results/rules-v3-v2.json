@@ -1,19 +1,19 @@
 {
   "all": {
-    "caught": 4,
-    "false_alarms": 8,
-    "false_positive_rate": 0.0625,
+    "caught": 18,
+    "false_alarms": 4,
+    "false_positive_rate": 0.03125,
     "legit": 128,
-    "recall": 0.11764705882352941,
+    "recall": 0.5294117647058824,
     "scams": 34
   },
   "categories": {
     "account": {
-      "caught": 1,
+      "caught": 4,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.2,
+      "recall": 0.8,
       "scams": 5
     },
     "authority": {
@@ -25,19 +25,19 @@
       "scams": 2
     },
     "charity": {
-      "caught": 0,
+      "caught": 2,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.0,
+      "recall": 0.4,
       "scams": 5
     },
     "extortion": {
-      "caught": 0,
+      "caught": 1,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.0,
+      "recall": 1.0,
       "scams": 1
     },
     "family": {
@@ -57,11 +57,11 @@
       "scams": 1
     },
     "job": {
-      "caught": 0,
+      "caught": 1,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.0,
+      "recall": 1.0,
       "scams": 1
     },
     "legit-bank": {
@@ -106,8 +106,8 @@
     },
     "legit-news": {
       "caught": 0,
-      "false_alarms": 2,
-      "false_positive_rate": 0.15384615384615385,
+      "false_alarms": 1,
+      "false_positive_rate": 0.07692307692307693,
       "legit": 13,
       "recall": 0.0,
       "scams": 0
@@ -138,18 +138,18 @@
     },
     "legit-warning": {
       "caught": 0,
-      "false_alarms": 3,
-      "false_positive_rate": 0.058823529411764705,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
       "legit": 51,
       "recall": 0.0,
       "scams": 0
     },
     "loan": {
-      "caught": 1,
+      "caught": 2,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.5,
+      "recall": 1.0,
       "scams": 2
     },
     "other-scam": {
@@ -161,19 +161,19 @@
       "scams": 1
     },
     "otp": {
-      "caught": 1,
+      "caught": 2,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.5,
+      "recall": 1.0,
       "scams": 2
     },
     "prize": {
-      "caught": 1,
+      "caught": 6,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.14285714285714285,
+      "recall": 0.8571428571428571,
       "scams": 7
     },
     "recruitment": {
@@ -198,39 +198,21 @@
   "false_alarms": [
     "v2-legit-loan-01",
     "v2-legit-news-01",
-    "v2-legit-news-02",
     "v2-legit-promo-14",
-    "v2-legit-promo-16",
-    "v2-legit-warning-16",
-    "v2-legit-warning-23",
-    "v2-legit-warning-32"
+    "v2-legit-promo-16"
   ],
   "missed": [
-    "v2-scam-account-01",
     "v2-scam-account-02",
-    "v2-scam-account-04",
-    "v2-scam-account-05",
     "v2-scam-authority-01",
     "v2-scam-authority-02",
     "v2-scam-charity-01",
     "v2-scam-charity-02",
-    "v2-scam-charity-03",
-    "v2-scam-charity-04",
     "v2-scam-charity-05",
-    "v2-scam-extortion-01",
     "v2-scam-family-01",
     "v2-scam-family-02",
     "v2-scam-investment-01",
-    "v2-scam-job-01",
-    "v2-scam-loan-02",
     "v2-scam-other-scam-01",
-    "v2-scam-otp-02",
-    "v2-scam-prize-02",
-    "v2-scam-prize-03",
-    "v2-scam-prize-04",
-    "v2-scam-prize-05",
     "v2-scam-prize-06",
-    "v2-scam-prize-07",
     "v2-scam-recruitment-01",
     "v2-scam-recruitment-02",
     "v2-scam-recruitment-03",
@@ -241,37 +223,37 @@
   "rules_version": 3,
   "splits": {
     "dev": {
-      "caught": 4,
-      "false_alarms": 4,
-      "false_positive_rate": 0.038834951456310676,
+      "caught": 16,
+      "false_alarms": 1,
+      "false_positive_rate": 0.009708737864077669,
       "legit": 103,
-      "recall": 0.14285714285714285,
+      "recall": 0.5714285714285714,
       "scams": 28
     },
     "test": {
-      "caught": 0,
-      "false_alarms": 4,
-      "false_positive_rate": 0.16,
+      "caught": 2,
+      "false_alarms": 3,
+      "false_positive_rate": 0.12,
       "legit": 25,
-      "recall": 0.0,
+      "recall": 0.3333333333333333,
       "scams": 6
     }
   },
   "strata": {
     "reconstructed": {
-      "caught": 1,
+      "caught": 9,
       "false_alarms": 0,
       "false_positive_rate": 0.0,
       "legit": 0,
-      "recall": 0.05263157894736842,
+      "recall": 0.47368421052631576,
       "scams": 19
     },
     "verbatim": {
-      "caught": 3,
-      "false_alarms": 8,
-      "false_positive_rate": 0.0625,
+      "caught": 9,
+      "false_alarms": 4,
+      "false_positive_rate": 0.03125,
       "legit": 128,
-      "recall": 0.2,
+      "recall": 0.6,
       "scams": 15
     }
   },
