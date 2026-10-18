@@ -225,16 +225,12 @@ fn fixed_reply(msg: &Message) -> Option<&'static Text> {
 }
 
 fn language(guard: &Guard, sender: u64, msg: &Message) -> Lang {
-    let written = msg
+    let typed = msg
         .text()
         .or(msg.caption())
-        .filter(|text| !text.starts_with('/'))
+        .filter(|text| msg.forward_origin().is_none() && !text.starts_with('/'))
         .and_then(Lang::of);
-    if msg.forward_origin().is_some() {
-        guard.language(sender, None, written)
-    } else {
-        guard.language(sender, written, None)
-    }
+    guard.language(sender, typed)
 }
 
 fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
@@ -473,17 +469,22 @@ async fn check_photo(
                 Some(caption) => format!("{caption}\n\n{transcript}"),
                 None => transcript,
             };
+            let urls = urls_in(msg);
+            let show_text = urls.is_empty();
             let (checks, reading) = text_checks(
                 &message,
-                urls_in(msg),
-                true,
+                urls,
+                show_text,
                 services,
                 SCREENSHOT_CLASSIFIER_BUDGET,
             )
             .await;
             (Outcome::of(&checks, lang), reading.kind)
         }
-        Ok(None) => caption_or(msg, lang, services, Outcome::of(&[], lang)).await,
+        Ok(None) => {
+            let nothing = Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true);
+            caption_or(msg, lang, services, nothing).await
+        }
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
             caption_or(msg, lang, services, unread()).await
@@ -501,8 +502,10 @@ async fn caption_or(
     let Some(caption) = msg.caption() else {
         return (fallback, None);
     };
+    let urls = urls_in(msg);
+    let show_text = urls.is_empty();
     let (checks, reading) =
-        text_checks(caption, urls_in(msg), true, services, CLASSIFIER_BUDGET).await;
+        text_checks(caption, urls, show_text, services, CLASSIFIER_BUDGET).await;
     let outcome = Outcome::of(&checks, lang);
     let cacheable = outcome.cacheable && fallback.cacheable;
     (

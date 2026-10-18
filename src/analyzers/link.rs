@@ -115,6 +115,10 @@ const PAGE_BANKING_WORDS: [&str; 9] = [
 
 static TITLE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?is)<title[^>]*>(.*?)</title>").expect("valid regex"));
+static OG_TITLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?is)<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)|<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:title"#)
+        .expect("valid regex")
+});
 static SITE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?is)<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']*)|<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:site_name"#)
         .expect("valid regex")
@@ -138,6 +142,7 @@ pub struct LinkInfo {
 
 #[derive(Debug, Default, PartialEq)]
 struct Page {
+    og_title: Option<String>,
     title: Option<String>,
     site_name: Option<String>,
     asks_password: bool,
@@ -210,7 +215,8 @@ impl LinkChecker {
             signals.extend(page_signals(&page, &signals));
         }
         let title = page
-            .title
+            .og_title
+            .or(page.title)
             .or(page.site_name)
             .filter(|title| site.is_none_or(|site| !title.eq_ignore_ascii_case(site.name)));
 
@@ -321,6 +327,7 @@ fn parse_page(html: &str) -> Page {
             .filter(|text| !text.is_empty())
     };
     Page {
+        og_title: capture(&OG_TITLE),
         title: capture(&TITLE),
         site_name: capture(&SITE_NAME),
         asks_password: PASSWORD_INPUT.is_match(html),
@@ -345,7 +352,7 @@ fn clean_text(text: &str) -> String {
 
 fn page_signals(page: &Page, found: &[Signal]) -> Vec<Signal> {
     let mut signals = Vec::new();
-    let claimed = [&page.title, &page.site_name]
+    let claimed = [&page.og_title, &page.title, &page.site_name]
         .into_iter()
         .flatten()
         .find_map(|text| claimed_brand(text));
@@ -718,11 +725,13 @@ mod tests {
     fn reads_title_site_name_and_password_fields() {
         let page = parse_page(
             r#"<html><head><title>
-              ABA Bank &amp; Login </title><meta content="ABA" property="og:site_name"></head>
+              ABA Bank &amp; Login </title><meta content="ABA" property="og:site_name">
+              <meta property="og:title" content="Designer Gang"></head>
               <form><input name=p type="password"></form>"#,
         );
         assert_eq!(page.title.as_deref(), Some("ABA Bank & Login"));
         assert_eq!(page.site_name.as_deref(), Some("ABA"));
+        assert_eq!(page.og_title.as_deref(), Some("Designer Gang"));
         assert!(page.asks_password);
         assert_eq!(parse_page("<p>hello</p>"), Page::default());
     }

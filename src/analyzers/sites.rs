@@ -21,6 +21,7 @@ pub enum Kind {
     Ride,
     Shortener,
     Hosting,
+    Design,
 }
 
 impl Kind {
@@ -34,6 +35,7 @@ impl Kind {
                 | Self::Files
                 | Self::AppStore
                 | Self::Classifieds
+                | Self::Design
         )
     }
 
@@ -158,6 +160,11 @@ const SITES: &[Site] = &[
     site("yahoo.com", "Yahoo", Tech),
     site("zoom.us", "Zoom", Tech),
     site("cloudflare.com", "Cloudflare", Tech),
+    site("figma.com", "Figma", Design),
+    site("canva.com", "Canva", Design),
+    site("behance.net", "Behance", Design),
+    site("dribbble.com", "Dribbble", Design),
+    site("notion.so", "Notion", Files),
     site("chatgpt.com", "ChatGPT", Ai),
     site("openai.com", "OpenAI", Ai),
     site("claude.ai", "Claude", Ai),

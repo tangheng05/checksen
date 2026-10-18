@@ -97,14 +97,14 @@ impl Guard {
         calls.fetch_add(1, Ordering::Relaxed) < call.daily_limit()
     }
 
-    /// What the sender types in wins over the language of what they forward.
-    pub fn language(&self, sender: u64, typed: Option<Lang>, forwarded: Option<Lang>) -> Lang {
+    /// Replies follow what the sender types, never what they forward, and default to Khmer.
+    pub fn language(&self, sender: u64, typed: Option<Lang>) -> Lang {
         let key = self.key(("lang", sender));
         if let Some(lang) = typed {
             self.languages.insert(key, lang);
             return lang;
         }
-        self.languages.get(&key).or(forwarded).unwrap_or(Lang::Km)
+        self.languages.get(&key).unwrap_or(Lang::Km)
     }
 
     pub fn cached(&self, key: u64) -> Option<Arc<Reply>> {
@@ -151,14 +151,13 @@ mod tests {
     }
 
     #[test]
-    fn typed_language_sticks_over_forwarded_content() {
+    fn typed_language_is_remembered() {
         let guard = Guard::new();
-        assert_eq!(guard.language(1, None, None), Lang::Km);
-        assert_eq!(guard.language(1, None, Some(Lang::En)), Lang::En);
-        assert_eq!(guard.language(1, Some(Lang::Km), None), Lang::Km);
-        assert_eq!(guard.language(1, None, Some(Lang::En)), Lang::Km);
-        assert_eq!(guard.language(2, Some(Lang::En), None), Lang::En);
-        assert_eq!(guard.language(2, None, Some(Lang::Km)), Lang::En);
+        assert_eq!(guard.language(1, None), Lang::Km);
+        assert_eq!(guard.language(2, Some(Lang::En)), Lang::En);
+        assert_eq!(guard.language(2, None), Lang::En);
+        assert_eq!(guard.language(2, Some(Lang::Km)), Lang::Km);
+        assert_eq!(guard.language(1, None), Lang::Km);
     }
 
     #[test]

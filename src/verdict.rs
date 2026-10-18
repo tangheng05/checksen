@@ -67,6 +67,10 @@ pub const ABOUT_CONTACT: Text = text(
     "CheckSen មិនទាន់អាចពិនិត្យលេខទូរស័ព្ទ ឬឈ្មោះមនុស្សបានទេ។\n• បើគេអះអាងថាមកពីធនាគារ ឬក្រុមហ៊ុន សូមតេទៅលេខដែលមានក្នុងកម្មវិធី ឬគេហទំព័រផ្លូវការរបស់គេ មិនមែនលេខដែលគេឱ្យអ្នកទេ។\n• បើគេឱ្យបង់ប្រាក់ សូមផ្ញើ QR ឬសារដែលគេផ្ញើមក ឱ្យខ្ញុំពិនិត្យ។",
     "CheckSen can't check phone numbers or people's names yet.\n• If they say they're from a bank or company, call the number in that company's official app or website, not a number they gave you.\n• If they want you to pay, send me their QR code or the message they sent, and I'll check it.",
 );
+pub const NOTHING_IN_PHOTO: Text = text(
+    "រូបនេះមិនមាន QR កូដ ឬអក្សរសារ ដែលខ្ញុំអាចពិនិត្យបានទេ។ បើជារូប QR សូមថតឱ្យច្បាស់ ឱ្យឃើញ QR ទាំងមូល។ បើជាសារ សូមផ្ញើរូបថតអេក្រង់សារនោះ ឬចម្លងអក្សរមក។",
+    "This photo has no QR code or message text for me to check. If it's a QR, take a clear photo of the whole code. If it's a message, send a screenshot of it or paste the text.",
+);
 pub const NOTHING_TO_CHECK: Text = text(
     "គ្មានអ្វីត្រូវពិនិត្យក្នុងទីតាំងទេ។ សូមផ្ញើសារ តំណ ឬ QR ដែលអ្នកសង្ស័យ មកវិញ។",
     "There's nothing to check in a location. Send me a message, link or QR code you're unsure about.",
@@ -236,6 +240,12 @@ pub fn render(checks: &[Check], lang: Lang) -> String {
         }
         sections
     };
+    if checks
+        .iter()
+        .any(|check| matches!(check.subject, Subject::Link(_)))
+    {
+        sections.push(LINK_ADVICE.get(lang).to_owned());
+    }
     sections.push(BANK_APP_ADVICE.get(lang).to_owned());
     sections.join("\n\n")
 }
@@ -614,7 +624,6 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
     if let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
         lines.push(note);
     }
-    lines.push(LINK_ADVICE.get(lang).to_owned());
     lines.join("\n")
 }
 
@@ -691,6 +700,7 @@ fn kind_name(kind: Kind, lang: Lang) -> &'static str {
         Kind::Ride => ("កម្មវិធីហៅឡាន និងកុម្ម៉ង់ម្ហូប", "ride and food delivery app"),
         Kind::Shortener => ("សេវាតំណខ្លី", "link shortener"),
         Kind::Hosting => ("សេវាបង្កើតគេហទំព័រ", "website builder"),
+        Kind::Design => ("កម្មវិធីរចនា", "design tool"),
     };
     lang.pick(km, en)
 }
@@ -972,6 +982,8 @@ mod tests {
         let reply = render_km(&[link_check(vec![Signal::Lookalike("ABA")])]);
         assert!(reply.contains("bit[.]ly") && reply.contains("ababank-verify[.]com"));
         assert!(!reply.contains("ababank-verify.com"));
+        let two_links = render_km(&[link_check(vec![]), link_check(vec![])]);
+        assert_eq!(two_links.matches(LINK_ADVICE.km).count(), 1);
         assert!(reply.contains("ABA Bank Login"));
     }
 }
