@@ -245,6 +245,13 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     ]
 });
 
+static TELEGRAM_USERNAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?:^|[^\w@.])@([a-z][a-z0-9_]{4,31})\b|\b(?:t|telegram)\.me/([a-z][a-z0-9_]{4,31})\b",
+    )
+    .expect("valid regex")
+});
+
 pub fn check(text: &str) -> Check {
     let normalized = Normalized::new(text);
     let mut signals = Vec::new();
@@ -252,6 +259,13 @@ pub fn check(text: &str) -> Check {
         if !signals.contains(&rule.signal) {
             signals.push(rule.signal);
         }
+    }
+    let impersonated = TELEGRAM_USERNAME
+        .captures_iter(&normalized.spaced)
+        .filter_map(|captures| captures.get(1).or(captures.get(2)))
+        .find_map(|name| super::link::impersonated_brand(name.as_str()));
+    if let Some(brand) = impersonated {
+        signals.push(Signal::ImpersonatedAccount(brand));
     }
     Check {
         subject: Subject::Text,
@@ -302,6 +316,19 @@ mod tests {
         let normalized = Normalized::new("ផ្ដល់\u{200B}ឲ្យ អោយ ២៤ ម៉ោង");
         assert_eq!(normalized.spaced, "ផ្តល់ឱ្យ ឱ្យ 24 ម៉ោង");
         assert_eq!(normalized.compact, "ផ្តល់ឱ្យឱ្យ24ម៉ោង");
+    }
+
+    #[test]
+    fn support_style_bank_usernames_are_noted() {
+        assert!(
+            signals("សូមទាក់ទង @ABA_Support_KH ដើម្បីដោះសោគណនី")
+                .contains(&Signal::ImpersonatedAccount("ABA"))
+        );
+        assert!(
+            signals("Chat with t.me/acleda_help now")
+                .contains(&Signal::ImpersonatedAccount("ACLEDA"))
+        );
+        assert!(signals("email me at aba_support@gmail.com").is_empty());
     }
 
     #[test]

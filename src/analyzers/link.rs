@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use regex::Regex;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use reqwest::header::{ACCEPT, LOCATION};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, LOCATION};
 use reqwest::{Client, Url, redirect};
 use serde_json::Value;
 use tokio::sync::OnceCell;
@@ -20,6 +21,8 @@ const NEW_DOMAIN_DAYS: i64 = 30;
 const REDIRECT_BUDGET: Duration = Duration::from_secs(3);
 const TOTAL_BUDGET: Duration = Duration::from_secs(4);
 const RDAP_BOOTSTRAP: &str = "https://data.iana.org/rdap/dns.json";
+const MAX_PAGE_BYTES: usize = 512 * 1024;
+const MAX_TITLE_CHARS: usize = 80;
 pub const GOVERNMENT: &str = "gov.kh";
 
 struct Brand {
@@ -79,6 +82,47 @@ const BRANDS: [Brand; 11] = [
 
 const GOVERNMENT_SERVICES: [&str; 4] = ["arrival", "evisa", "visa", "immigration"];
 
+const OFFICIAL_TELEGRAM_ACCOUNTS: [&str; 4] = ["telegram", "botfather", "telegramtips", "durov"];
+const SUPPORT_WORDS: [&str; 16] = [
+    "support",
+    "help",
+    "helpdesk",
+    "service",
+    "care",
+    "admin",
+    "agent",
+    "verify",
+    "verification",
+    "cs",
+    "staff",
+    "team",
+    "bonus",
+    "gift",
+    "refund",
+    "loan",
+];
+const PAGE_BANKING_WORDS: [&str; 9] = [
+    "bank",
+    "login",
+    "log",
+    "account",
+    "verify",
+    "pay",
+    "wallet",
+    "ធនាគារ",
+    "គណនី",
+];
+
+static TITLE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<title[^>]*>(.*?)</title>").expect("valid regex"));
+static SITE_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?is)<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']*)|<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:site_name"#)
+        .expect("valid regex")
+});
+static PASSWORD_INPUT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)<input[^>]*type\s*=\s*["']?password"#).expect("valid regex")
+});
+
 const BANKING_WORDS: [&str; 11] = [
     "bank", "bnk", "camb", "khmer", "asia", "online", "app", "pay", "login", "verify", "secure",
 ];
@@ -89,6 +133,14 @@ pub struct LinkInfo {
     pub redirected_to: Option<String>,
     pub age_days: Option<i64>,
     pub site: Option<&'static Site>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct Page {
+    title: Option<String>,
+    site_name: Option<String>,
+    asks_password: bool,
 }
 
 pub struct LinkChecker {
@@ -128,25 +180,42 @@ impl LinkChecker {
             }
         }
 
-        let age_days = match last.domain() {
-            Some(domain) => timeout_at(start + TOTAL_BUDGET, self.domain_age_days(domain))
-                .await
-                .ok()
-                .flatten(),
-            None => None,
-        };
+        let final_host = last.host_str().unwrap_or_default();
+        let site = sites::identify(final_host);
+        let deadline = start + TOTAL_BUDGET;
+        let (age_days, page) = tokio::join!(
+            async {
+                let domain = last.domain()?;
+                timeout_at(deadline, self.domain_age_days(domain))
+                    .await
+                    .ok()
+                    .flatten()
+            },
+            async {
+                // Known services are skipped so one-time login links aren't used up.
+                if site.is_some_and(|site| site.kind != Kind::Hosting) {
+                    return None;
+                }
+                timeout_at(deadline, self.fetch_page(last))
+                    .await
+                    .ok()
+                    .flatten()
+            }
+        );
         if is_new_domain(age_days) {
             signals.push(Signal::NewDomain);
         }
+        let page = page.unwrap_or_default();
+        signals.extend(page_signals(&page, &signals));
 
         let host = first.host_str().unwrap_or_default().to_owned();
-        let final_host = last.host_str().unwrap_or_default();
         Check {
             subject: Subject::Link(LinkInfo {
                 redirected_to: (final_host != host).then(|| final_host.to_owned()),
                 host,
                 age_days,
-                site: sites::identify(final_host),
+                site,
+                title: page.title.or(page.site_name),
             }),
             signals,
         }
@@ -181,6 +250,35 @@ impl LinkChecker {
         chain
     }
 
+    async fn fetch_page(&self, url: &Url) -> Option<Page> {
+        if !is_fetchable(url) {
+            return None;
+        }
+        let mut response = self
+            .http
+            .get(url.clone())
+            .header(ACCEPT, "text/html")
+            .send()
+            .await
+            .ok()?;
+        let is_html = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("html"));
+        if !response.status().is_success() || !is_html {
+            return None;
+        }
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await.ok()? {
+            body.extend_from_slice(&chunk);
+            if body.len() >= MAX_PAGE_BYTES {
+                break;
+            }
+        }
+        Some(parse_page(&String::from_utf8_lossy(&body)))
+    }
+
     async fn domain_age_days(&self, host: &str) -> Option<i64> {
         let domain = psl::domain_str(host)?;
         let servers = self
@@ -206,6 +304,97 @@ impl LinkChecker {
         let body = response.error_for_status()?.bytes().await?;
         parse_rdap_bootstrap(&body).ok_or_else(|| anyhow::anyhow!("invalid RDAP bootstrap"))
     }
+}
+
+fn parse_page(html: &str) -> Page {
+    let capture = |regex: &Regex| {
+        regex
+            .captures(html)
+            .and_then(|captures| captures.iter().skip(1).flatten().next())
+            .map(|text| clean_text(text.as_str()))
+            .filter(|text| !text.is_empty())
+    };
+    Page {
+        title: capture(&TITLE),
+        site_name: capture(&SITE_NAME),
+        asks_password: PASSWORD_INPUT.is_match(html),
+    }
+}
+
+fn clean_text(text: &str) -> String {
+    let text = text
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ");
+    let joined = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if joined.chars().count() > MAX_TITLE_CHARS {
+        joined.chars().take(MAX_TITLE_CHARS).collect::<String>() + "…"
+    } else {
+        joined
+    }
+}
+
+fn page_signals(page: &Page, found: &[Signal]) -> Vec<Signal> {
+    let mut signals = Vec::new();
+    let claimed = [&page.title, &page.site_name]
+        .into_iter()
+        .flatten()
+        .find_map(|text| claimed_brand(text));
+    if let Some(brand) = claimed.filter(|brand| !found.contains(&Signal::Lookalike(brand))) {
+        signals.push(Signal::BrandClaim(brand));
+    }
+    if page.asks_password {
+        signals.push(Signal::PasswordPage);
+    }
+    signals
+}
+
+/// A brand named in page text; short names like "Wing" count only next to a banking word.
+fn claimed_brand(text: &str) -> Option<&'static str> {
+    let lower = text.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric() && !('\u{1780}'..='\u{17FF}').contains(&c))
+        .filter(|word| !word.is_empty())
+        .collect();
+    let banking = words.iter().any(|word| {
+        PAGE_BANKING_WORDS
+            .iter()
+            .any(|banking| word.starts_with(banking))
+    });
+    BRANDS
+        .iter()
+        .find(|brand| {
+            words.iter().any(|word| brand.stems.contains(word))
+                || banking && words.iter().any(|word| brand.tokens.contains(word))
+        })
+        .map(|brand| brand.name)
+}
+
+/// The brand a support-style Telegram username pretends to be, like @ABA_Support_KH.
+pub fn impersonated_brand(username: &str) -> Option<&'static str> {
+    let lower = username.to_ascii_lowercase();
+    if OFFICIAL_TELEGRAM_ACCOUNTS.contains(&lower.as_str()) {
+        return None;
+    }
+    let tokens: Vec<&str> = lower.split('_').filter(|token| !token.is_empty()).collect();
+    let joined = tokens.concat();
+    let supportish = tokens.iter().any(|token| SUPPORT_WORDS.contains(token))
+        || SUPPORT_WORDS
+            .iter()
+            .any(|word| word.len() > 3 && joined.contains(word));
+    if !supportish {
+        return None;
+    }
+    BRANDS
+        .iter()
+        .find(|brand| {
+            tokens.iter().any(|token| brand.tokens.contains(token))
+                || brand.stems.iter().any(|stem| joined.contains(stem))
+        })
+        .map(|brand| brand.name)
 }
 
 fn is_new_domain(age_days: Option<i64>) -> bool {
@@ -516,6 +705,66 @@ mod tests {
                 [Signal::Lookalike(brand)],
                 "{host}"
             );
+        }
+    }
+
+    #[test]
+    fn reads_title_site_name_and_password_fields() {
+        let page = parse_page(
+            r#"<html><head><title>
+              ABA Bank &amp; Login </title><meta content="ABA" property="og:site_name"></head>
+              <form><input name=p type="password"></form>"#,
+        );
+        assert_eq!(page.title.as_deref(), Some("ABA Bank & Login"));
+        assert_eq!(page.site_name.as_deref(), Some("ABA"));
+        assert!(page.asks_password);
+        assert_eq!(parse_page("<p>hello</p>"), Page::default());
+    }
+
+    #[test]
+    fn pages_naming_a_bank_are_brand_claims() {
+        assert_eq!(claimed_brand("ABA Bank - Online Login"), Some("ABA"));
+        assert_eq!(claimed_brand("ACLEDA ToanChet"), Some("ACLEDA"));
+        assert_eq!(
+            claimed_brand("Wing Bank | Verify your account"),
+            Some("Wing")
+        );
+        assert_eq!(claimed_brand("Wingstop Chicken Wings"), None);
+        assert_eq!(claimed_brand("Wing Stop"), None);
+        assert_eq!(claimed_brand("My travel blog"), None);
+        let page = Page {
+            title: Some("ABA Bank Login".to_owned()),
+            asks_password: true,
+            ..Page::default()
+        };
+        assert_eq!(
+            page_signals(&page, &[]),
+            [Signal::BrandClaim("ABA"), Signal::PasswordPage]
+        );
+        assert_eq!(
+            page_signals(&page, &[Signal::Lookalike("ABA")]),
+            [Signal::PasswordPage]
+        );
+    }
+
+    #[test]
+    fn support_style_usernames_with_a_bank_name_are_impersonation() {
+        for (name, brand) in [
+            ("ABA_Support_KH", "ABA"),
+            ("acleda_help", "ACLEDA"),
+            ("WingBankService", "Wing"),
+            ("telegram_support", "Telegram"),
+        ] {
+            assert_eq!(impersonated_brand(name), Some(brand), "{name}");
+        }
+        for name in [
+            "ABABankOfficial",
+            "telegram",
+            "CheckSen_bot",
+            "sokdara_help",
+            "abacus_team",
+        ] {
+            assert_eq!(impersonated_brand(name), None, "{name}");
         }
     }
 

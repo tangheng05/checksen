@@ -53,6 +53,9 @@ pub enum Signal {
     RecruitmentBait,
     MalwareFile,
     Urgency,
+    BrandClaim(&'static str),
+    PasswordPage,
+    ImpersonatedAccount(&'static str),
     Model { category: ScamCategory, cited: bool },
     ModelUnavailable,
 }
@@ -68,7 +71,7 @@ impl Signal {
     pub fn weight(self) -> f32 {
         match self {
             Self::NotKhqr | Self::ModelUnavailable => 0.0,
-            Self::Urgency => 0.2,
+            Self::Urgency | Self::PasswordPage | Self::ImpersonatedAccount(_) => 0.2,
             Self::Punycode
             | Self::AccountThreat
             | Self::LoanBait
@@ -85,6 +88,7 @@ impl Signal {
             | Self::PaymentRedirect
             | Self::Model { .. } => 0.5,
             Self::Lookalike(_)
+            | Self::BrandClaim(_)
             | Self::Reported(_)
             | Self::UpfrontFee
             | Self::MoveMoneyOut

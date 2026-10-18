@@ -282,6 +282,28 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 }
             };
         }
+        Signal::BrandClaim(brand) => {
+            return match lang {
+                Lang::Km => format!("ទំព័រនេះដាក់ឈ្មោះថា {brand} តែវាមិនមែនជាគេហទំព័រផ្លូវការរបស់ {brand} ទេ។"),
+                Lang::En => {
+                    format!("This page calls itself {brand}, but it isn't {brand}'s official site.")
+                }
+            };
+        }
+        Signal::PasswordPage => (
+            "ទំព័រនេះសុំលេខសម្ងាត់។ កុំបញ្ចូលលេខសម្ងាត់ លើគេហទំព័រដែលអ្នកមិនស្គាល់ច្បាស់។",
+            "This page asks for a password. Don't enter a password on a site you don't know well.",
+        ),
+        Signal::ImpersonatedAccount(brand) => {
+            return match lang {
+                Lang::Km => format!(
+                    "គណនី Telegram នៅក្នុងសារនេះប្រើឈ្មោះ {brand}។ អ្នកណាក៏អាចបង្កើតគណនីដាក់ឈ្មោះធនាគារបាន។ សូមទុកចិត្តតែគណនីដែលមានតំណពីកម្មវិធី ឬគេហទំព័រផ្លូវការរបស់ {brand} ប៉ុណ្ណោះ។"
+                ),
+                Lang::En => format!(
+                    "The Telegram account in this message uses the name {brand}. Anyone can make an account with a bank's name, so only trust accounts linked from {brand}'s official app or website."
+                ),
+            };
+        }
         Signal::Punycode => (
             "ឈ្មោះគេហទំព័រនេះប្រើអក្សរចម្លែក ដើម្បីឱ្យមើលទៅដូចគេហទំព័រផ្សេង។",
             "This site's name uses unusual letters to look like a different site.",
@@ -488,6 +510,13 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
             defang(destination)
         ));
     }
+    if let Some(title) = &link.title {
+        lines.push(format!(
+            "{} {}",
+            lang.pick("• ចំណងជើងទំព័រ៖", "• Page title:"),
+            inert(title)
+        ));
+    }
     let owner = lang.pick("• ម្ចាស់គេហទំព័រ៖", "• Owner:");
     lines.push(match link.site {
         Some(site) if site.kind == Kind::Hosting => {
@@ -646,6 +675,7 @@ mod tests {
                 redirected_to: Some("ababank-verify.com".to_owned()),
                 age_days: Some(3),
                 site: None,
+                title: Some("ABA Bank Login".to_owned()),
             }),
             signals,
         }
@@ -800,6 +830,7 @@ mod tests {
                     redirected_to: None,
                     age_days: None,
                     site: crate::analyzers::sites::identify(host),
+                    title: None,
                 }),
                 signals: vec![],
             }])
@@ -816,6 +847,7 @@ mod tests {
                     redirected_to: None,
                     age_days: Some(365 * 19),
                     site: crate::analyzers::sites::identify("github.com"),
+                    title: None,
                 }),
                 signals: vec![],
             }],
@@ -831,5 +863,6 @@ mod tests {
         let reply = render_km(&[link_check(vec![Signal::Lookalike("ABA")])]);
         assert!(reply.contains("bit[.]ly") && reply.contains("ababank-verify[.]com"));
         assert!(!reply.contains("ababank-verify.com"));
+        assert!(reply.contains("ABA Bank Login"));
     }
 }
