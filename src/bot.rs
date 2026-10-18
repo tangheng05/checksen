@@ -250,7 +250,7 @@ fn language(guard: &Guard, sender: u64, msg: &Message) -> Lang {
         .text()
         .or(msg.caption())
         .filter(|text| msg.forward_origin().is_none() && !text.starts_with('/'))
-        .and_then(Lang::of);
+        .and_then(|text| Lang::of(&prose(text)));
     guard.language(sender, typed)
 }
 
@@ -667,12 +667,17 @@ fn urls_in(msg: &Message) -> Vec<Url> {
     urls
 }
 
-fn prose_chars(message: &str) -> usize {
+/// The message without its links, which are Latin letters whatever language the sender speaks.
+fn prose(message: &str) -> String {
     message
         .split_whitespace()
         .filter(|word| !(word.contains('.') && url_from_entity_text(word).is_some()))
-        .map(|word| word.chars().count() + 1)
-        .sum()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn prose_chars(message: &str) -> usize {
+    prose(message).chars().count()
 }
 
 fn url_from_entity_text(text: &str) -> Option<Url> {
@@ -761,6 +766,19 @@ mod tests {
             Some(2)
         );
         assert_eq!(target_id(&message("private", "hello there", None)), Some(2));
+    }
+
+    #[test]
+    fn a_bare_link_does_not_set_the_language() {
+        assert_eq!(Lang::of(&prose("https://scammer.com")), None);
+        assert_eq!(
+            Lang::of(&prose("តើតំណនេះពិតទេ https://aba.com")),
+            Some(Lang::Km)
+        );
+        assert_eq!(
+            Lang::of(&prose("is this real? https://aba.com")),
+            Some(Lang::En)
+        );
     }
 
     #[test]
