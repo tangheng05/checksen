@@ -2,6 +2,7 @@ use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::link::LinkInfo;
 use crate::analyzers::llm::ScamCategory;
+use crate::analyzers::sites::{Kind, Site};
 use crate::analyzers::{Check, Signal, Subject};
 
 pub const HELP_KM: &str = "សូមផ្ញើសារ តំណ (link) កូដ KHQR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។";
@@ -207,6 +208,12 @@ fn render_link(link: &LinkInfo) -> String {
     if let Some(destination) = &link.redirected_to {
         lines.push(format!("• នាំបន្តទៅ៖ {}", defang(destination)));
     }
+    lines.push(match link.site {
+        Some(site) if site.kind == Kind::Hosting => format!("• បង្កើតលើ៖ {}", site.name),
+        Some(site) if site.kind == Kind::Government => format!("• ម្ចាស់គេហទំព័រ៖ {}", site.name),
+        Some(site) => format!("• ម្ចាស់គេហទំព័រ៖ {} ({})", site.name, kind_km(site.kind)),
+        None => "• ម្ចាស់គេហទំព័រ៖ មិនមែនជាគេហទំព័រល្បី ដែល CheckSen ស្គាល់ទេ".to_owned(),
+    });
     if let Some(days) = link.age_days {
         let age = if days >= 365 {
             format!("{} ឆ្នាំ", days / 365)
@@ -215,8 +222,53 @@ fn render_link(link: &LinkInfo) -> String {
         };
         lines.push(format!("• អាយុគេហទំព័រ៖ {age}"));
     }
+    if let Some(note) = link.site.and_then(site_note_km) {
+        lines.push(note);
+    }
     lines.push(LINK_ADVICE_KM.to_owned());
     lines.join("\n")
+}
+
+fn site_note_km(site: &Site) -> Option<String> {
+    let name = site.name;
+    match site.kind {
+        Kind::Hosting => Some(format!(
+            "អ្នកណាក៏អាចបង្កើតគេហទំព័រលើ {name} បាន ដោយឥតគិតថ្លៃ។ កុំទុកចិត្ត ដោយសារតែឈ្មោះក្នុងតំណ។"
+        )),
+        Kind::Shortener => {
+            Some("នេះជាតំណខ្លី ដែលលាក់គេហទំព័រពិត ហើយ CheckSen មិនអាចដឹងថាវានាំទៅណាទេ។ សូមប្រយ័ត្ន។".to_owned())
+        }
+        kind if kind.anyone_can_post() => Some(format!(
+            "នេះជាគេហទំព័រពិតរបស់ {name} តែអ្នកណាក៏អាចបង្ហោះលើវាបាន។ សូមមើលថាអ្នកណាជាអ្នកបង្ហោះ មុនទុកចិត្ត។"
+        )),
+        _ => None,
+    }
+}
+
+fn kind_km(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Bank => "ធនាគារ",
+        Kind::Finance => "ស្ថាប័នហិរញ្ញវត្ថុ",
+        Kind::Wallet => "កាបូបលុយអេឡិចត្រូនិក",
+        Kind::Telecom => "ក្រុមហ៊ុនទូរស័ព្ទ",
+        Kind::Government => "ស្ថាប័នរដ្ឋ",
+        Kind::Messaging => "កម្មវិធីផ្ញើសារ",
+        Kind::Social => "បណ្តាញសង្គម",
+        Kind::Video => "គេហទំព័រវីដេអូ",
+        Kind::Code => "កន្លែងរក្សាទុក និងចែករំលែកកូដកម្មវិធី",
+        Kind::Files => "សេវាឯកសារ និងទម្រង់បំពេញ",
+        Kind::Email => "សេវាអ៊ីមែល",
+        Kind::Tech => "ក្រុមហ៊ុនបច្ចេកវិទ្យា",
+        Kind::AppStore => "ហាងកម្មវិធីទូរស័ព្ទ",
+        Kind::Shopping => "ហាងទំនិញអនឡាញ",
+        Kind::Classifieds => "គេហទំព័រលក់ទិញ",
+        Kind::News => "សារព័ត៌មាន",
+        Kind::Reference => "សព្វវចនាធិប្បាយអនឡាញ",
+        Kind::Ai => "សេវា AI",
+        Kind::Ride => "កម្មវិធីហៅឡាន និងកុម្ម៉ង់ម្ហូប",
+        Kind::Shortener => "សេវាតំណខ្លី",
+        Kind::Hosting => "សេវាបង្កើតគេហទំព័រ",
+    }
 }
 
 fn defang(host: &str) -> String {
@@ -268,6 +320,7 @@ mod tests {
                 host: "bit.ly".to_owned(),
                 redirected_to: Some("ababank-verify.com".to_owned()),
                 age_days: Some(3),
+                site: None,
             }),
             signals,
         }
@@ -388,6 +441,26 @@ mod tests {
         assert_eq!(inert("sok@abaa"), "sok@abaa");
         assert_eq!(inert("Mr. Sok"), "Mr. Sok");
         assert_eq!(inert("SOK\u{202E}ARAD"), "SOKARAD");
+    }
+
+    #[test]
+    fn link_reply_names_the_site_owner() {
+        let reply = |host: &str| {
+            render_km(&[Check {
+                subject: Subject::Link(LinkInfo {
+                    host: host.to_owned(),
+                    redirected_to: None,
+                    age_days: None,
+                    site: crate::analyzers::sites::identify(host),
+                }),
+                signals: vec![],
+            }])
+        };
+        let github = reply("github.com");
+        assert!(github.contains("GitHub (") && github.contains("អ្នកណាក៏អាចបង្ហោះ"));
+        assert!(reply("www.ababank.com").contains("ABA (ធនាគារ)"));
+        assert!(reply("aba-gift.github.io").contains("បង្កើតលើ៖ GitHub Pages"));
+        assert!(reply("example.com").contains("មិនមែនជាគេហទំព័រល្បី"));
     }
 
     #[test]

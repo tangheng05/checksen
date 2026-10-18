@@ -12,6 +12,7 @@ use tokio::sync::OnceCell;
 use tokio::time::{Instant, timeout_at};
 use url::Host;
 
+use super::sites::{self, Kind, Site};
 use super::{Check, Signal, Subject};
 
 const MAX_REDIRECTS: usize = 5;
@@ -23,7 +24,6 @@ const GOVERNMENT: &str = "គេហទំព័ររដ្ឋាភិបាល
 
 struct Brand {
     name: &'static str,
-    official: &'static [&'static str],
     tokens: &'static [&'static str],
     stems: &'static [&'static str],
     misspelled: &'static [&'static str],
@@ -31,14 +31,12 @@ struct Brand {
 
 const fn brand(
     name: &'static str,
-    official: &'static [&'static str],
     tokens: &'static [&'static str],
     stems: &'static [&'static str],
     misspelled: &'static [&'static str],
 ) -> Brand {
     Brand {
         name,
-        official,
         tokens,
         stems,
         misspelled,
@@ -48,105 +46,35 @@ const fn brand(
 const BRANDS: [Brand; 11] = [
     brand(
         "ABA",
-        &["ababank.com", "payway.com.kh"],
         &["aba", "ababank"],
         &["ababank", "advancebank", "advancedbank"],
         &["ababank"],
     ),
     brand(
         "ACLEDA",
-        &[
-            "acledabank.com.kh",
-            "acledainternetbank.com.kh",
-            "acledabankmb.com.kh",
-            "acledasecurities.com.kh",
-            "acledabank.com.la",
-            "acledainternetbank.com.la",
-        ],
         &["acleda", "acledabank"],
         &["acleda"],
         &["acleda"],
     ),
-    brand(
-        "Wing",
-        &["wingbank.com.kh"],
-        &["wing", "wingbank"],
-        &["wingbank"],
-        &["wingbank"],
-    ),
-    brand("Bakong", &["nbc.gov.kh"], &["bakong"], &["bakong"], &[]),
+    brand("Wing", &["wing", "wingbank"], &["wingbank"], &["wingbank"]),
+    brand("Bakong", &["bakong"], &["bakong"], &[]),
     brand(
         "Canadia",
-        &["canadiabank.com.kh"],
         &["canadia", "canadiabank"],
         &["canadiabank"],
         &[],
     ),
-    brand(
-        "Vattanac",
-        &["vattanacbank.com"],
-        &["vattanac"],
-        &["vattanac"],
-        &[],
-    ),
+    brand("Vattanac", &["vattanac"], &["vattanac"], &[]),
     brand(
         "Chip Mong",
-        &["chipmongbank.com"],
         &["chipmongbank"],
         &["chipmongbank", "chipmongcommercial"],
         &[],
     ),
-    brand(
-        "Sathapana",
-        &["sathapana.com.kh"],
-        &["sathapana"],
-        &["sathapana"],
-        &[],
-    ),
-    brand(
-        "Hattha",
-        &["hatthabank.com"],
-        &["hattha", "hatthabank"],
-        &["hatthabank"],
-        &[],
-    ),
-    brand(
-        "PRASAC",
-        &["prasac.com.kh", "kbprasacbank.com.kh"],
-        &["prasac"],
-        &["prasac"],
-        &[],
-    ),
-    brand(
-        "Telegram",
-        &["telegram.org", "t.me", "telegram.me"],
-        &["telegram"],
-        &["telegram"],
-        &[],
-    ),
-];
-
-const OTHER_OFFICIAL: [&str; 20] = [
-    "princebank.com.kh",
-    "amkbank.com.kh",
-    "maybank2u.com.kh",
-    "maybank.com.kh",
-    "cimbcambodia.com",
-    "icbc.com.kh",
-    "bridgebank.com.kh",
-    "sbilhbank.com.kh",
-    "ucb.com.kh",
-    "wbfinance.com.kh",
-    "bankofchina.com.kh",
-    "alphabank.com.kh",
-    "bidc.com.kh",
-    "lolc.com.kh",
-    "mbcambodia.com",
-    "truemoney.com.kh",
-    "pipay.com",
-    "smart.com.kh",
-    "cellcard.com.kh",
-    "metfone.com.kh",
+    brand("Sathapana", &["sathapana"], &["sathapana"], &[]),
+    brand("Hattha", &["hattha", "hatthabank"], &["hatthabank"], &[]),
+    brand("PRASAC", &["prasac"], &["prasac"], &[]),
+    brand("Telegram", &["telegram"], &["telegram"], &[]),
 ];
 
 const GOVERNMENT_SERVICES: [&str; 4] = ["arrival", "evisa", "visa", "immigration"];
@@ -160,6 +88,7 @@ pub struct LinkInfo {
     pub host: String,
     pub redirected_to: Option<String>,
     pub age_days: Option<i64>,
+    pub site: Option<&'static Site>,
 }
 
 pub struct LinkChecker {
@@ -217,6 +146,7 @@ impl LinkChecker {
                 redirected_to: (final_host != host).then(|| final_host.to_owned()),
                 host,
                 age_days,
+                site: sites::identify(final_host),
             }),
             signals,
         }
@@ -289,13 +219,7 @@ pub fn parse_http_url(text: &str) -> Option<Url> {
 }
 
 pub fn lookalike_signals(host: &str) -> Vec<Signal> {
-    let registrable = psl::domain_str(host).unwrap_or(host);
-    let is_official = registrable.ends_with(".gov.kh")
-        || OTHER_OFFICIAL.contains(&registrable)
-        || BRANDS
-            .iter()
-            .any(|brand| brand.official.contains(&registrable));
-    if is_official {
+    if sites::identify(host).is_some_and(|site| site.kind != Kind::Hosting) {
         return Vec::new();
     }
 

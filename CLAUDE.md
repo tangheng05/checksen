@@ -35,7 +35,7 @@ CI runs, in order: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnin
 
 **Replies.** All user-facing text is fixed Khmer constants in `verdict.rs`. Tests enforce that no reply says "safe" (or សុវត្ថិភាព) and that every reply ends with `BANK_APP_ADVICE_KM`. Attacker-controlled strings (QR payee fields, domains) must pass through `inert`/`visible`/`defang` so they can't render as links or hide text with bidi controls.
 
-**Links** (`analyzers/link.rs`): follows redirects through a `PublicOnly` DNS resolver that refuses private and special addresses (SSRF guard), checks domain age via RDAP, and detects lookalikes of the brands in `BRANDS`. Link replies are never cached.
+**Links** (`analyzers/link.rs`): follows redirects through a `PublicOnly` DNS resolver that refuses private and special addresses (SSRF guard), checks domain age via RDAP, and detects lookalikes of the brands in `BRANDS`. `analyzers/sites.rs` names the owner of well-known domains and marks free hosting (github.io, web.app); a domain listed there also counts as official, so only add ones you're sure of. Link replies are never cached.
 
 **Reports** (`store.rs`, `reports.rs`, `migrations/`): optional, enabled only when `DATABASE_URL` is set, and then `HASH_SECRET` (32+ chars) is required. Migrations run automatically on connect via `sqlx::migrate!`. Reporters are stored only as an HMAC of their Telegram ID; inline-button callback data is HMAC-signed and verified. An account is flagged (`Signal::Reported`) after `REPORT_THRESHOLD` distinct reporters; `/forget` deletes a user's reports.
 

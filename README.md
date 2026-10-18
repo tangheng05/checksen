@@ -20,7 +20,7 @@
 | You send | It checks |
 | --- | --- |
 | A KHQR code (photo or screenshot) | Who the QR really pays: merchant name, account, bank and amount, and whether the code is valid KHQR or was edited |
-| A link | Where it redirects, how new the domain is, and lookalikes of bank, wallet, Telegram and government domains |
+| A link | Who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, and lookalikes of bank, wallet, Telegram and government domains |
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police, scam-compound job ads, extortion and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message |
 | A file | Whether its name hides a program, such as `.apk` or `.pdf.scr` |

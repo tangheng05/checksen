@@ -1,6 +1,7 @@
 pub mod khqr;
 pub mod link;
 pub mod llm;
+pub mod sites;
 pub mod text;
 
 use khqr_core::DecodedKhqr;
