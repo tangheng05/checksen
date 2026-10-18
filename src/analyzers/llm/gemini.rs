@@ -15,7 +15,7 @@ use super::{
 use crate::analyzers::Signal;
 use crate::env_var;
 
-const DEFAULT_MODEL: &str = "gemini-3.8-flash";
+const DEFAULT_MODEL: &str = "gemini-3.5-flash-lite";
 
 // Gemini's free tier trains on and lets humans review the text and screenshots it is sent; /help and the README disclose this.
 pub struct GeminiClassifier {

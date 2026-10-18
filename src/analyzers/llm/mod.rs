@@ -140,6 +140,8 @@ Choose the one category that fits best:
 
 These are usually legitimate, so answer none unless there is a clear scam cue: a bank or app code message that says not to share the code; a bank or shop promotion or lucky draw that does not ask for a fee, login or personal details to claim; transaction alerts and receipts; scheduled maintenance notices; loan or job messages from a named institution that ask for no upfront payment; news articles and warnings about scams; ordinary chat between family and friends.
 
+Official notices from a named bank, wallet, telco, ministry or company are legitimate even when they mention fees, account closure or suspension, ID or SIM verification, app updates, prizes or lucky-draw terms, unless they ask the reader to pay a fee to claim something, send money to a personal account, or share a code or password. Text that describes, reports or warns about a scam in the third person, such as 'scammers send messages saying ...', is news or a warning: answer none.
+
 confidence: high when the scam cue is explicit, medium when likely, low when unsure.
 
 cited_signals: from the rule signals listed before the message, the ones your decision relies on. Cite only listed signals; leave it empty if none were listed or none apply.";
@@ -208,13 +210,17 @@ pub async fn classify(
     }
     match tokio::time::timeout(timeout, classifier.classify(text, &check.signals)).await {
         Ok(Ok(classification)) => {
+            let cited = classification
+                .cited
+                .iter()
+                .any(|signal| check.signals.contains(signal));
             let counts = classification.category != ScamCategory::None
-                && classification.confidence != Confidence::Low;
+                && match classification.confidence {
+                    Confidence::High => true,
+                    Confidence::Medium => cited,
+                    Confidence::Low => false,
+                };
             if counts {
-                let cited = classification
-                    .cited
-                    .iter()
-                    .any(|signal| check.signals.contains(signal));
                 check.signals.push(Signal::Model {
                     category: classification.category,
                     cited,
@@ -434,6 +440,16 @@ mod tests {
         )
         .await;
         assert_eq!(verdict::decide(&check), Level::HighRisk);
+    }
+
+    #[tokio::test]
+    async fn medium_confidence_needs_rule_evidence() {
+        let check = run(
+            "Hello, please contact me about the offer",
+            Fake(|| scam(vec![], Confidence::Medium)),
+        )
+        .await;
+        assert_eq!(verdict::decide(&check), Level::NoKnownSignals);
     }
 
     #[tokio::test]
