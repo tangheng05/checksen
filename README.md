@@ -1,4 +1,4 @@
-<a href="https://checksen.horizxon.tech"><img src="docs/images/banner.png" alt="CheckSen ឆែកសិន: check first, then pay" width="100%"></a>
+<a href="https://checksen.horizxon.tech"><img src="docs/images/banner.png" alt="CheckSen ឆែកសិន: check before you click or pay" width="100%"></a>
 
 <p align="center">
   <a href="https://t.me/CheckSen_bot"><img src="https://img.shields.io/badge/Telegram-@CheckSen__bot-0E716B?logo=telegram&logoColor=white" alt="Open in Telegram"></a>
