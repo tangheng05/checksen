@@ -20,7 +20,7 @@
 | You send | It checks |
 | --- | --- |
 | A KHQR code (photo or screenshot) | Who the QR really pays: merchant name, account, bank and amount, and whether the code is valid KHQR or was edited |
-| A link | Who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
+| A link | Whether Google Safe Browsing knows it as phishing or malware, who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police, scam-compound job ads, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
 | A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages, and, when set up, a ClamAV scan and a VirusTotal lookup. A photo or KHQR screenshot sent as a file gets the same check as a photo |
@@ -61,6 +61,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 
 ## Privacy
 
+- Links, and every page they redirect through, are sent to Google Safe Browsing when it is configured.
 - Files are downloaded into memory (up to Telegram's 20 MB bot limit), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded. Files over 20 MB are judged by their name and type only.
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
@@ -87,6 +88,7 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for KHQR reports; migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
+| `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |
 | `VIRUSTOTAL_API_KEY` | no | Free key from [virustotal.com](https://www.virustotal.com/gui/my-apikey); looks up file fingerprints (500 a day) |
 

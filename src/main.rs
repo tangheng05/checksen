@@ -12,6 +12,7 @@ use checksen::analyzers::link::LinkChecker;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
 use checksen::analyzers::llm::gemini::GeminiClassifier;
 use checksen::analyzers::llm::{Classifier, Transcriber};
+use checksen::analyzers::reputation::SafeBrowsing;
 use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::env_var;
 use teloxide::prelude::*;
@@ -23,7 +24,13 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     tracing::info!("starting CheckSen");
 
-    let links = Arc::new(LinkChecker::new()?);
+    let safe_browsing = SafeBrowsing::from_env(Duration::from_secs(3))?;
+    if safe_browsing.is_none() {
+        tracing::warn!(
+            "SAFE_BROWSING_API_KEY is not set; links are not checked against Google Safe Browsing"
+        );
+    }
+    let links = Arc::new(LinkChecker::new()?.with_safe_browsing(safe_browsing));
     let classifier = classifier()?;
     let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 3)?
         .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>);

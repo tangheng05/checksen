@@ -4,6 +4,7 @@ use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
 use crate::analyzers::llm::{MessageKind, ScamCategory};
+use crate::analyzers::reputation::Threat;
 use crate::analyzers::sites::{Kind, Site};
 use crate::analyzers::{Check, Signal, Subject};
 
@@ -93,8 +94,8 @@ const HOW_TO_REPORT: Text = text(
     "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• You can also report it to the police.",
 );
 const PRIVACY: Text = text(
-    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal មិនមែនឯកសារខ្លួនឯងទេ។ ចុច /forget ដើម្បីលុបការរាយការណ៍ KHQR របស់អ្នក។",
-    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal, never the file itself. Tap /forget to delete your KHQR reports.",
+    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal មិនមែនឯកសារខ្លួនឯងទេ។ ចុច /forget ដើម្បីលុបការរាយការណ៍ KHQR របស់អ្នក។",
+    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Links are checked against Google's list of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal, never the file itself. Tap /forget to delete your KHQR reports.",
 );
 const OTHER_QUESTION: Text = text(
     "ខ្ញុំអាចជួយពិនិត្យតែសារ តំណ កូដ QR រូបថតអេក្រង់ និងឯកសារ ដែលអ្នកសង្ស័យប៉ុណ្ណោះ។ សូម forward ឬចម្លងសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាមានសញ្ញាបោកប្រាស់ឬអត់។",
@@ -746,6 +747,18 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 }
             };
         }
+        Signal::KnownBadSite(Threat::Phishing) => (
+            "Google ស្គាល់គេហទំព័រនេះថាជាគេហទំព័របោកប្រាស់ ដែលលួចលេខសម្ងាត់ ឬព័ត៌មានរបស់អ្នក។ កុំបើកវា។",
+            "Google lists this as a phishing site that steals passwords or personal details. Don't open it.",
+        ),
+        Signal::KnownBadSite(Threat::Malware) => (
+            "Google ស្គាល់គេហទំព័រនេះថាចែកចាយមេរោគ។ កុំបើកវា ហើយកុំទាញយកអ្វីពីវា។",
+            "Google lists this site for spreading malware. Don't open it or download anything from it.",
+        ),
+        Signal::KnownBadSite(Threat::UnwantedSoftware) => (
+            "Google ស្គាល់គេហទំព័រនេះថាដំឡើងកម្មវិធីដែលមិនចង់បាន ឬបង្កគ្រោះថ្នាក់។ កុំទាញយកអ្វីពីវា។",
+            "Google lists this site for pushing unwanted or harmful apps. Don't download anything from it.",
+        ),
         Signal::DangerousFile(kind) => {
             let kind = file_kind_name(kind, lang);
             return match lang {
@@ -1441,6 +1454,17 @@ mod tests {
         let reply = render_km(&[check]);
         assert!(reply.contains("&lt;a href=x&gt;ABA&lt;/a&gt; &amp; co"));
         assert!(!reply.contains("<a "));
+    }
+
+    #[test]
+    fn known_bad_site_reasons_never_say_safe() {
+        use crate::analyzers::reputation::Threat;
+        for lang in [Lang::Km, Lang::En] {
+            for threat in [Threat::Phishing, Threat::Malware, Threat::UnwantedSoftware] {
+                let text = reason(Signal::KnownBadSite(threat), lang).to_lowercase();
+                assert!(!text.contains("safe") && !text.contains("សុវត្ថិភាព"), "{text}");
+            }
+        }
     }
 
     #[test]

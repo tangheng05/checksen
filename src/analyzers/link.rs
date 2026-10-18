@@ -13,6 +13,7 @@ use tokio::sync::OnceCell;
 use tokio::time::{Instant, timeout_at};
 use url::Host;
 
+use super::reputation::SafeBrowsing;
 use super::sites::{self, Kind, Site};
 use super::{Check, Signal, Subject};
 
@@ -151,6 +152,7 @@ struct Page {
 pub struct LinkChecker {
     http: Client,
     rdap_servers: OnceCell<HashMap<String, Url>>,
+    safe_browsing: Option<SafeBrowsing>,
 }
 
 impl LinkChecker {
@@ -165,7 +167,13 @@ impl LinkChecker {
         Ok(Self {
             http,
             rdap_servers: OnceCell::new(),
+            safe_browsing: None,
         })
+    }
+
+    pub fn with_safe_browsing(mut self, safe_browsing: Option<SafeBrowsing>) -> Self {
+        self.safe_browsing = safe_browsing;
+        self
     }
 
     pub async fn check(&self, url: Url) -> Check {
@@ -188,7 +196,7 @@ impl LinkChecker {
         let final_host = last.host_str().unwrap_or_default();
         let site = sites::identify(final_host);
         let deadline = start + TOTAL_BUDGET;
-        let (age_days, page) = tokio::join!(
+        let (age_days, page, threat) = tokio::join!(
             async {
                 let domain = last.domain()?;
                 timeout_at(deadline, self.domain_age_days(domain))
@@ -205,8 +213,25 @@ impl LinkChecker {
                     .await
                     .ok()
                     .flatten()
+            },
+            async {
+                let safe_browsing = self.safe_browsing.as_ref()?;
+                match timeout_at(deadline, safe_browsing.lookup(&chain)).await {
+                    Ok(Ok(threat)) => threat,
+                    Ok(Err(error)) => {
+                        tracing::warn!(%error, "Safe Browsing lookup failed");
+                        None
+                    }
+                    Err(_) => {
+                        tracing::warn!("Safe Browsing lookup timed out");
+                        None
+                    }
+                }
             }
         );
+        if let Some(threat) = threat {
+            signals.push(Signal::KnownBadSite(threat));
+        }
         if is_new_domain(age_days) {
             signals.push(Signal::NewDomain);
         }

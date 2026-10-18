@@ -3,6 +3,7 @@ pub mod intent;
 pub mod khqr;
 pub mod link;
 pub mod llm;
+pub mod reputation;
 pub mod scan;
 pub mod sites;
 pub mod text;
@@ -10,6 +11,7 @@ pub mod text;
 use khqr_core::DecodedKhqr;
 
 use file::{Detector, FileInfo, FileKind};
+use reputation::Threat;
 
 use link::{LinkChecker, LinkInfo};
 use llm::ScamCategory;
@@ -66,6 +68,7 @@ pub enum Signal {
     HiddenFileName,
     FakeBankApp(&'static str),
     DangerousFile(FileKind),
+    KnownBadSite(Threat),
     ProgramInArchive,
     LockedArchive,
     KnownMalware(Detector),
@@ -85,6 +88,7 @@ impl Signal {
                 | Self::HiddenFileName
                 | Self::FakeBankApp(_)
                 | Self::KnownMalware(_)
+                | Self::KnownBadSite(_)
         )
     }
 
@@ -129,7 +133,8 @@ impl Signal {
             | Self::DisguisedFile { .. }
             | Self::HiddenFileName
             | Self::FakeBankApp(_)
-            | Self::KnownMalware(_) => 1.0,
+            | Self::KnownMalware(_)
+            | Self::KnownBadSite(_) => 1.0,
         }
     }
 }
