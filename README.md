@@ -48,10 +48,10 @@ Voice messages and videos can't be checked yet; the bot asks for a screenshot or
 
 Every change is scored against labelled real-world messages in CI. Recall is the share of scams caught; the false positive rate is the share of genuine messages wrongly flagged.
 
-| Benchmark | Rules only | Rules + Gemini |
+| Benchmark | Rules only | Rules + Gemini (last full run, rules v8) |
 | --- | --- | --- |
-| v1: 87 real messages, mostly English | 82.6% recall, 0% false positives | 95.7% recall, 7.3% false positives |
-| v2: 162 real Khmer messages | 82.4% recall, 3.1% false positives | 94.1% recall, 3.9% false positives |
+| v1: 87 real messages, mostly English | 82.6% recall, 0% false positives | 97.8% recall, 7.3% false positives |
+| v2: 162 real Khmer messages | 82.4% recall, 3.1% false positives | 97.1% recall, 3.9% false positives |
 
 The data, labels and how they were collected are in [`evals/`](evals/README.md). A pull request that lowers recall or raises false positives on the rules-only benchmark fails CI.
 
