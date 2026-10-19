@@ -50,7 +50,20 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let bot = Bot::new(env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?);
+    let token = env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?;
+    let (bot, max_file_mb) = match env_var("TELEGRAM_API_URL") {
+        Some(url) => {
+            tracing::info!("using a local Bot API server; files up to 50 MB are checked");
+            // It downloads the whole file before answering getFile, so allow more time.
+            let client = teloxide::net::default_reqwest_settings()
+                .timeout(Duration::from_secs(60))
+                .build()?;
+            let url = url.parse().context("TELEGRAM_API_URL is not a valid URL")?;
+            (Bot::with_client(token, client).set_api_url(url), 50)
+        }
+        // The most a bot may download through Telegram's own servers.
+        None => (Bot::new(token), 20),
+    };
     register_commands(&bot).await;
     let clamav = ClamAv::from_env();
     if clamav.is_none() {
@@ -68,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         store: store.clone(),
         clamav,
         virustotal,
+        max_file_bytes: max_file_mb * 1024 * 1024,
     });
 
     Dispatcher::builder(

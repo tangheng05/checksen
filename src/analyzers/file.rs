@@ -70,7 +70,8 @@ pub enum Content<'a> {
 /// Why the inside of a file couldn't be checked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unread {
-    TooBig,
+    /// Over the download limit, in MB.
+    TooBig(u32),
     DownloadFailed,
 }
 
@@ -421,14 +422,14 @@ mod tests {
         let check = inspect(
             "big.apk",
             None,
-            Content::Unread(Unread::TooBig),
+            Content::Unread(Unread::TooBig(20)),
             Scans::default(),
         );
         assert_eq!(check.signals, [Signal::DangerousFile(FileKind::AndroidApp)]);
         let Subject::File(info) = check.subject else {
             panic!("expected a file");
         };
-        assert_eq!(info.unread, Some(Unread::TooBig));
+        assert_eq!(info.unread, Some(Unread::TooBig(20)));
     }
 
     #[test]

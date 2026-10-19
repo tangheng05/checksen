@@ -5,9 +5,10 @@ use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::types::{
-    ChatAction, Document, FileId, Me, MessageEntityKind, MessageOrigin, ParseMode, PhotoSize,
-    ReplyParameters,
+    ChatAction, Document, FileId, InlineKeyboardMarkup, Me, MessageEntityKind, MessageId,
+    MessageOrigin, ParseMode, PhotoSize, ReplyParameters,
 };
+use tokio::sync::Mutex;
 use url::Url;
 
 use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
@@ -17,15 +18,13 @@ use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcrib
 use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
-use checksen::verdict::{self, Lang, Level, Text};
+use checksen::verdict::{self, Lang, Level, Step, Text};
 
 use crate::guard::{Admission, Guard, ModelCall, Reply};
 use crate::reports;
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
-// The most a bot may download from Telegram.
-const MAX_FILE_BYTES: u32 = 20 * 1024 * 1024;
 const CLAMAV_BUDGET: Duration = Duration::from_secs(15);
 const VIRUSTOTAL_BUDGET: Duration = Duration::from_secs(6);
 const MAX_LINKS_PER_MESSAGE: usize = 3;
@@ -43,6 +42,7 @@ pub struct Services {
     pub store: Option<Arc<Store>>,
     pub clamav: Option<ClamAv>,
     pub virustotal: Option<VirusTotalClient>,
+    pub max_file_bytes: u32,
 }
 
 enum Body {
@@ -151,11 +151,12 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
         Admission::Silent => return Ok(()),
     }
 
+    let progress = Progress::new(&bot, target, lang);
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
             let typing = tokio::spawn(keep_typing(bot.clone(), msg.chat.id));
-            let (reply, cacheable) = check(&bot, target, lang, &services).await;
+            let (reply, cacheable) = check(&bot, target, lang, &services, &progress).await;
             typing.abort();
             let reply = Arc::new(reply);
             if cacheable {
@@ -166,15 +167,96 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
     };
 
     let keyboard = reports::keyboard(services.store.as_deref(), reply.account.as_deref(), lang);
-    let mut request = answer(&bot, target, reply.text.as_str());
-    if reply.html {
-        request = request.parse_mode(ParseMode::Html);
+    progress.finish(&reply, keyboard).await
+}
+
+/// A status message for slow checks that ticks off their steps, then is edited into the reply.
+struct Progress<'a> {
+    bot: &'a Bot,
+    to: &'a Message,
+    lang: Lang,
+    shown: Mutex<Shown>,
+}
+
+#[derive(Default)]
+struct Shown {
+    message: Option<MessageId>,
+    done: Vec<Step>,
+    current: Option<Step>,
+}
+
+impl<'a> Progress<'a> {
+    fn new(bot: &'a Bot, to: &'a Message, lang: Lang) -> Self {
+        Self {
+            bot,
+            to,
+            lang,
+            shown: Mutex::default(),
+        }
     }
-    match keyboard {
-        Some(keyboard) => request.reply_markup(keyboard).await?,
-        None => request.await?,
-    };
-    Ok(())
+
+    /// Sends the status message on the first step, and edits it on the next ones.
+    async fn step(&self, step: Step) {
+        let mut shown = self.shown.lock().await;
+        if shown.current == Some(step) {
+            return;
+        }
+        if let Some(previous) = shown.current.replace(step) {
+            shown.done.push(previous);
+        }
+        let text = verdict::progress(&shown.done, step, self.lang);
+        let result = match shown.message {
+            Some(id) => self
+                .bot
+                .edit_message_text(self.to.chat.id, id, text)
+                .parse_mode(ParseMode::Html)
+                .await
+                .map(drop),
+            None => answer(self.bot, self.to, text)
+                .parse_mode(ParseMode::Html)
+                .await
+                .map(|sent| shown.message = Some(sent.id)),
+        };
+        if let Err(error) = result {
+            tracing::debug!(%error, "progress update failed");
+        }
+    }
+
+    /// Turns the status message into the reply, or sends the reply when there was none.
+    async fn finish(
+        self,
+        reply: &Reply,
+        keyboard: Option<InlineKeyboardMarkup>,
+    ) -> ResponseResult<()> {
+        let chat = self.to.chat.id;
+        if let Some(id) = self.shown.into_inner().message {
+            let mut edit = self.bot.edit_message_text(chat, id, reply.text.as_str());
+            if reply.html {
+                edit = edit.parse_mode(ParseMode::Html);
+            }
+            if let Some(keyboard) = keyboard.clone() {
+                edit = edit.reply_markup(keyboard);
+            }
+            match edit.await {
+                Ok(_) => return Ok(()),
+                Err(error) => {
+                    tracing::warn!(%error, "could not turn the status message into the reply");
+                    if let Err(error) = self.bot.delete_message(chat, id).await {
+                        tracing::debug!(%error, "could not delete the status message");
+                    }
+                }
+            }
+        }
+        let mut request = answer(self.bot, self.to, reply.text.as_str());
+        if reply.html {
+            request = request.parse_mode(ParseMode::Html);
+        }
+        match keyboard {
+            Some(keyboard) => request.reply_markup(keyboard).await?,
+            None => request.await?,
+        };
+        Ok(())
+    }
 }
 
 fn answer(bot: &Bot, to: &Message, text: impl Into<String>) -> <Bot as Requester>::SendMessage {
@@ -287,9 +369,15 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     })
 }
 
-async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> (Reply, bool) {
+async fn check(
+    bot: &Bot,
+    msg: &Message,
+    lang: Lang,
+    services: &Services,
+    progress: &Progress<'_>,
+) -> (Reply, bool) {
     let (outcome, kind) = if let Some(photo) = largest_photo(msg) {
-        check_photo(bot, msg, photo, lang, services).await
+        check_photo(bot, msg, photo, lang, services, progress).await
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         let checks = vec![khqr::check(payload)];
         let checks = reports::with_reports(checks, services.store.as_deref()).await;
@@ -297,7 +385,7 @@ async fn check(bot: &Bot, msg: &Message, lang: Lang, services: &Services) -> (Re
     } else if let Some(message) = msg.text() {
         check_text(msg, message, lang, services).await
     } else if let Some(document) = msg.document() {
-        check_document(bot, msg, document, lang, services).await
+        check_document(bot, msg, document, lang, services, progress).await
     } else {
         (Outcome::of(Vec::new()), None)
     };
@@ -428,16 +516,18 @@ async fn check_document(
     document: &Document,
     lang: Lang,
     services: &Services,
+    progress: &Progress<'_>,
 ) -> (Outcome, Option<MessageKind>) {
     let name = document.file_name.as_deref().unwrap_or_default();
     let mime = document.mime_type.as_ref().map(|mime| mime.essence_str());
-    let bytes = if document.file.size <= MAX_FILE_BYTES {
+    let bytes = if document.file.size <= services.max_file_bytes {
+        progress.step(Step::Download).await;
         download(bot, &document.file.id)
             .await
             .map_err(|error| tracing::warn!(%error, "file download failed"))
             .map_err(|()| Unread::DownloadFailed)
     } else {
-        Err(Unread::TooBig)
+        Err(Unread::TooBig(services.max_file_bytes / (1024 * 1024)))
     };
 
     // Screenshots and KHQR codes are often sent uncompressed, as files.
@@ -446,7 +536,7 @@ async fn check_document(
         && file::kind_from_bytes(image) == Some(FileKind::Image)
     {
         let file_check = file::inspect(name, mime, Content::Bytes(image), Scans::default());
-        let (mut outcome, kind) = check_image(image.clone(), msg, lang, services).await;
+        let (mut outcome, kind) = check_image(image.clone(), msg, lang, services, progress).await;
         if !file_check.signals.is_empty()
             && let Body::Checks(checks) = &mut outcome.body
         {
@@ -456,10 +546,15 @@ async fn check_document(
     }
 
     let (content, (scans, scanned)) = match &bytes {
-        Ok(bytes) => (Content::Bytes(bytes), scan(bytes, services).await),
+        Ok(bytes) => {
+            if services.clamav.is_some() || services.virustotal.is_some() {
+                progress.step(Step::Scan).await;
+            }
+            (Content::Bytes(bytes), scan(bytes, services).await)
+        }
         Err(why) => (
             Content::Unread(*why),
-            (Scans::default(), *why == Unread::TooBig),
+            (Scans::default(), matches!(why, Unread::TooBig(_))),
         ),
     };
     let mut checks = vec![file::inspect(name, mime, content, scans)];
@@ -524,6 +619,14 @@ async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
 
 async fn download(bot: &Bot, id: &FileId) -> anyhow::Result<Vec<u8>> {
     let file = bot.get_file(id.clone()).await?;
+    // A local Bot API server saves the file itself and returns its absolute path.
+    if file.path.starts_with('/') {
+        let bytes = tokio::fs::read(&file.path).await;
+        if let Err(error) = tokio::fs::remove_file(&file.path).await {
+            tracing::warn!(%error, "could not delete a downloaded file");
+        }
+        return Ok(bytes?);
+    }
     let mut bytes = Vec::new();
     bot.download_file(&file.path, &mut bytes).await?;
     Ok(bytes)
@@ -535,9 +638,11 @@ async fn check_photo(
     photo: &PhotoSize,
     lang: Lang,
     services: &Services,
+    progress: &Progress<'_>,
 ) -> (Outcome, Option<MessageKind>) {
+    progress.step(Step::FindQr).await;
     match download_photo(bot, photo).await {
-        Ok(image) => check_image(image, msg, lang, services).await,
+        Ok(image) => check_image(image, msg, lang, services, progress).await,
         Err(error) => {
             tracing::warn!(%error, "photo download failed");
             let failed = Outcome::text(verdict::no_qr_found(lang), false);
@@ -552,7 +657,9 @@ async fn check_image(
     msg: &Message,
     lang: Lang,
     services: &Services,
+    progress: &Progress<'_>,
 ) -> (Outcome, Option<MessageKind>) {
+    progress.step(Step::FindQr).await;
     let caption = msg.caption();
     let failed = || Outcome::text(verdict::no_qr_found(lang), false);
     let decoded = tokio::task::spawn_blocking(move || {
@@ -591,6 +698,7 @@ async fn check_image(
         tracing::warn!("daily screenshot budget used up");
         return caption_or(msg, services, unread()).await;
     }
+    progress.step(Step::ReadText).await;
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
             let message = match caption {

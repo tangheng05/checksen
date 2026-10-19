@@ -154,8 +154,8 @@ const LINK_ADVICE: Text = text(
     "Never enter a password or OTP code through a link. To check your account, open your bank app yourself.",
 );
 const OPENED_FILE: Text = text(
-    "បើអ្នកបានបើកវារួចហើយ៖\n1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n2. ប្តូរលេខសម្ងាត់ Two-Step Verification។\n3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។\n4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។",
-    "If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
+    "🆘 បើអ្នកបានបើកវារួចហើយ៖\n1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n2. ប្តូរលេខសម្ងាត់ Two-Step Verification។\n3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។\n4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។",
+    "🆘 If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
 );
 const NO_TEXT_SIGNALS: Text = text(
     "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។",
@@ -239,6 +239,37 @@ pub fn no_qr_found(lang: Lang) -> String {
     )
 }
 
+/// A step of a slow check, listed in the status message while it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Step {
+    Download,
+    Scan,
+    FindQr,
+    ReadText,
+}
+
+impl Step {
+    fn name(self, lang: Lang) -> &'static str {
+        match self {
+            Self::Download => lang.pick("ទាញយកឯកសារ", "Download the file"),
+            Self::Scan => lang.pick("ស្កេនរកមេរោគ", "Scan for viruses"),
+            Self::FindQr => lang.pick("រក QR ក្នុងរូប", "Look for a QR code"),
+            Self::ReadText => lang.pick("អានអក្សរក្នុងរូប", "Read the text in the image"),
+        }
+    }
+}
+
+/// Telegram HTML: the steps done so far, and the one running now.
+pub fn progress(done: &[Step], current: Step, lang: Lang) -> String {
+    let mut lines = vec![format!(
+        "<b>{}</b>",
+        lang.pick("🔍 កំពុងពិនិត្យ…", "🔍 Checking…")
+    )];
+    lines.extend(done.iter().map(|step| format!("✅ {}", step.name(lang))));
+    lines.push(format!("⏳ {}…", current.name(lang)));
+    lines.join("\n")
+}
+
 /// Who a forwarded message came from and what kind of message it is.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct About<'a> {
@@ -247,6 +278,7 @@ pub struct About<'a> {
 }
 
 /// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
+/// A file's name, type and scan results stay outside the fold.
 pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     let Some(lead) = checks
         .iter()
@@ -257,16 +289,37 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     let level = decide(lead);
     let top = top_signal(lead, level);
     let summary = summary(lead, level, top, lang);
-    let action =
-        action(lead, level, about.kind, lang).filter(|action| !summary.contains(action.as_str()));
+    let action = action(lead, level, about.kind, lang).filter(|action| {
+        !summary
+            .as_deref()
+            .is_some_and(|summary| summary.contains(action.as_str()))
+    });
+    let about = about_line(about, lang);
 
     let mut lines = vec![format!("<b>{}</b>", escape(level.label(lang)))];
-    if let Some(about) = about_line(about, lang) {
-        lines.push(escape(&about));
+    let lead_file = match &lead.subject {
+        Subject::File(file) => Some(file),
+        _ => None,
+    };
+    if lead_file.is_none()
+        && let Some(about) = &about
+    {
+        lines.push(escape(about));
     }
-    lines.push(escape(&summary));
+    if let Some(summary) = &summary {
+        lines.push(escape(summary));
+    }
     if let Some(action) = &action {
         lines.push(format!("👉 {}", escape(action)));
+    }
+    if let Some(file) = lead_file {
+        lines.push(String::new());
+        lines.push(escape(&file_card(
+            file,
+            summary.as_deref(),
+            about.as_deref(),
+            lang,
+        )));
     }
     let about_money = matches!(level, Level::HighRisk | Level::Suspicious)
         && !matches!(lead.subject, Subject::File(_))
@@ -285,7 +338,7 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
             check,
             checks.len() > 1,
             is_lead.then_some(top).flatten(),
-            !is_lead,
+            is_lead,
             lang,
         );
         if !section.is_empty() && !details.contains(&section) {
@@ -312,12 +365,22 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
             details.push(BANK_APP_ADVICE.get(lang).to_owned());
         }
     }
+    let mut fold = Vec::new();
     if !details.is_empty() {
         let heading = lang.pick("ℹ️ ព័ត៌មានលម្អិត", "ℹ️ Details");
+        fold.push(format!("{heading}\n{}", details.join("\n\n")));
+    }
+    let risky_file = checks.iter().any(|check| {
+        matches!(check.subject, Subject::File(_)) && decide(check) != Level::NoKnownSignals
+    });
+    if risky_file {
+        fold.push(OPENED_FILE.get(lang).to_owned());
+    }
+    if !fold.is_empty() {
         lines.push(String::new());
         lines.push(format!(
             "<blockquote expandable>{}</blockquote>",
-            escape(&format!("{heading}\n{}", details.join("\n\n")))
+            escape(&fold.join("\n\n"))
         ));
     }
     lines.join("\n")
@@ -368,11 +431,12 @@ fn top_signal(check: &Check, level: Level) -> Option<Signal> {
     }
 }
 
-fn summary(check: &Check, level: Level, top: Option<Signal>, lang: Lang) -> String {
+/// `None` for a file with nothing found, since its card below says what it is.
+fn summary(check: &Check, level: Level, top: Option<Signal>, lang: Lang) -> Option<String> {
     if let Some(signal) = top {
-        return reason(signal, lang);
+        return Some(reason(signal, lang));
     }
-    match &check.subject {
+    Some(match &check.subject {
         Subject::Khqr(payee) => {
             let mut line = format!(
                 "{} {}",
@@ -385,16 +449,10 @@ fn summary(check: &Check, level: Level, top: Option<Signal>, lang: Lang) -> Stri
             line
         }
         Subject::Link(link) => link_summary(link, lang),
-        Subject::File(file) => {
-            let mut line = format!("📎 {}", file_name(&file.name));
-            if let Some(real) = file.real {
-                line.push_str(&format!(" · {}", file_kind_name(real, lang)));
-            }
-            line
-        }
+        Subject::File(_) => return None,
         Subject::Text if level == Level::NoKnownSignals => NO_TEXT_SIGNALS.get(lang).to_owned(),
         Subject::Text | Subject::Unreadable => Level::CantTell.label(lang).to_owned(),
-    }
+    })
 }
 
 fn link_summary(link: &LinkInfo, lang: Lang) -> String {
@@ -567,7 +625,7 @@ fn detail_section(
     check: &Check,
     labeled: bool,
     skip: Option<Signal>,
-    with_note: bool,
+    is_lead: bool,
     lang: Lang,
 ) -> String {
     let level = decide(check);
@@ -594,17 +652,12 @@ fn detail_section(
         Subject::Khqr(payee) => lines.push(render_payee(payee, lang)),
         Subject::Link(link) => {
             lines.push(render_link(link, lang));
-            if with_note && let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
+            if !is_lead && let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
                 lines.push(note);
             }
         }
-        Subject::File(file) => {
-            lines.push(render_file(file, lang));
-            if level != Level::NoKnownSignals {
-                lines.push(OPENED_FILE.get(lang).to_owned());
-            }
-        }
-        Subject::Text | Subject::Unreadable => {}
+        Subject::File(file) if !is_lead => lines.push(file_card(file, None, None, lang)),
+        Subject::File(_) | Subject::Text | Subject::Unreadable => {}
     }
     if lines.len() == usize::from(labeled) {
         return String::new();
@@ -748,12 +801,8 @@ fn reason(signal: Signal, lang: Lang) -> String {
         Signal::DisguisedFile { shown, real } => {
             let (shown, real) = (file_kind_name(shown, lang), file_kind_name(real, lang));
             return match lang {
-                Lang::Km => format!("ឯកសារនេះធ្វើពុតជា{shown} តែតាមពិតជា{real}។ កុំបើកវា។"),
-                Lang::En => {
-                    format!(
-                        "This file pretends to be {shown}, but it's really {real}. Don't open it."
-                    )
-                }
+                Lang::Km => format!("ឯកសារនេះធ្វើពុតជា{shown} តែតាមពិតជា{real}។"),
+                Lang::En => format!("This file pretends to be {shown}, but it's really {real}."),
             };
         }
         Signal::KnownBadSite(Threat::Phishing) => (
@@ -771,8 +820,8 @@ fn reason(signal: Signal, lang: Lang) -> String {
         Signal::DangerousFile(kind) => {
             let kind = file_kind_name(kind, lang);
             return match lang {
-                Lang::Km => format!("ឯកសារនេះជា{kind}។ កុំបើក ឬដំឡើងវា។"),
-                Lang::En => format!("This file is {kind}. Don't open or install it."),
+                Lang::Km => format!("ឯកសារនេះជា{kind}។"),
+                Lang::En => format!("This file is {kind}."),
             };
         }
         Signal::FakeBankApp(brand) => {
@@ -1029,31 +1078,29 @@ fn file_name(name: &str) -> String {
     inert(name).replace("[.]", "\u{2024}")
 }
 
-fn render_file(file: &FileInfo, lang: Lang) -> String {
-    let mut lines = vec![format!(
-        "{} {}",
-        lang.pick("• ឈ្មោះឯកសារ៖", "• File name:"),
-        file_name(&file.name)
-    )];
-    if let Some(real) = file.real {
-        lines.push(format!(
-            "{} {}",
-            lang.pick("• ប្រភេទពិត៖", "• Real type:"),
-            file_kind_name(real, lang)
-        ));
+/// The file's name and type (unless the summary already gave it), where it came from, and the scan results.
+fn file_card(file: &FileInfo, summary: Option<&str>, about: Option<&str>, lang: Lang) -> String {
+    let mut name = format!("📎 {}", file_name(&file.name));
+    if let Some(real) = file
+        .real
+        .map(|real| file_kind_name(real, lang))
+        .filter(|real| !summary.is_some_and(|summary| summary.contains(real)))
+    {
+        name.push_str(&format!(" · {real}"));
+    }
+    let mut lines = vec![name];
+    if let Some(about) = about {
+        lines.push(format!("↪️ {about}"));
     }
     match file.unread {
-        Some(Unread::TooBig) => lines.push(
-            lang.pick(
-                "• មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះឯកសារធំជាង 20 MB",
-                "• Couldn't look inside: the file is over 20 MB",
-            )
-            .to_owned(),
-        ),
+        Some(Unread::TooBig(limit)) => lines.push(match lang {
+            Lang::Km => format!("⚠️ មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះឯកសារធំជាង {limit} MB"),
+            Lang::En => format!("⚠️ Couldn't look inside: the file is over {limit} MB"),
+        }),
         Some(Unread::DownloadFailed) => lines.push(
             lang.pick(
-                "• មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះទាញយកមិនបាន",
-                "• Couldn't look inside: the download failed",
+                "⚠️ មិនអាចពិនិត្យខាងក្នុងបានទេ ព្រោះទាញយកមិនបាន",
+                "⚠️ Couldn't look inside: the download failed",
             )
             .to_owned(),
         ),
@@ -1064,11 +1111,11 @@ fn render_file(file: &FileInfo, lang: Lang) -> String {
             true => lang.pick("មិនរកឃើញមេរោគ", "no virus found"),
             false => lang.pick("រកឃើញមេរោគ", "virus found"),
         };
-        lines.push(format!("• ClamAV: {result}"));
+        lines.push(format!("🛡️ ClamAV: {result}"));
     }
     match file.scans.virustotal {
         Some(VirusTotal::Unknown) => lines.push(format!(
-            "• VirusTotal: {}",
+            "🛡️ VirusTotal: {}",
             lang.pick(
                 "មិនទាន់មានអ្នកណាស្កេនឯកសារនេះទេ",
                 "nobody has scanned this file yet"
@@ -1076,11 +1123,11 @@ fn render_file(file: &FileInfo, lang: Lang) -> String {
         )),
         Some(VirusTotal::Seen { malicious, engines }) => lines.push(match lang {
             Lang::Km => format!(
-                "• VirusTotal: {}/{} រកឃើញមេរោគ",
+                "🛡️ VirusTotal: {}/{} រកឃើញមេរោគ",
                 khmer_digits(malicious.into()),
                 khmer_digits(engines.into())
             ),
-            Lang::En => format!("• VirusTotal: {malicious}/{engines} engines found malware"),
+            Lang::En => format!("🛡️ VirusTotal: {malicious}/{engines} engines found malware"),
         }),
         None => {}
     }
@@ -1439,13 +1486,13 @@ mod tests {
             &[inspect(
                 "movie.mp4",
                 None,
-                Content::Unread(Unread::TooBig),
+                Content::Unread(Unread::TooBig(50)),
                 Scans::default(),
             )],
             About::default(),
             Lang::En,
         );
-        assert!(big.contains("Couldn't look inside: the file is over 20 MB"));
+        assert!(big.contains("Couldn't look inside: the file is over 50 MB"));
     }
 
     #[test]
@@ -1461,7 +1508,55 @@ mod tests {
         let reply = render_km(&[inspect("eicar.txt", None, Content::Bytes(b"X5O!"), scans)]);
         assert_eq!(reply.matches("ClamAV").count(), 1);
         assert_eq!(reply.matches("VirusTotal").count(), 2);
-        assert!(reply.contains("• ClamAV: រកឃើញមេរោគ"));
+        assert!(reply.contains("🛡️ ClamAV: រកឃើញមេរោគ"));
+    }
+
+    #[test]
+    fn progress_ticks_off_finished_steps() {
+        assert_eq!(
+            progress(&[Step::Download], Step::Scan, Lang::En),
+            "<b>🔍 Checking…</b>\n✅ Download the file\n⏳ Scan for viruses…"
+        );
+    }
+
+    #[test]
+    fn file_facts_stay_outside_the_fold() {
+        use crate::analyzers::file::{Content, Scans, VirusTotal, inspect};
+        let about = About {
+            forwarded_from: Some("Dara"),
+            kind: None,
+        };
+        let program = render(
+            &[inspect(
+                "photo.exe",
+                None,
+                Content::Unread(Unread::TooBig(20)),
+                Scans::default(),
+            )],
+            about,
+            Lang::En,
+        );
+        let (shown, folded) = program.split_once("<blockquote expandable>").unwrap();
+        assert!(shown.contains("📎 photo․exe\n↪️ Forwarded from Dara\n⚠️ Couldn't look inside"));
+        assert!(!shown.contains("Real type") && !shown.contains("Don't open or install it"));
+        assert!(folded.starts_with("🆘 If you already opened it:"));
+
+        let scans = Scans {
+            clamav_clean: Some(true),
+            virustotal: Some(VirusTotal::Unknown),
+        };
+        let pdf = render(
+            &[inspect(
+                "bill.pdf",
+                None,
+                Content::Bytes(b"%PDF-1.7"),
+                scans,
+            )],
+            About::default(),
+            Lang::En,
+        );
+        assert!(!pdf.contains("blockquote"));
+        assert!(pdf.ends_with("📎 bill․pdf · a PDF\n🛡️ ClamAV: no virus found\n🛡️ VirusTotal: nobody has scanned this file yet"));
     }
 
     #[test]
