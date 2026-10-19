@@ -107,7 +107,8 @@ const SITES: &[Site] = &[
         "National Bank of Cambodia (Bakong)",
         Government,
     ),
-    site("telegram.org", "Telegram", Messaging),
+    // Telegram's own pages (my., web., core.); people post on t.me instead.
+    site("telegram.org", "Telegram", Tech),
     site("t.me", "Telegram", Messaging),
     site("telegram.me", "Telegram", Messaging),
     site("whatsapp.com", "WhatsApp", Messaging),

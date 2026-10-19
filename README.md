@@ -24,6 +24,7 @@
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police, scam-compound job ads, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
 | A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages, and, when set up, a ClamAV scan and a VirusTotal lookup. A photo or KHQR screenshot sent as a file gets the same check as a photo |
+| A message forwarded from Telegram's own account | Confirms it really came from Telegram and warns never to share the login code; it isn't sent to the AI |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
 
 Each reply gives one of four levels:
@@ -138,6 +139,14 @@ The bot must run on the same machine, since it reads files from that folder. Cla
 ```sh
 sudo sed -i 's/^StreamMaxLength .*/StreamMaxLength 100M/; s/^MaxFileSize .*/MaxFileSize 100M/; s/^MaxScanSize .*/MaxScanSize 400M/' /etc/clamav/clamd.conf
 sudo systemctl restart clamav-daemon
+```
+
+The bot exits if the Bot API server isn't up yet, for example right after a reboot. So have systemd wait for Docker and keep retrying:
+
+```sh
+sudo mkdir -p /etc/systemd/system/checksen.service.d
+printf '[Unit]\nAfter=docker.service\nStartLimitIntervalSec=0\n[Service]\nRestartSec=5\n' | sudo tee /etc/systemd/system/checksen.service.d/wait.conf
+sudo systemctl daemon-reload
 ```
 
 Then `systemctl enable --now checksen`. To update: `git pull && cargo build --release && systemctl restart checksen`.

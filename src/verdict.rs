@@ -73,6 +73,11 @@ pub const NOTHING_IN_PHOTO: Text = text(
     "រូបនេះមិនមាន QR កូដ ឬអក្សរសារ ដែលខ្ញុំអាចពិនិត្យបានទេ។ បើជារូប QR សូមថតឱ្យច្បាស់ ឱ្យឃើញ QR ទាំងមូល។ បើជាសារ សូមផ្ញើរូបថតអេក្រង់សារនោះ ឬចម្លងអក្សរមក។",
     "This photo has no QR code or message text for me to check. If it's a QR, take a clear photo of the whole code. If it's a message, send a screenshot of it or paste the text.",
 );
+/// For messages forwarded from Telegram's own service account, which nobody else can send as.
+pub const FROM_TELEGRAM: Text = text(
+    "ℹ️ សារនេះពិតជាមកពីគណនីផ្លូវការរបស់ Telegram មែន។\n👉 កុំឱ្យលេខកូដក្នុងសារនេះទៅនរណាម្នាក់ឡើយ សូម្បីតែអ្នកដែលអះអាងថាមកពី Telegram ក៏ដោយ។ បើអ្នកមិនបានសុំលេខកូដនេះទេ មានគេកំពុងព្យាយាមចូលគណនីរបស់អ្នក៖ សូមបើក Two-Step Verification ក្នុង Settings → Privacy and Security។",
+    "ℹ️ This message really is from Telegram's official account.\n👉 Never give the code in it to anyone, even someone who says they're from Telegram. If you didn't ask for this code, someone is trying to get into your account: turn on Two-Step Verification in Settings → Privacy and Security.",
+);
 pub const NOTHING_TO_CHECK: Text = text(
     "គ្មានអ្វីត្រូវពិនិត្យក្នុងទីតាំងទេ។ សូមផ្ញើសារ តំណ ឬ QR ដែលអ្នកសង្ស័យ មកវិញ។",
     "There's nothing to check in a location. Send me a message, link or QR code you're unsure about.",
@@ -633,19 +638,17 @@ fn detail_section(
     if labeled {
         lines.push(level.label(lang).to_owned());
     }
-    // A file's antivirus results already have their own lines, so their sentences aren't repeated.
-    let scan_lines = matches!(check.subject, Subject::File(_));
+    // A file's card already shows its scan results, and its real type when it leads the reply.
+    let on_card = |signal: &Signal| match (&check.subject, signal) {
+        (Subject::File(_), Signal::KnownMalware(_) | Signal::FlaggedByFewEngines(_)) => true,
+        (Subject::File(file), Signal::DangerousFile(kind)) => is_lead && file.real == Some(*kind),
+        _ => false,
+    };
     lines.extend(
         shown_signals(check, level)
             .into_iter()
             .filter(|&signal| Some(signal) != skip)
-            .filter(|signal| {
-                !(scan_lines
-                    && matches!(
-                        signal,
-                        Signal::KnownMalware(_) | Signal::FlaggedByFewEngines(_)
-                    ))
-            })
+            .filter(|signal| !on_card(signal))
             .map(|signal| reason(signal, lang)),
     );
     match &check.subject {
@@ -1390,6 +1393,8 @@ mod tests {
                 };
                 assert!(!answer.contains("សុវត្ថិភាព") && !answer.to_lowercase().contains("safe"));
             }
+            let telegram = FROM_TELEGRAM.get(lang);
+            assert!(!telegram.contains("សុវត្ថិភាព") && !telegram.to_lowercase().contains("safe"));
         }
     }
 
@@ -1505,10 +1510,23 @@ mod tests {
                 engines: 68,
             }),
         };
-        let reply = render_km(&[inspect("eicar.txt", None, Content::Bytes(b"X5O!"), scans)]);
+        let reply = render_km(&[inspect(
+            "eicar.txt",
+            None,
+            Content::Bytes(b"X5O!"),
+            scans.clone(),
+        )]);
         assert_eq!(reply.matches("ClamAV").count(), 1);
         assert_eq!(reply.matches("VirusTotal").count(), 2);
         assert!(reply.contains("🛡️ ClamAV: រកឃើញមេរោគ"));
+
+        let program = render(
+            &[inspect("photo.exe", None, Content::Bytes(b"MZ"), scans)],
+            About::default(),
+            Lang::En,
+        );
+        assert_eq!(program.matches("Windows program").count(), 1);
+        assert!(program.contains("<blockquote expandable>🆘 If you already opened it:"));
     }
 
     #[test]

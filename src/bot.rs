@@ -376,7 +376,14 @@ async fn check(
     services: &Services,
     progress: &Progress<'_>,
 ) -> (Reply, bool) {
-    let (outcome, kind) = if let Some(photo) = largest_photo(msg) {
+    // Its login codes must not reach the classifier, and only Telegram can send as this account.
+    let from_telegram = matches!(
+        msg.forward_origin(),
+        Some(MessageOrigin::User { sender_user, .. }) if sender_user.id.is_telegram()
+    );
+    let (outcome, kind) = if from_telegram {
+        (Outcome::text(verdict::FROM_TELEGRAM.get(lang), true), None)
+    } else if let Some(photo) = largest_photo(msg) {
         check_photo(bot, msg, photo, lang, services, progress).await
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         let checks = vec![khqr::check(payload)];
