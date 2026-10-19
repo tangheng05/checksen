@@ -172,9 +172,9 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let typing = tokio::spawn(keep_typing(bot.clone(), msg.chat.id));
+            let typing = StopOnDrop(tokio::spawn(keep_typing(bot.clone(), msg.chat.id)));
             let (reply, cacheable) = check(&bot, target, lang, &services, &progress).await;
-            typing.abort();
+            drop(typing);
             let reply = Arc::new(reply);
             if cacheable {
                 guard.store(key, reply.clone());
@@ -284,6 +284,15 @@ impl<'a> Progress<'a> {
 fn answer(bot: &Bot, to: &Message, text: impl Into<String>) -> <Bot as Requester>::SendMessage {
     bot.send_message(to.chat.id, text)
         .reply_parameters(ReplyParameters::new(to.id).allow_sending_without_reply())
+}
+
+/// Stops the typing indicator however the check ends, even if it panics.
+struct StopOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for StopOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 async fn keep_typing(bot: Bot, chat: ChatId) {

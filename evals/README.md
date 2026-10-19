@@ -6,7 +6,7 @@
 - **v2**: 162 Khmer and mixed Khmer/English texts (34 scam, 128 legit), all copied from public Cambodian pages: news, ministry notices, and bank, telco and brand sites. Each row's `source` links to its page, and every text was re-checked against that page. Legit rows are mostly hard negatives: official warnings, winner announcements, service notices and news about scams. Collection notes: `research_notes/Cambodia scam message data/khmer_v2_collection.md`. Treat v2 as the Khmer number.
 - **v1**: 87 messages from published 2023–2026 Cambodian sources (bank and regulator warnings, news, real bank promotions and alerts); each row's `source` links to where it was published. 47 are verbatim, the rest reconstructed from published descriptions; the eval scores the two separately. Treat v1 as the real-world number. After an intended improvement, run `cargo run --bin eval -- --update-baseline` and commit both files.
 
-CI scores the rules alone. Before changing the classifier prompt or model, also run `cargo run --bin eval -- --llm gemini` (free tier; needs `GEMINI_API_KEY`) and commit its `rules-v<N>+gemini-v1.json`.
+CI scores the rules alone. Before changing the classifier prompt or model, also run `cargo run --bin eval -- --llm gemini` (free tier; needs `GEMINI_API_KEY`) and commit its `rules-v<N>+gemini-v1.json` and `rules-v<N>+gemini-v2.json`. Their `model_false_alarms` list what the model said (category, whether it cited a rule, and message type) for each genuine message it got wrong, so a false alarm's cause can be read without re-running it.
 
 Each line of `data/v0.jsonl` is one message:
 

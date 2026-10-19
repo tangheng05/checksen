@@ -52,8 +52,8 @@ const fn text(km: &'static str, en: &'static str) -> Text {
 }
 
 pub const HELP: Text = text(
-    "សូមផ្ញើសារ តំណ (link) កូដ KHQR ឬរូបថតអេក្រង់ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "Send me a message, link, KHQR code or screenshot you're unsure about. I'll tell you who a QR really pays, where a link goes, and whether a message has scam signs.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
 pub const WELCOME: Text = text(
     "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
@@ -97,8 +97,8 @@ const ABOUT_CODES: Text = text(
     "Banks, Wing, Telegram and the police never ask for your OTP code, PIN or password, whether by message, phone call or link. If someone asks, it's a scam. An OTP is only for you to type into the app yourself.",
 );
 const HOW_TO_REPORT: Text = text(
-    "ដើម្បីរាយការណ៍៖\n• បើអ្នកបានបាត់លុយ ឬប្រាប់លេខកូដ សូមតេទៅធនាគាររបស់អ្នកមុនគេ តាមលេខក្នុងកម្មវិធី។\n• ក្នុង Telegram សូមបើកគណនី ឬឆានែលនោះ ចុច ⋮ ហើយជ្រើស Report។\n• អ្នកក៏អាចរាយការណ៍ទៅប៉ូលិសផងដែរ។",
-    "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• You can also report it to the police.",
+    "ដើម្បីរាយការណ៍៖\n• បើអ្នកបានបាត់លុយ ឬប្រាប់លេខកូដ សូមតេទៅធនាគាររបស់អ្នកមុនគេ តាមលេខក្នុងកម្មវិធី។\n• ក្នុង Telegram សូមបើកគណនី ឬឆានែលនោះ ចុច ⋮ ហើយជ្រើស Report។\n• ចុច 🚩 នៅក្រោមចម្លើយរបស់ CheckSen ដើម្បីឱ្យវាព្រមានអ្នកដទៃអំពីលេខ គណនី ឬគេហទំព័រនោះ។\n• អ្នកក៏អាចរាយការណ៍ទៅប៉ូលិសផងដែរ។",
+    "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• Tap 🚩 under a CheckSen reply so it warns others about that number, account or site.\n• You can also report it to the police.",
 );
 const PRIVACY: Text = text(
     "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal និង MalwareBazaar មិនមែនឯកសារខ្លួនឯងទេ។ បើអ្នករាយការណ៍ការបោកប្រាស់ CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះគណនី គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ ចុច /forget ដើម្បីលុបការរាយការណ៍របស់អ្នក។",
@@ -141,12 +141,16 @@ pub const REPORTED: Text = text(
     "Thanks for reporting. Don't pay with this QR, and ask the seller to confirm their account.",
 );
 pub const REPORT_LIMIT: Text = text(
-    "ថ្ងៃនេះអ្នករាយការណ៍ច្រើនដងហើយ។ សូមកុំបង់ប្រាក់តាម QR នេះ ហើយរាយការណ៍ម្តងទៀតនៅថ្ងៃស្អែក។",
-    "You've reported a lot today. Please don't pay with this QR, and report again tomorrow.",
+    "ថ្ងៃនេះអ្នករាយការណ៍ច្រើនដងហើយ។ សូមរាយការណ៍ម្តងទៀតនៅថ្ងៃស្អែក ហើយកុំបង់ប្រាក់ ឬឆ្លើយតប ទាល់តែអ្នកប្រាកដ។",
+    "You've reported a lot today. Please report again tomorrow, and don't pay or reply until you're sure.",
 );
 pub const REPORT_FAILED: Text = text(
-    "ពេលនេះមិនអាចរាយការណ៍បានទេ។ សូមកុំបង់ប្រាក់តាម QR នេះ។",
-    "Reporting isn't working right now. Please don't pay with this QR.",
+    "ពេលនេះមិនអាចរាយការណ៍បានទេ។ សូមកុំបង់ប្រាក់ ឬឆ្លើយតប ទាល់តែអ្នកប្រាកដ។",
+    "Reporting isn't working right now. Please don't pay or reply until you're sure.",
+);
+pub const FORGET_FAILED: Text = text(
+    "ពេលនេះមិនអាចលុបការរាយការណ៍របស់អ្នកបានទេ។ សូមសាកម្តងទៀតពេលក្រោយ។",
+    "Couldn't delete your reports right now. Please try again later.",
 );
 pub const REPLY_FAILED: Text = text(
     "ខ្ញុំមិនអាចបង្ហាញលទ្ធផលបានទេ។ សូមប្រយ័ត្ន ហើយកុំបើក ឬបង់ប្រាក់អ្វីទាំងអស់ ទាល់តែអ្នកប្រាកដ។",
@@ -693,7 +697,13 @@ fn detail_section(
     match &check.subject {
         Subject::Khqr(payee) => lines.push(render_payee(payee, lang)),
         Subject::Link(link) => {
-            lines.push(render_link(link, lang));
+            let rendered = render_link(link, lang);
+            // The link inside a file is already named at the top of the reply.
+            match rendered.split_once('\n') {
+                Some((_, rest)) if is_lead && link.in_file => lines.push(rest.to_owned()),
+                None if is_lead && link.in_file => {}
+                _ => lines.push(rendered),
+            }
             if !is_lead && let Some(note) = link.site.and_then(|site| site_note(site, lang)) {
                 lines.push(note);
             }
@@ -852,12 +862,12 @@ fn reason(signal: Signal, lang: Lang) -> String {
             };
         }
         Signal::KnownBadSite(Threat::Phishing) => (
-            "Google ស្គាល់គេហទំព័រនេះថាជាគេហទំព័របោកប្រាស់ ដែលលួចលេខសម្ងាត់ ឬព័ត៌មានរបស់អ្នក។ កុំបើកវា។",
-            "Google lists this as a phishing site that steals passwords or personal details. Don't open it.",
+            "Google ស្គាល់គេហទំព័រនេះថាជាគេហទំព័របោកប្រាស់ ដែលលួចលេខសម្ងាត់ ឬព័ត៌មានរបស់អ្នក។",
+            "Google lists this as a phishing site that steals passwords or personal details.",
         ),
         Signal::KnownBadSite(Threat::Malware) => (
-            "Google ស្គាល់គេហទំព័រនេះថាចែកចាយមេរោគ។ កុំបើកវា ហើយកុំទាញយកអ្វីពីវា។",
-            "Google lists this site for spreading malware. Don't open it or download anything from it.",
+            "Google ស្គាល់គេហទំព័រនេះថាចែកចាយមេរោគ។ កុំទាញយកអ្វីពីវា។",
+            "Google lists this site for spreading malware. Don't download anything from it.",
         ),
         Signal::KnownBadSite(Threat::UnwantedSoftware) => (
             "Google ស្គាល់គេហទំព័រនេះថាដំឡើងកម្មវិធីដែលមិនចង់បាន ឬបង្កគ្រោះថ្នាក់។ កុំទាញយកអ្វីពីវា។",
@@ -954,8 +964,8 @@ fn reason(signal: Signal, lang: Lang) -> String {
             "MalwareBazaar, a public list of malware, knows this file as malware.",
         ),
         Signal::KnownMalwareLink => (
-            "URLhaus ដែលជាបញ្ជីតំណចែកចាយមេរោគ មានតំណនេះក្នុងបញ្ជី។ កុំបើកវា ហើយកុំទាញយកអ្វីពីវា។",
-            "URLhaus, a public list of links that spread malware, lists this link. Don't open it or download anything from it.",
+            "URLhaus ដែលជាបញ្ជីតំណចែកចាយមេរោគ មានតំណនេះក្នុងបញ្ជី។ កុំទាញយកអ្វីពីវា។",
+            "URLhaus, a public list of links that spread malware, lists this link. Don't download anything from it.",
         ),
         Signal::KnownMalware(Detector::ClamAv) => (
             "កម្មវិធីកំចាត់មេរោគ ClamAV រកឃើញមេរោគក្នុងឯកសារនេះ។",
@@ -1554,6 +1564,11 @@ mod tests {
             for fixed in [FROM_TELEGRAM.get(lang), REPLY_FAILED.get(lang)] {
                 assert!(!fixed.contains("សុវត្ថិភាព") && !fixed.to_lowercase().contains("safe"));
             }
+            // Shared by every kind of report, so none of them may assume a QR code.
+            for shared in [REPORT_LIMIT, REPORT_FAILED, FORGET_FAILED] {
+                assert!(!shared.get(lang).contains("QR"));
+            }
+            assert!(HELP.get(lang).contains("🚩") && HOW_TO_REPORT.get(lang).contains("🚩"));
         }
     }
 
@@ -1916,8 +1931,14 @@ mod tests {
             lines.next(),
             Some("🔗 Link inside the file: aba-verify-login[.]top")
         );
-        let folded = reply.split_once("<blockquote expandable>").unwrap().1;
-        assert!(folded.find("Link inside the file").unwrap() < folded.find("receipt").unwrap());
+        assert_eq!(reply.matches("Link inside the file").count(), 1);
+        assert!(
+            reply
+                .split_once("<blockquote expandable>")
+                .unwrap()
+                .1
+                .contains("receipt")
+        );
     }
 
     #[test]

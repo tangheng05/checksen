@@ -20,10 +20,10 @@
 | You send | It checks |
 | --- | --- |
 | A KHQR code (photo or screenshot) | Who the QR really pays: merchant name, account, bank and amount, and whether the code is valid KHQR or was edited |
-| A link | Whether Google Safe Browsing knows it as phishing or malware, who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
+| A link | Whether Google Safe Browsing or abuse.ch's URLhaus lists it as phishing or malware, whether it downloads an app or program (`.apk`, `.exe`) instead of opening a page, who owns the site, where it redirects, how new the domain is, free hosting that anyone can use, lookalikes of bank, wallet, Telegram and government domains, and, for unknown sites, the page title, a bank's name in it, and password fields |
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police or power-cut threats, scam-compound and overseas job ads, charity pleas to personal accounts, "send money before we call" romance scams, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
-| A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages. It also looks inside: what an Android app is allowed to do (read SMS codes, control the screen, draw fake login screens), Office macros, PDFs that run scripts or programs, saved web pages that send passwords away, and links inside PDFs and web pages. When set up, it adds a ClamAV scan and a VirusTotal lookup. A photo or KHQR screenshot sent as a file gets the same check as a photo |
+| A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages. It also looks inside: what an Android app is allowed to do (read SMS codes, control the screen, draw fake login screens), Office macros, PDFs that run scripts or programs, saved web pages that send passwords away, and links inside PDFs and web pages. When set up, it adds a ClamAV scan and VirusTotal and MalwareBazaar lookups. A photo or KHQR screenshot sent as a file gets the same check as a photo |
 | A phone number, username or site that people reported | Warns once 3 different people have reported it with the "🚩 Report as a scam" button, so new scams get flagged before any rule or list knows them |
 | Who forwarded it | Flags personal accounts named like a bank or Telegram ("ABA Bank Support", "Telegram Security"), since neither writes to people from personal accounts, and names official channels |
 | A message forwarded from Telegram's own account | Confirms it really came from Telegram and warns never to share the login code; it isn't sent to the AI |
@@ -38,7 +38,7 @@ Each reply gives one of four levels:
 | ⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ (No scam signs found yet) | No known tricks found. The bot never says a message is "safe". |
 | ❔ មិនអាចពិនិត្យបាន (Can't tell) | The image was unclear or couldn't be read. |
 
-Every reply ends by reminding you to check the recipient's name in your own bank app before paying.
+Replies about payments, links and messages remind you to check the recipient's name in your own bank app before paying. Replies about files don't, since they aren't about paying.
 
 Voice messages and videos can't be checked yet; the bot asks for a screenshot or the text instead. In a group, it only replies when someone mentions @CheckSen_bot, replies to it, or sends `/check` in reply to a message.
 
@@ -50,8 +50,8 @@ Every change is scored against labelled real-world messages in CI. Recall is the
 
 | Benchmark | Rules only | Rules + Gemini |
 | --- | --- | --- |
-| v1: 87 real messages, mostly English | 80.4% recall, 0% false positives | 95.7% recall, 7.3% false positives |
-| v2: 162 real Khmer messages | 52.9% recall, 3.1% false positives | 94.1% recall, 3.9% false positives |
+| v1: 87 real messages, mostly English | 82.6% recall, 0% false positives | 95.7% recall, 7.3% false positives |
+| v2: 162 real Khmer messages | 82.4% recall, 3.1% false positives | 94.1% recall, 3.9% false positives |
 
 The data, labels and how they were collected are in [`evals/`](evals/README.md). A pull request that lowers recall or raises false positives on the rules-only benchmark fails CI.
 
@@ -60,7 +60,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 - **Fixed rules come first:** QR parsing and checksum validation (via [khqr-rs](https://github.com/tangheng05/khqr-rs)), domain age and lookalike checks, and Khmer and English scam-wording rules.
 - **A language model handles what the rules can't decide.** By default this is Google Gemini's free tier. It returns only a category and what the person seems to want (to check a message, ask a question, or get help after being scammed), so every reply is fixed, reviewed Khmer or English text. It can't raise a verdict to High risk without a rule signal it can point to, and low-confidence answers are dropped.
 - **Screenshots:** QR codes in a photo are decoded first. Otherwise Gemini reads the text in the screenshot, and that text goes through the same rules.
-- **Files:** the bot reads a file's first bytes to learn what it really is, whatever its name says, and lists what's inside `.zip` files without unpacking them. It reads an app's permission list, a document's macro project, a PDF's actions and a saved web page's form, all in memory. Links found inside a file are checked by name, domain age and Google Safe Browsing, but never opened, so one-time links in private documents aren't used up. When configured, ClamAV scans the file on the same server and VirusTotal is asked about its SHA-256 fingerprint. Antivirus only knows viruses someone has already found, so a clean result still comes with "only open files from people you trust".
+- **Files:** the bot reads a file's first bytes to learn what it really is, whatever its name says, and lists what's inside `.zip` files without unpacking them. It reads an app's permission list, a document's macro project, a PDF's actions and a saved web page's form, all in memory. Links found inside a file are checked by name, domain age, Google Safe Browsing and URLhaus, but never opened, so one-time links in private documents aren't used up. When configured, ClamAV scans the file on the same server, and VirusTotal and MalwareBazaar are asked about its SHA-256 fingerprint. Antivirus only knows viruses someone has already found, so a clean result still comes with "only open files from people you trust".
 
 ## Privacy
 

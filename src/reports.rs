@@ -45,7 +45,7 @@ pub async fn forget_reply(store: Option<&Store>, user: Option<&User>, lang: Lang
         Ok(removed) => verdict::forgotten(removed, lang),
         Err(error) => {
             tracing::warn!(%error, "forget failed");
-            verdict::REPORT_FAILED.get(lang).to_owned()
+            verdict::FORGET_FAILED.get(lang).to_owned()
         }
     }
 }
