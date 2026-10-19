@@ -34,6 +34,8 @@ const CLAMAV_BUDGET: Duration = Duration::from_secs(30);
 const VIRUSTOTAL_BUDGET: Duration = Duration::from_secs(6);
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
+const MAX_FRAGMENT_WORDS: usize = 4;
+const MAX_FRAGMENT_CHARS: usize = 40;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
 const SCREENSHOT_CLASSIFIER_BUDGET: Duration = Duration::from_secs(10);
 const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
@@ -508,10 +510,10 @@ async fn check_text(
         {
             return (Outcome::text(answer, true), None);
         }
-        if message.chars().count() < MIN_TEXT_CHARS && text::check(message).signals.is_empty() {
+        if too_short(message) && text::check(message).signals.is_empty() {
             let answer = rules.and_then(|intent| verdict::answer(intent, lang));
             return (
-                Outcome::text(answer.unwrap_or(verdict::HELP.get(lang)), true),
+                Outcome::text(answer.unwrap_or(verdict::TOO_SHORT.get(lang)), true),
                 None,
             );
         }
@@ -947,6 +949,17 @@ fn prose(message: &str) -> String {
         .join(" ")
 }
 
+/// A name or a few words, like a product name, rather than a message someone received.
+/// Khmer uses few spaces, so a short word count alone would also catch real Khmer sentences.
+fn too_short(message: &str) -> bool {
+    let message = message.trim();
+    let chars = message.chars().count();
+    chars < MIN_TEXT_CHARS
+        || chars < MAX_FRAGMENT_CHARS
+            && message.split_whitespace().count() <= MAX_FRAGMENT_WORDS
+            && !message.contains(['.', '!', '?', '។', '៕'])
+}
+
 fn prose_chars(message: &str) -> usize {
     prose(message).chars().count()
 }
@@ -958,6 +971,16 @@ fn url_from_entity_text(text: &str) -> Option<Url> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_and_fragments_are_too_short_but_sentences_are_not() {
+        assert!(too_short("Logitech PRO X3 SuperStrike"));
+        assert!(too_short("Hi mum new number"));
+        assert!(too_short("abc"));
+        assert!(!too_short("Your package is held."));
+        assert!(!too_short("Please confirm your delivery address today"));
+        assert!(!too_short("សួស្តីបង ខ្ញុំមកពីធនាគារ ABA គណនីបងនឹងត្រូវបិទ"));
+    }
 
     fn me() -> Me {
         serde_json::from_value(serde_json::json!({

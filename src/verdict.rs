@@ -80,6 +80,10 @@ pub const FROM_TELEGRAM: Text = text(
     "ℹ️ សារនេះពិតជាមកពីគណនីផ្លូវការរបស់ Telegram មែន។\n👉 កុំឱ្យលេខកូដក្នុងសារនេះទៅនរណាម្នាក់ឡើយ សូម្បីតែអ្នកដែលអះអាងថាមកពី Telegram ក៏ដោយ។ បើអ្នកមិនបានសុំលេខកូដនេះទេ មានគេកំពុងព្យាយាមចូលគណនីរបស់អ្នក៖ សូមបើក Two-Step Verification ក្នុង Settings → Privacy and Security។",
     "ℹ️ This message really is from Telegram's official account.\n👉 Never give the code in it to anyone, even someone who says they're from Telegram. If you didn't ask for this code, someone is trying to get into your account: turn on Two-Step Verification in Settings → Privacy and Security.",
 );
+pub const TOO_SHORT: Text = text(
+    "នេះខ្លីពេក សម្រាប់ខ្ញុំវិនិច្ឆ័យ។ សូមផ្ញើសារទាំងមូល តំណ រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ។",
+    "That's too short for me to judge. Send me the whole message, link, screenshot or file you're unsure about.",
+);
 pub const NOTHING_TO_CHECK: Text = text(
     "គ្មានអ្វីត្រូវពិនិត្យក្នុងទីតាំងទេ។ សូមផ្ញើសារ តំណ ឬ QR ដែលអ្នកសង្ស័យ មកវិញ។",
     "There's nothing to check in a location. Send me a message, link or QR code you're unsure about.",
@@ -1561,7 +1565,11 @@ mod tests {
                 };
                 assert!(!answer.contains("សុវត្ថិភាព") && !answer.to_lowercase().contains("safe"));
             }
-            for fixed in [FROM_TELEGRAM.get(lang), REPLY_FAILED.get(lang)] {
+            for fixed in [
+                FROM_TELEGRAM.get(lang),
+                REPLY_FAILED.get(lang),
+                TOO_SHORT.get(lang),
+            ] {
                 assert!(!fixed.contains("សុវត្ថិភាព") && !fixed.to_lowercase().contains("safe"));
             }
             // Shared by every kind of report, so none of them may assume a QR code.
