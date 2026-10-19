@@ -62,7 +62,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 ## Privacy
 
 - Links, and every page they redirect through, are sent to Google Safe Browsing when it is configured.
-- Files are downloaded into memory (up to Telegram's 20 MB bot limit, or 50 MB with a [local Bot API server](#files-up-to-50-mb)), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded. Bigger files are judged by their name and type only.
+- Files are downloaded into memory (up to Telegram's 20 MB bot limit, or 100 MB with a [local Bot API server](#files-up-to-100-mb)), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded. Bigger files are judged by their name and type only.
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
@@ -91,7 +91,7 @@ cargo run --release --bin checksen
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |
 | `VIRUSTOTAL_API_KEY` | no | Free key from [virustotal.com](https://www.virustotal.com/gui/my-apikey); looks up file fingerprints (500 a day) |
-| `TELEGRAM_API_URL` | no | A [local Bot API server](#files-up-to-50-mb) such as `http://127.0.0.1:8081`, which raises the file limit from 20 MB to 50 MB |
+| `TELEGRAM_API_URL` | no | A [local Bot API server](#files-up-to-100-mb) such as `http://127.0.0.1:8081`, which raises the file limit from 20 MB to 100 MB |
 
 To keep it running on a Linux server, a systemd service is enough:
 
@@ -118,9 +118,9 @@ sudo systemctl enable --now clamav-freshclam clamav-daemon
 echo 'CLAMD_ADDRESS=/var/run/clamav/clamd.ctl' >> /opt/checksen/.env
 ```
 
-#### Files up to 50 MB
+#### Files up to 100 MB
 
-Telegram only lets bots download 20 MB through its servers. To check files up to 50 MB, run Telegram's own Bot API server next to the bot in `--local` mode. It saves each file before the bot reads and deletes it, so keep its folder in memory with tmpfs. Get an `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), then:
+Telegram only lets bots download 20 MB through its servers. To check files up to 100 MB, run Telegram's own Bot API server next to the bot in `--local` mode. It saves each file before the bot reads and deletes it, so keep its folder in memory with tmpfs. Get an `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), then:
 
 ```sh
 sudo mkdir -p /var/lib/telegram-bot-api
@@ -133,10 +133,10 @@ curl "https://api.telegram.org/bot$TELOXIDE_TOKEN/logOut"   # once, before the f
 echo 'TELEGRAM_API_URL=http://127.0.0.1:8081' >> /opt/checksen/.env
 ```
 
-The bot must run on the same machine, since it reads files from that folder. ClamAV skips anything over 25 MB by default, so raise its limits too:
+The bot must run on the same machine, since it reads files from that folder. ClamAV skips anything over 25 MB by default, so raise its limits too (big files need a few hundred MB of free RAM while they're checked):
 
 ```sh
-sudo sed -i 's/^StreamMaxLength .*/StreamMaxLength 50M/; s/^MaxFileSize .*/MaxFileSize 50M/' /etc/clamav/clamd.conf
+sudo sed -i 's/^StreamMaxLength .*/StreamMaxLength 100M/; s/^MaxFileSize .*/MaxFileSize 100M/; s/^MaxScanSize .*/MaxScanSize 400M/' /etc/clamav/clamd.conf
 sudo systemctl restart clamav-daemon
 ```
 

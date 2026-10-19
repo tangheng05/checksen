@@ -25,7 +25,7 @@ use crate::reports;
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
-const CLAMAV_BUDGET: Duration = Duration::from_secs(15);
+const CLAMAV_BUDGET: Duration = Duration::from_secs(30);
 const VIRUSTOTAL_BUDGET: Duration = Duration::from_secs(6);
 const MAX_LINKS_PER_MESSAGE: usize = 3;
 const MIN_TEXT_CHARS: usize = 20;
