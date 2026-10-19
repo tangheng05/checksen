@@ -1,6 +1,7 @@
 //! What a file can do once it's opened: an app's permissions, a document's macros,
 //! a PDF's actions and a web page's form. Everything is read in memory, with caps against bombs.
 
+use std::collections::HashSet;
 use std::io::{Cursor, Read};
 use std::sync::LazyLock;
 
@@ -22,6 +23,9 @@ const MAX_STREAM_BYTES: u64 = 1024 * 1024;
 const MAX_INFLATED_BYTES: usize = 8 * 1024 * 1024;
 const MAX_STRINGS: usize = 50_000;
 const MAX_LINKS: usize = 3;
+/// Enough sites to find the unknown ones; a file stuffed with links isn't read further.
+const MAX_LINK_HOSTS: usize = 50;
+const MAX_PACKAGE_CHARS: usize = 100;
 pub(super) const OLE: &[u8] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1";
 
 /// Something an Android app asks to be allowed to do that bank-stealing apps rely on.
@@ -114,7 +118,8 @@ fn app(bytes: &[u8]) -> Inside {
     }
     Inside {
         signals,
-        package: package_name(&manifest, &strings),
+        package: package_name(&manifest, &strings)
+            .map(|name| name.chars().take(MAX_PACKAGE_CHARS).collect()),
         powers,
         links: Vec::new(),
     }
@@ -132,6 +137,8 @@ fn nested_app(bytes: &[u8]) -> Option<Inside> {
     Some(app(&inner))
 }
 
+/// An entry declared bigger than `cap` is skipped rather than read, so a padded manifest goes unread;
+/// the app is still flagged as an app.
 fn zip_entry(bytes: &[u8], name: &str, cap: u64) -> Option<Vec<u8>> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
     let entry = archive.by_name(name).ok()?;
@@ -373,8 +380,14 @@ static PAGE_LINK: LazyLock<Regex> = LazyLock::new(|| {
 fn web_page(bytes: &[u8]) -> Inside {
     let html = String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_HTML_BYTES)]);
     let mut signals = link::html_signals(&html);
-    // A saved login page that posts to a website is how phishing kits send what's typed.
-    let posts_password = signals.contains(&Signal::PasswordPage) && FORM_ACTION.is_match(&html);
+    // A saved login page that posts to a website is how phishing kits send what's typed;
+    // a page saved from the bank's own site posts back to the bank.
+    let posts_password = signals.contains(&Signal::PasswordPage)
+        && FORM_ACTION.captures_iter(&html).any(|captures| {
+            link::parse_http_url(&captures[1])
+                .and_then(|url| url.host_str().map(sites::identify))
+                .is_none_or(|site| site.is_none_or(|site| site.kind.has_public_pages()))
+        });
     if EXFILTRATION.is_match(&html) || posts_password {
         signals.push(Signal::SendsToAttacker);
     }
@@ -395,15 +408,27 @@ fn web_page(bytes: &[u8]) -> Inside {
 
 /// One link per site, unknown sites first, since well-known ones say little.
 fn pick_links(links: impl Iterator<Item = Url>) -> Vec<Url> {
-    let mut picked: Vec<Url> = Vec::new();
+    let mut hosts = HashSet::new();
+    let (mut unknown, mut known) = (Vec::new(), Vec::new());
     for url in links {
-        if !picked.iter().any(|seen| seen.host_str() == url.host_str()) {
-            picked.push(url);
+        let Some(host) = url.host_str() else {
+            continue;
+        };
+        if !hosts.insert(host.to_owned()) {
+            continue;
+        }
+        if sites::identify(host).is_some() {
+            known.push(url);
+        } else {
+            unknown.push(url);
+        }
+        if unknown.len() >= MAX_LINKS || hosts.len() >= MAX_LINK_HOSTS {
+            break;
         }
     }
-    picked.sort_by_key(|url| url.host_str().and_then(sites::identify).is_some());
-    picked.truncate(MAX_LINKS);
-    picked
+    unknown.extend(known);
+    unknown.truncate(MAX_LINKS);
+    unknown
 }
 
 #[cfg(test)]
@@ -582,5 +607,36 @@ pub(crate) mod tests {
 
         let receipt = b"<html><title>Receipt</title><p>Thank you</p></html>";
         assert!(look(FileKind::WebPage, receipt).signals.is_empty());
+
+        let saved = br#"<title>ABA Bank</title><form action="https://ebank.ababank.com/login"><input type="password"></form>"#;
+        assert!(
+            !look(FileKind::WebPage, saved)
+                .signals
+                .contains(&Signal::SendsToAttacker)
+        );
+    }
+
+    #[test]
+    fn files_stuffed_with_links_are_read_quickly() {
+        let mut pdf = b"%PDF-1.7\n".to_vec();
+        for index in 0..200_000 {
+            pdf.extend(format!("<< /URI (https://site{index}.example/) >>\n").as_bytes());
+        }
+        let started = std::time::Instant::now();
+        let inside = look(FileKind::Pdf, &pdf);
+        assert_eq!(inside.links.len(), 3);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn long_package_names_are_cut() {
+        let name = "a".repeat(5_000);
+        let app = zipped(&[("AndroidManifest.xml", &manifest(&name, &[]))]);
+        assert_eq!(
+            look(FileKind::AndroidApp, &app)
+                .package
+                .map(|name| name.len()),
+            Some(100)
+        );
     }
 }

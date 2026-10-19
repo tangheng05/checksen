@@ -6,7 +6,7 @@ use super::link;
 const OFFICIAL_CHANNELS: &[(&str, &str)] = &[
     ("telegram", "Telegram"),
     ("telegramtips", "Telegram"),
-    ("durov", "Telegram"),
+    ("durov", "Pavel Durov"),
 ];
 
 /// Where a forwarded message came from, as Telegram reports it.

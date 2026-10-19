@@ -252,10 +252,15 @@ impl<'a> Progress<'a> {
         if reply.html {
             request = request.parse_mode(ParseMode::Html);
         }
-        match keyboard {
-            Some(keyboard) => request.reply_markup(keyboard).await?,
-            None => request.await?,
+        let sent = match keyboard {
+            Some(keyboard) => request.reply_markup(keyboard).await,
+            None => request.await,
         };
+        if let Err(error) = sent {
+            // Usually a reply over Telegram's length limit; the person still needs an answer.
+            tracing::warn!(%error, "could not send the reply");
+            answer(self.bot, self.to, verdict::REPLY_FAILED.get(self.lang)).await?;
+        }
         Ok(())
     }
 }
@@ -600,19 +605,33 @@ async fn check_document(
         return (outcome, kind);
     }
 
-    let (content, (scans, scanned)) = match &bytes {
+    let (scans, scanned) = match &bytes {
         Ok(bytes) => {
             if services.clamav.is_some() || services.virustotal.is_some() {
                 progress.step(Step::Scan).await;
             }
-            (Content::Bytes(bytes), scan(bytes, services).await)
+            scan(bytes, services).await
         }
-        Err(why) => (
-            Content::Unread(*why),
-            (Scans::default(), matches!(why, Unread::TooBig(_))),
-        ),
+        Err(why) => (Scans::default(), matches!(why, Unread::TooBig(_))),
     };
-    let file_check = file::inspect(name, mime, content, scans);
+    // Reading inside a big file is CPU work, and a parser panic on a crafted file shouldn't take the bot down.
+    let (owned_name, owned_mime) = (name.to_owned(), mime.map(str::to_owned));
+    let inspected = tokio::task::spawn_blocking(move || {
+        let content = match &bytes {
+            Ok(bytes) => Content::Bytes(bytes),
+            Err(why) => Content::Unread(*why),
+        };
+        file::inspect(&owned_name, owned_mime.as_deref(), content, scans)
+    })
+    .await;
+    let (file_check, inspected) = match inspected {
+        Ok(check) => (check, true),
+        Err(error) => {
+            tracing::warn!(%error, "file inspection failed");
+            let unread = Content::Unread(Unread::DownloadFailed);
+            (file::inspect(name, mime, unread, Scans::default()), false)
+        }
+    };
     let links = match &file_check.subject {
         Subject::File(file) => file.links.clone(),
         _ => Vec::new(),
@@ -639,7 +658,7 @@ async fn check_document(
         checks.extend(caption_checks);
     }
     let outcome = Outcome::of(checks);
-    let cacheable = outcome.cacheable && scanned;
+    let cacheable = outcome.cacheable && scanned && inspected;
     (
         Outcome {
             cacheable,

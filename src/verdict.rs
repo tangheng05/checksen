@@ -147,6 +147,10 @@ pub const REPORT_FAILED: Text = text(
     "ពេលនេះមិនអាចរាយការណ៍បានទេ។ សូមកុំបង់ប្រាក់តាម QR នេះ។",
     "Reporting isn't working right now. Please don't pay with this QR.",
 );
+pub const REPLY_FAILED: Text = text(
+    "ខ្ញុំមិនអាចបង្ហាញលទ្ធផលបានទេ។ សូមប្រយ័ត្ន ហើយកុំបើក ឬបង់ប្រាក់អ្វីទាំងអស់ ទាល់តែអ្នកប្រាកដ។",
+    "I couldn't show the result. Be careful, and don't open or pay for anything until you're sure.",
+);
 pub const RATE_LIMITED: Text = text(
     "អ្នកផ្ញើមកច្រើនពេកក្នុងពេលខ្លី។ សូមរង់ចាំបន្តិច ហើយសាកម្តងទៀត។",
     "You've sent a lot in a short time. Please wait a little and try again.",
@@ -1078,11 +1082,11 @@ fn age(days: i64, lang: Lang) -> String {
 }
 
 fn render_link(link: &LinkInfo, lang: Lang) -> String {
-    let mut lines = vec![format!(
-        "{} {}",
-        lang.pick("• គេហទំព័រ៖", "• Site:"),
-        defang(&link.host)
-    )];
+    let label = match link.in_file {
+        true => lang.pick("• តំណក្នុងឯកសារ៖", "• Link inside the file:"),
+        false => lang.pick("• គេហទំព័រ៖", "• Site:"),
+    };
+    let mut lines = vec![format!("{label} {}", defang(&link.host))];
     if let Some(destination) = &link.redirected_to {
         lines.push(format!(
             "{} {}",
@@ -1366,6 +1370,7 @@ mod tests {
                 age_days: Some(3),
                 site: None,
                 title: Some("ABA Bank Login".to_owned()),
+                in_file: false,
             }),
             signals,
         }
@@ -1492,8 +1497,9 @@ mod tests {
                 };
                 assert!(!answer.contains("សុវត្ថិភាព") && !answer.to_lowercase().contains("safe"));
             }
-            let telegram = FROM_TELEGRAM.get(lang);
-            assert!(!telegram.contains("សុវត្ថិភាព") && !telegram.to_lowercase().contains("safe"));
+            for fixed in [FROM_TELEGRAM.get(lang), REPLY_FAILED.get(lang)] {
+                assert!(!fixed.contains("សុវត្ថិភាព") && !fixed.to_lowercase().contains("safe"));
+            }
         }
     }
 
@@ -1585,6 +1591,7 @@ mod tests {
                 age_days: None,
                 site: crate::analyzers::sites::identify("go.gov.kh"),
                 title: None,
+                in_file: false,
             }),
             signals: vec![],
         };
@@ -1739,6 +1746,7 @@ mod tests {
                 age_days: None,
                 site: None,
                 title: Some("<a href=x>ABA</a> & co".to_owned()),
+                in_file: false,
             }),
             signals: vec![],
         };
@@ -1784,6 +1792,7 @@ mod tests {
                     age_days: None,
                     site: crate::analyzers::sites::identify(host),
                     title: None,
+                    in_file: false,
                 }),
                 signals: vec![],
             }])
@@ -1802,6 +1811,7 @@ mod tests {
                     age_days: Some(365 * 19),
                     site: crate::analyzers::sites::identify("github.com"),
                     title: None,
+                    in_file: false,
                 }),
                 signals: vec![],
             }],
@@ -1810,6 +1820,21 @@ mod tests {
         );
         assert!(
             english.contains("• Owner: GitHub (code hosting site)") && english.contains("19 years")
+        );
+    }
+
+    #[test]
+    fn links_found_in_files_say_so() {
+        let link = LinkInfo {
+            host: "aba-verify.top".to_owned(),
+            redirected_to: None,
+            age_days: None,
+            site: None,
+            title: None,
+            in_file: true,
+        };
+        assert!(
+            render_link(&link, Lang::En).starts_with("• Link inside the file: aba-verify[.]top")
         );
     }
 

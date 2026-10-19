@@ -140,6 +140,8 @@ pub struct LinkInfo {
     pub age_days: Option<i64>,
     pub site: Option<&'static Site>,
     pub title: Option<String>,
+    /// Found inside a file rather than sent as a link.
+    pub in_file: bool,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -190,7 +192,12 @@ impl LinkChecker {
     }
 
     /// For links found inside files: nothing is opened, so one-time links in private documents aren't used up.
-    pub async fn check_without_visiting(&self, url: Url) -> Check {
+    pub async fn check_without_visiting(&self, mut url: Url) -> Check {
+        // Queries in private documents can hold tokens, and lookups work on the host and path.
+        url.set_query(None);
+        url.set_fragment(None);
+        let _ = url.set_username("");
+        let _ = url.set_password(None);
         self.check_url(url, false).await
     }
 
@@ -280,6 +287,7 @@ impl LinkChecker {
                 age_days,
                 site,
                 title,
+                in_file: !visit,
             }),
             signals,
         }
