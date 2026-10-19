@@ -283,6 +283,8 @@ pub fn progress(done: &[Step], current: Step, lang: Lang) -> String {
 pub struct About<'a> {
     pub forwarded_from: Option<&'a str>,
     pub kind: Option<MessageKind>,
+    /// The owner of the official channel it was forwarded from.
+    pub official: Option<&'static str>,
 }
 
 /// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
@@ -591,7 +593,12 @@ fn about_line(about: About, lang: Lang) -> Option<String> {
     if let Some(kind) = about.kind.and_then(|kind| kind_label(kind, lang)) {
         parts.push(kind.to_owned());
     }
-    if let Some(name) = about
+    if let Some(owner) = about.official {
+        parts.push(match lang {
+            Lang::Km => format!("បញ្ជូនបន្តពីឆានែលផ្លូវការរបស់ {owner}"),
+            Lang::En => format!("forwarded from {owner}'s official channel"),
+        });
+    } else if let Some(name) = about
         .forwarded_from
         .map(inert)
         .filter(|name| !name.trim().is_empty())
@@ -840,6 +847,16 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 ),
                 Lang::En => format!(
                     "This app uses the name {brand}. Banks never send apps over Telegram. Only install apps from the Play Store or App Store."
+                ),
+            };
+        }
+        Signal::ImpersonatedSender(brand) => {
+            return match lang {
+                Lang::Km => format!(
+                    "សារនេះបញ្ជូនបន្តពីគណនីផ្ទាល់ខ្លួន ដែលដាក់ឈ្មោះដូច {brand}។ {brand} មិនដែលផ្ញើសារមកអ្នកពីគណនីផ្ទាល់ខ្លួនទេ។"
+                ),
+                Lang::En => format!(
+                    "This was forwarded from a personal account named like {brand}. {brand} never messages people from personal accounts."
                 ),
             };
         }
@@ -1497,6 +1514,7 @@ mod tests {
         let about = About {
             forwarded_from: Some("NEO GAME OASIS"),
             kind: Some(MessageKind::Promotion),
+            official: None,
         };
         assert_eq!(
             about_line(about, Lang::En).as_deref(),
@@ -1505,12 +1523,35 @@ mod tests {
         let impostor = About {
             forwarded_from: Some("@ABA_Support"),
             kind: Some(MessageKind::Other),
+            official: None,
         };
         assert_eq!(
             about_line(impostor, Lang::Km).as_deref(),
             Some("បញ្ជូនបន្តពី ＠ABA_Support")
         );
         assert_eq!(about_line(About::default(), Lang::Km), None);
+    }
+
+    #[test]
+    fn official_channels_and_impostor_senders_are_named() {
+        let about = About {
+            forwarded_from: Some("Telegram News"),
+            kind: None,
+            official: Some("Telegram"),
+        };
+        assert_eq!(
+            about_line(about, Lang::En).as_deref(),
+            Some("Forwarded from Telegram's official channel")
+        );
+        let check = Check {
+            subject: Subject::Text,
+            signals: vec![Signal::ImpersonatedSender("ABA")],
+        };
+        assert_eq!(decide(&check), Level::Suspicious);
+        assert!(
+            render(&[check], About::default(), Lang::En)
+                .contains("forwarded from a personal account named like ABA")
+        );
     }
 
     #[test]
@@ -1546,6 +1587,7 @@ mod tests {
         let about = About {
             forwarded_from: None,
             kind: Some(MessageKind::JobAd),
+            official: None,
         };
         let reply = render(&[link], about, Lang::Km);
         assert!(reply.contains("go[.]gov[.]kh · គេហទំព័ររដ្ឋាភិបាលកម្ពុជា"));
@@ -1649,6 +1691,7 @@ mod tests {
         let about = About {
             forwarded_from: Some("Dara"),
             kind: None,
+            official: None,
         };
         let program = render(
             &[inspect(

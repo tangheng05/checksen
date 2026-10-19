@@ -16,6 +16,7 @@ use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
 use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
+use checksen::analyzers::senders::{self, Sender};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Step, Text};
@@ -343,7 +344,7 @@ fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
 
 fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     let urls: Vec<String> = urls_in(msg).iter().map(Url::to_string).collect();
-    let caption = (msg.caption().unwrap_or_default(), forwarded_from(msg));
+    let caption = (msg.caption().unwrap_or_default(), sender(msg));
     if let Some(photo) = largest_photo(msg) {
         return Some(guard.key((
             RULES_VERSION,
@@ -381,7 +382,7 @@ async fn check(
         msg.forward_origin(),
         Some(MessageOrigin::User { sender_user, .. }) if sender_user.id.is_telegram()
     );
-    let (outcome, kind) = if from_telegram {
+    let (mut outcome, kind) = if from_telegram {
         (Outcome::text(verdict::FROM_TELEGRAM.get(lang), true), None)
     } else if let Some(photo) = largest_photo(msg) {
         check_photo(bot, msg, photo, lang, services, progress).await
@@ -396,23 +397,70 @@ async fn check(
     } else {
         (Outcome::of(Vec::new()), None)
     };
-    let forwarded_from = forwarded_from(msg);
+    let sender = sender(msg);
+    if let Some(sender) = &sender {
+        apply_sender(&mut outcome, sender);
+    }
     let about = verdict::About {
-        forwarded_from: forwarded_from.as_deref(),
+        forwarded_from: sender
+            .as_ref()
+            .map(|sender| sender.name.as_str())
+            .filter(|name| !name.is_empty()),
         kind,
+        official: sender.as_ref().and_then(senders::official),
     };
     outcome.finish(about, lang)
 }
 
-fn forwarded_from(msg: &Message) -> Option<String> {
-    match msg.forward_origin()? {
-        MessageOrigin::User { sender_user, .. } => Some(sender_user.full_name()),
+/// Banks and Telegram never write from personal accounts, and an official channel's notice
+/// is only flagged on a rule's evidence, not the model's guess alone.
+fn apply_sender(outcome: &mut Outcome, sender: &Sender) {
+    let Body::Checks(checks) = &mut outcome.body else {
+        return;
+    };
+    if let Some(brand) = senders::impersonated(sender) {
+        let signal = Signal::ImpersonatedSender(brand);
+        match checks.first_mut() {
+            Some(check) => check.signals.push(signal),
+            None => checks.push(Check {
+                subject: Subject::Text,
+                signals: vec![signal],
+            }),
+        }
+    }
+    if senders::official(sender).is_some() {
+        for check in checks.iter_mut() {
+            check
+                .signals
+                .retain(|signal| !matches!(signal, Signal::Model { cited: false, .. }));
+        }
+    }
+}
+
+fn sender(msg: &Message) -> Option<Sender> {
+    let (personal, name, username) = match msg.forward_origin()? {
+        MessageOrigin::User { sender_user, .. } => {
+            (true, sender_user.full_name(), sender_user.username.clone())
+        }
         MessageOrigin::HiddenUser {
             sender_user_name, ..
-        } => Some(sender_user_name.clone()),
-        MessageOrigin::Chat { sender_chat, .. } => sender_chat.title().map(str::to_owned),
-        MessageOrigin::Channel { chat, .. } => chat.title().map(str::to_owned),
-    }
+        } => (true, sender_user_name.clone(), None),
+        MessageOrigin::Chat { sender_chat, .. } => (
+            false,
+            sender_chat.title().unwrap_or_default().to_owned(),
+            sender_chat.username().map(str::to_owned),
+        ),
+        MessageOrigin::Channel { chat, .. } => (
+            false,
+            chat.title().unwrap_or_default().to_owned(),
+            chat.username().map(str::to_owned),
+        ),
+    };
+    Some(Sender {
+        personal,
+        name,
+        username,
+    })
 }
 
 async fn check_text(

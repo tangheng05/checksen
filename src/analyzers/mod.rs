@@ -6,6 +6,7 @@ pub mod link;
 pub mod llm;
 pub mod reputation;
 pub mod scan;
+pub mod senders;
 pub mod sites;
 pub mod text;
 
@@ -66,6 +67,7 @@ pub enum Signal {
     BrandClaim(&'static str),
     PasswordPage,
     ImpersonatedAccount(&'static str),
+    ImpersonatedSender(&'static str),
     DisguisedFile { shown: FileKind, real: FileKind },
     HiddenFileName,
     FakeBankApp(&'static str),
@@ -134,6 +136,7 @@ impl Signal {
             | Self::Model { .. } => 0.5,
             Self::Lookalike(_)
             | Self::BrandClaim(_)
+            | Self::ImpersonatedSender(_)
             | Self::Reported(_)
             | Self::UpfrontFee
             | Self::MoveMoneyOut
