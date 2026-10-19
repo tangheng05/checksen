@@ -81,7 +81,7 @@ pub const FROM_TELEGRAM: Text = text(
     "ℹ️ This message really is from Telegram's official account.\n👉 Never give the code in it to anyone, even someone who says they're from Telegram. If you didn't ask for this code, someone is trying to get into your account: turn on Two-Step Verification in Settings → Privacy and Security.",
 );
 pub const TOO_SHORT: Text = text(
-    "ខ្ញុំមិនអាចពិនិត្យពាក្យខ្លីៗបែបនេះបានទេ។ សូមផ្ញើសារទាំងមូល តំណ ឬ KHQR ដែលអ្នកបានទទួល មកខ្ញុំពិនិត្យ។",
+    "ខ្ញុំមិនអាចពិនិត្យពាក្យខ្លីៗបែបនេះបានទេ។ សូមផ្ញើសារទាំងមូល Link ឬ KHQR ដែលអ្នកបានទទួល មកខ្ញុំពិនិត្យ។",
     "I can't check this on its own. Forward me the whole message, link or KHQR you got.",
 );
 pub const NOTHING_TO_CHECK: Text = text(
