@@ -2,7 +2,7 @@
 //! a PDF's actions and a web page's form. Everything is read in memory, with caps against bombs.
 
 use std::collections::HashSet;
-use std::io::{Cursor, Read};
+use std::io::Read;
 use std::sync::LazyLock;
 
 use flate2::read::ZlibDecoder;
@@ -127,7 +127,7 @@ fn app(bytes: &[u8]) -> Inside {
 
 /// Apps are often sent zipped, so the first one inside a zip is opened too.
 fn nested_app(bytes: &[u8]) -> Option<Inside> {
-    let archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let archive = file::open_zip(bytes)?;
     let name = archive
         .file_names()
         .filter_map(Result::ok)
@@ -140,7 +140,7 @@ fn nested_app(bytes: &[u8]) -> Option<Inside> {
 /// An entry declared bigger than `cap` is skipped rather than read, so a padded manifest goes unread;
 /// the app is still flagged as an app.
 fn zip_entry(bytes: &[u8], name: &str, cap: u64) -> Option<Vec<u8>> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut archive = file::open_zip(bytes)?;
     let entry = archive.by_name(name).ok()?;
     if entry.size() > cap {
         return None;
@@ -273,7 +273,7 @@ fn has_macros(bytes: &[u8]) -> bool {
             .collect();
         return bytes.windows(name.len()).any(|window| window == name);
     }
-    zip::ZipArchive::new(Cursor::new(bytes)).is_ok_and(|archive| {
+    file::open_zip(bytes).is_some_and(|archive| {
         archive
             .file_names()
             .filter_map(Result::ok)
@@ -433,7 +433,7 @@ fn pick_links(links: impl Iterator<Item = Url>) -> Vec<Url> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::io::Write;
+    use std::io::{Cursor, Write};
 
     use super::*;
 

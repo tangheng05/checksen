@@ -94,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
         virustotal,
         abusech,
         max_file_bytes: max_file_mb * 1024 * 1024,
+        big_files: tokio::sync::Semaphore::new(2),
     });
 
     Dispatcher::builder(

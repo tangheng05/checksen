@@ -205,12 +205,20 @@ impl Store {
         })
     }
 
+    /// Deletes a person's reports, and any reported value nobody else reported.
     pub async fn forget(&self, user_id: u64) -> anyhow::Result<u64> {
+        let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM reports WHERE reporter_hash = $1")
             .bind(self.reporter_hash(user_id))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected();
+        sqlx::query(
+            "DELETE FROM indicators i WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.indicator_id = i.id)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         Ok(removed)
     }
 }
@@ -406,5 +414,11 @@ mod tests {
         store.report(&account, user).await.unwrap();
         assert_eq!(store.forget(user).await.unwrap(), 1);
         assert_eq!(store.reporters(&account).await.unwrap(), 0);
+        let left: i64 = sqlx::query_scalar("SELECT count(*) FROM indicators WHERE value = $1")
+            .bind(&account.value)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        assert_eq!(left, 0);
     }
 }

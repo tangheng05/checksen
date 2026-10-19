@@ -28,6 +28,8 @@ use crate::reports;
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
+/// Files over this wait their turn, so a few people sending 100 MB files can't run the server out of memory.
+const BIG_FILE_BYTES: u32 = 20 * 1024 * 1024;
 const CLAMAV_BUDGET: Duration = Duration::from_secs(30);
 const VIRUSTOTAL_BUDGET: Duration = Duration::from_secs(6);
 const MAX_LINKS_PER_MESSAGE: usize = 3;
@@ -47,6 +49,7 @@ pub struct Services {
     pub virustotal: Option<VirusTotalClient>,
     pub abusech: Option<Arc<AbuseCh>>,
     pub max_file_bytes: u32,
+    pub big_files: tokio::sync::Semaphore,
 }
 
 enum Body {
@@ -608,6 +611,12 @@ async fn check_document(
 ) -> (Outcome, Option<MessageKind>) {
     let name = document.file_name.as_deref().unwrap_or_default();
     let mime = document.mime_type.as_ref().map(|mime| mime.essence_str());
+    let _turn = if (BIG_FILE_BYTES..=services.max_file_bytes).contains(&document.file.size) {
+        progress.step(Step::Download).await;
+        services.big_files.acquire().await.ok()
+    } else {
+        None
+    };
     let bytes = if document.file.size <= services.max_file_bytes {
         progress.step(Step::Download).await;
         download(bot, &document.file.id)

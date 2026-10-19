@@ -216,8 +216,29 @@ struct Entries {
     encrypted: bool,
 }
 
+// The zip library reads a zip's whole directory into memory before anything else, so a 100 MB zip
+// of a million tiny entries would cost hundreds of MB. Real apps and documents have far fewer.
+const MAX_ZIP_ENTRIES: u16 = 50_000;
+const MAX_ZIP_DIRECTORY_BYTES: u32 = 16 * 1024 * 1024;
+const ZIP_END_SEARCH_BYTES: usize = 22 + 65_535;
+
+/// Opens a zip only when its end record declares a directory of sane size; zip64 archives are left unread.
+pub(super) fn open_zip(bytes: &[u8]) -> Option<zip::ZipArchive<Cursor<&[u8]>>> {
+    let tail = bytes.len().saturating_sub(ZIP_END_SEARCH_BYTES);
+    let end = tail
+        + bytes[tail..]
+            .windows(4)
+            .rposition(|window| window == b"PK\x05\x06")?;
+    let entries = u16::from_le_bytes(bytes.get(end + 10..end + 12)?.try_into().ok()?);
+    let directory = u32::from_le_bytes(bytes.get(end + 12..end + 16)?.try_into().ok()?);
+    if entries > MAX_ZIP_ENTRIES || directory > MAX_ZIP_DIRECTORY_BYTES {
+        return None;
+    }
+    zip::ZipArchive::new(Cursor::new(bytes)).ok()
+}
+
 fn archive_entries(bytes: &[u8]) -> Option<Entries> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut archive = open_zip(bytes)?;
     let count = archive.len().min(MAX_ARCHIVE_ENTRIES);
     let mut names = Vec::with_capacity(count);
     let mut encrypted = false;
@@ -385,6 +406,16 @@ mod tests {
         out.extend_from_slice(&start.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes());
         out
+    }
+
+    #[test]
+    fn zips_with_huge_directories_are_not_opened() {
+        let mut bomb = zip_with(&[("a.txt", false)]);
+        let end = bomb.len() - 22;
+        bomb[end + 10..end + 12].copy_from_slice(&60_000u16.to_le_bytes());
+        assert!(open_zip(&bomb).is_none());
+        assert!(open_zip(&zip_with(&[("a.txt", false)])).is_some());
+        assert_eq!(kind_from_bytes(&bomb), Some(FileKind::Archive));
     }
 
     #[test]

@@ -266,6 +266,10 @@ impl LinkChecker {
                 }
             },
             async {
+                // Bank and email links can hold one-time tokens, and these sites don't host malware.
+                if site.is_some_and(|site| !site.kind.has_public_pages()) {
+                    return None;
+                }
                 let abusech = self.abusech.as_ref()?;
                 match timeout_at(deadline, abusech.known_link(&chain)).await {
                     Ok(Ok(listed)) => Some(listed),
