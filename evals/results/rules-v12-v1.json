@@ -215,6 +215,7 @@
     "v1-scam-shop-03"
   ],
   "model_errors": 0,
+  "model_false_alarms": [],
   "rules_version": 12,
   "splits": {
     "dev": {

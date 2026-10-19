@@ -40,13 +40,6 @@ fn compile(pattern: &str) -> Regex {
     Regex::new(&format!("(?s){pattern}")).expect("rule patterns are valid")
 }
 
-static WARNING: LazyLock<Regex> = LazyLock::new(|| compile(NEWS_OR_WARNING));
-
-/// News or a warning that describes a scam, rather than the scam itself.
-pub fn reads_as_warning(text: &str) -> bool {
-    Normalized::new(text).matches(&WARNING)
-}
-
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     vec![
         Rule::new(

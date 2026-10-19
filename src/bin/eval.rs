@@ -186,14 +186,17 @@ async fn evaluate(
     let mut model_errors = 0;
     let mut missed = Vec::new();
     let mut false_alarms = Vec::new();
+    let mut model_false_alarms = Vec::new();
 
     for example in &examples {
         let is_scam = example.label == "scam";
         let mut check = text::check(&example.text);
+        let mut kind = None;
         if let Some((_, classifier)) = model {
-            check = llm::classify(check, &example.text, classifier, Duration::from_secs(300))
-                .await
-                .0;
+            let (classified, reading) =
+                llm::classify(check, &example.text, classifier, Duration::from_secs(300)).await;
+            check = classified;
+            kind = reading.kind;
             model_errors += usize::from(check.signals.contains(&Signal::ModelUnavailable));
             eprint!(".");
         }
@@ -222,6 +225,21 @@ async fn evaluate(
         }
         if !is_scam && flagged {
             false_alarms.push(example.id.as_str());
+            if model.is_some() {
+                // What the model said, so a false alarm's cause can be read without re-running it.
+                let said = check.signals.iter().find_map(|signal| match signal {
+                    Signal::Model { category, cited } => {
+                        Some(format!("{category:?}, cited: {cited}"))
+                    }
+                    _ => None,
+                });
+                model_false_alarms.push(json!({
+                    "id": example.id,
+                    "split": example.split,
+                    "model": said,
+                    "message_type": kind.map(|kind| format!("{kind:?}")),
+                }));
+            }
         }
     }
 
@@ -269,6 +287,7 @@ async fn evaluate(
         "categories": to_json(&categories),
         "missed": missed,
         "false_alarms": false_alarms,
+        "model_false_alarms": model_false_alarms,
     });
     let report_path: PathBuf = root.join(format!("evals/results/{variant}-{name}.json"));
     fs::write(&report_path, serde_json::to_string_pretty(&report)? + "\n")?;
