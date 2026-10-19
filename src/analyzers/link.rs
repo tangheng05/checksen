@@ -13,6 +13,7 @@ use tokio::sync::OnceCell;
 use tokio::time::{Instant, timeout_at};
 use url::Host;
 
+use super::file::{self, FileKind};
 use super::reputation::SafeBrowsing;
 use super::sites::{self, Kind, Site};
 use super::{Check, Signal, Subject};
@@ -147,7 +148,15 @@ struct Page {
     title: Option<String>,
     site_name: Option<String>,
     asks_password: bool,
+    /// What the link downloads, when it's a program rather than a page.
+    program: Option<FileKind>,
 }
+
+/// Programs people get tricked into downloading; `.com` and `.js` are left out because ordinary paths end in them.
+const PROGRAM_EXTENSIONS: &[&str] = &[
+    "apk", "xapk", "apks", "exe", "scr", "msi", "bat", "cmd", "vbs", "ps1", "hta", "jar", "dmg",
+    "iso", "lnk",
+];
 
 pub struct LinkChecker {
     http: Client,
@@ -177,8 +186,21 @@ impl LinkChecker {
     }
 
     pub async fn check(&self, url: Url) -> Check {
+        self.check_url(url, true).await
+    }
+
+    /// For links found inside files: nothing is opened, so one-time links in private documents aren't used up.
+    pub async fn check_without_visiting(&self, url: Url) -> Check {
+        self.check_url(url, false).await
+    }
+
+    async fn check_url(&self, url: Url, visit: bool) -> Check {
         let start = Instant::now();
-        let chain = self.follow_redirects(url, start + REDIRECT_BUDGET).await;
+        let chain = if visit {
+            self.follow_redirects(url, start + REDIRECT_BUDGET).await
+        } else {
+            vec![url]
+        };
         let first = &chain[0];
         let last = &chain[chain.len() - 1];
 
@@ -206,7 +228,7 @@ impl LinkChecker {
             },
             async {
                 // Banks, email and login sites are never opened, so one-time links aren't used up.
-                if site.is_some_and(|site| !site.kind.has_public_pages()) {
+                if !visit || site.is_some_and(|site| !site.kind.has_public_pages()) {
                     return None;
                 }
                 timeout_at(deadline, self.fetch_page(last))
@@ -236,6 +258,11 @@ impl LinkChecker {
             signals.push(Signal::NewDomain);
         }
         let page = page.unwrap_or_default();
+        let program = page.program.or_else(|| program_in_path(last));
+        if let Some(kind) = program.filter(|_| site.is_none_or(|site| site.kind.has_public_pages()))
+        {
+            signals.push(Signal::DownloadsProgram(kind));
+        }
         if site.is_none_or(|site| site.kind.titles_by_anyone()) {
             signals.extend(page_signals(&page, &signals));
         }
@@ -298,12 +325,25 @@ impl LinkChecker {
             .send()
             .await
             .ok()?;
-        let is_html = response
+        let content_type = response
             .headers()
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.contains("html"));
-        if !response.status().is_success() || !is_html {
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !response.status().is_success() {
+            return None;
+        }
+        let program =
+            file::kind_from_mime(content_type.split(';').next().unwrap_or_default().trim())
+                .filter(|kind| kind.is_dangerous() && *kind != FileKind::WebPage);
+        if program.is_some() {
+            return Some(Page {
+                program,
+                ..Page::default()
+            });
+        }
+        if !content_type.contains("html") {
             return None;
         }
         let mut body = Vec::new();
@@ -356,6 +396,7 @@ fn parse_page(html: &str) -> Page {
         title: capture(&TITLE),
         site_name: capture(&SITE_NAME),
         asks_password: PASSWORD_INPUT.is_match(html),
+        program: None,
     }
 }
 
@@ -373,6 +414,20 @@ fn clean_text(text: &str) -> String {
     } else {
         joined
     }
+}
+
+/// A saved web page's brand claim and password field, judged the same way as a site's.
+pub fn html_signals(html: &str) -> Vec<Signal> {
+    page_signals(&parse_page(html), &[])
+}
+
+fn program_in_path(url: &Url) -> Option<FileKind> {
+    let name = url.path_segments()?.next_back()?;
+    let extension = name.rsplit_once('.')?.1.to_ascii_lowercase();
+    PROGRAM_EXTENSIONS
+        .contains(&extension.as_str())
+        .then(|| file::kind_from_name(name))
+        .flatten()
 }
 
 fn page_signals(page: &Page, found: &[Signal]) -> Vec<Signal> {
@@ -629,6 +684,22 @@ fn registration_date(body: &[u8]) -> Option<DateTime<Utc>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn links_to_programs_are_downloads() {
+        let path = |url: &str| program_in_path(&Url::parse(url).unwrap());
+        assert_eq!(
+            path("https://files.example/ABA%20Mobile.apk"),
+            Some(FileKind::AndroidApp)
+        );
+        assert_eq!(
+            path("https://x.example/setup.EXE?v=2"),
+            Some(FileKind::WindowsProgram)
+        );
+        assert_eq!(path("https://x.example/site.com"), None);
+        assert_eq!(path("https://x.example/app.js"), None);
+        assert_eq!(path("https://x.example/"), None);
+    }
+
     use super::*;
 
     #[test]

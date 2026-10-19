@@ -1,5 +1,8 @@
 use std::io::Cursor;
 
+use url::Url;
+
+use super::inside::{self, OLE, Power};
 use super::{Check, Signal, Subject};
 
 const MAX_ARCHIVE_ENTRIES: usize = 2_000;
@@ -58,6 +61,11 @@ pub struct FileInfo {
     pub real: Option<FileKind>,
     pub scans: Scans,
     pub unread: Option<Unread>,
+    /// An app's package name, from its manifest.
+    pub package: Option<String>,
+    pub powers: Vec<Power>,
+    /// Links found inside a PDF or web page, to check without opening them.
+    pub links: Vec<Url>,
 }
 
 /// What the bot got of the file's bytes.
@@ -103,7 +111,8 @@ fn kind_from_extension(extension: &str) -> Option<FileKind> {
         "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "rtf" | "odt" => FileKind::Document,
         "docm" | "xlsm" | "pptm" => FileKind::Script,
         "zip" | "rar" | "7z" | "tar" | "gz" => FileKind::Archive,
-        "exe" | "scr" | "msi" | "com" | "pif" | "cpl" | "dll" => FileKind::WindowsProgram,
+        "exe" | "scr" | "msi" | "com" | "pif" | "cpl" | "dll" | "msix" | "appx" | "msixbundle"
+        | "appxbundle" => FileKind::WindowsProgram,
         "apk" | "xapk" | "apks" | "aab" => FileKind::AndroidApp,
         "jar" | "dmg" | "pkg" | "app" | "deb" | "elf" => FileKind::OtherProgram,
         "bat" | "cmd" | "vbs" | "vbe" | "js" | "jse" | "wsf" | "ps1" | "sh" | "hta" | "py" => {
@@ -142,6 +151,9 @@ pub fn kind_from_bytes(bytes: &[u8]) -> Option<FileKind> {
     }
     if starts(b"PK\x03\x04") {
         return Some(zip_kind(bytes));
+    }
+    if starts(OLE) {
+        return Some(FileKind::Document);
     }
     if starts(b"%PDF") {
         return Some(FileKind::Pdf);
@@ -230,9 +242,13 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
     }
 
     let named = kind_from_name(name);
-    // An .apk or .jar is a zip inside, so a dangerous name wins over a plain archive.
+    // An .apk or .jar is a zip inside, and an .msi or .msix an Office-style container, so the name wins.
     let real = match (bytes.and_then(kind_from_bytes), named) {
         (Some(FileKind::Archive), Some(named)) if named.is_dangerous() => Some(named),
+        (
+            Some(FileKind::Document),
+            Some(named @ (FileKind::WindowsProgram | FileKind::OtherProgram)),
+        ) => Some(named),
         (Some(real), _) => Some(real),
         (None, _) => mime.and_then(kind_from_mime).or(named),
     };
@@ -268,6 +284,12 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
         }
     }
 
+    let inside = match (real, bytes) {
+        (Some(real), Some(bytes)) => inside::look(real, bytes),
+        _ => inside::Inside::default(),
+    };
+    signals.extend(inside.signals);
+
     match scans.virustotal {
         Some(VirusTotal::Seen { malicious, .. }) if malicious >= 3 => {
             signals.push(Signal::KnownMalware(Detector::VirusTotal(malicious)));
@@ -280,6 +302,12 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
     if scans.clamav_clean == Some(false) {
         signals.push(Signal::KnownMalware(Detector::ClamAv));
     }
+    let mut unique = Vec::with_capacity(signals.len());
+    for signal in signals {
+        if !unique.contains(&signal) {
+            unique.push(signal);
+        }
+    }
 
     Check {
         subject: Subject::File(Box::new(FileInfo {
@@ -287,8 +315,11 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
             real,
             scans,
             unread,
+            package: inside.package,
+            powers: inside.powers,
+            links: inside.links,
         })),
-        signals,
+        signals: unique,
     }
 }
 
@@ -348,6 +379,25 @@ mod tests {
         out.extend_from_slice(&start.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes());
         out
+    }
+
+    #[test]
+    fn containers_named_as_programs_and_macro_documents_are_flagged() {
+        use crate::analyzers::inside::tests::zipped;
+        let mut msi = OLE.to_vec();
+        msi.extend_from_slice(&[0; 64]);
+        assert_eq!(
+            signals("setup.msi", &msi),
+            [Signal::DangerousFile(FileKind::WindowsProgram)]
+        );
+        assert!(signals("report.doc", &msi).is_empty());
+        let docm = zipped(&[
+            ("[Content_Types].xml", b"<Types/>"),
+            ("word/vbaProject.bin", b"x"),
+        ]);
+        assert_eq!(signals("invoice.docm", &docm), [Signal::MacroDocument]);
+        let docx = zipped(&[("[Content_Types].xml", b"<Types/>")]);
+        assert!(signals("invoice.docx", &docx).is_empty());
     }
 
     #[test]

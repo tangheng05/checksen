@@ -1,6 +1,7 @@
 use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
+use crate::analyzers::inside::Power;
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
 use crate::analyzers::llm::{MessageKind, ScamCategory};
@@ -251,6 +252,7 @@ pub enum Step {
     Scan,
     FindQr,
     ReadText,
+    CheckLinks,
 }
 
 impl Step {
@@ -260,6 +262,7 @@ impl Step {
             Self::Scan => lang.pick("ស្កេនរកមេរោគ", "Scan for viruses"),
             Self::FindQr => lang.pick("រក QR ក្នុងរូប", "Look for a QR code"),
             Self::ReadText => lang.pick("អានអក្សរក្នុងរូប", "Read the text in the image"),
+            Self::CheckLinks => lang.pick("ពិនិត្យតំណក្នុងឯកសារ", "Check the links inside"),
         }
     }
 }
@@ -638,9 +641,12 @@ fn detail_section(
     if labeled {
         lines.push(level.label(lang).to_owned());
     }
-    // A file's card already shows its scan results, and its real type when it leads the reply.
+    // A file's card already shows its scan results and an app's powers, and its real type when it leads.
     let on_card = |signal: &Signal| match (&check.subject, signal) {
-        (Subject::File(_), Signal::KnownMalware(_) | Signal::FlaggedByFewEngines(_)) => true,
+        (
+            Subject::File(_),
+            Signal::KnownMalware(_) | Signal::FlaggedByFewEngines(_) | Signal::AppPower(_),
+        ) => true,
         (Subject::File(file), Signal::DangerousFile(kind)) => is_lead && file.real == Some(*kind),
         _ => false,
     };
@@ -842,9 +848,56 @@ fn reason(signal: Signal, lang: Lang) -> String {
             "This file's name has a hidden character that flips the text to hide its real type.",
         ),
         Signal::ProgramInArchive => (
-            "ឯកសារ zip នេះមានកម្មវិធីលាក់នៅខាងក្នុង។",
-            "This archive has a program hidden inside it.",
+            "ឯកសារនេះមានកម្មវិធីលាក់នៅខាងក្នុង។",
+            "This file has a program hidden inside it.",
         ),
+        Signal::AppPower(Power::ReadsSms) => (
+            "កម្មវិធីនេះអាចអានសារ SMS របស់អ្នក រួមទាំងលេខកូដ OTP ពីធនាគារ។",
+            "This app can read your text messages, including OTP codes from your bank.",
+        ),
+        Signal::AppPower(Power::ControlsScreen) => (
+            "កម្មវិធីនេះសុំសិទ្ធិ Accessibility ដែលអាចមើលអេក្រង់ និងចុចជំនួសអ្នកបាន។",
+            "This app asks for Accessibility access, which lets it see your screen and tap for you.",
+        ),
+        Signal::AppPower(Power::DrawsOverApps) => (
+            "កម្មវិធីនេះអាចបង្ហាញផ្ទាំងពីលើកម្មវិធីផ្សេង ដូចជាផ្ទាំងចូលធនាគារក្លែងក្លាយ។",
+            "This app can draw over other apps, for example a fake bank login screen.",
+        ),
+        Signal::AppPower(Power::DeviceAdmin) => (
+            "កម្មវិធីនេះសុំសិទ្ធិគ្រប់គ្រងឧបករណ៍ ដែលធ្វើឱ្យពិបាកលុបវាចោល។",
+            "This app asks to be a device admin, which makes it hard to remove.",
+        ),
+        Signal::AppPower(Power::InstallsApps) => (
+            "កម្មវិធីនេះអាចដំឡើងកម្មវិធីផ្សេងទៀតដោយខ្លួនឯង។",
+            "This app can install other apps by itself.",
+        ),
+        Signal::StealsCodes => (
+            "កម្មវិធីនេះអាចអានសារ SMS និងគ្រប់គ្រងអេក្រង់របស់អ្នក ដូចកម្មវិធីដែលលួចលុយពីគណនីធនាគារ។",
+            "This app can read your text messages and take over your screen, the way apps that steal from bank accounts work.",
+        ),
+        Signal::MacroDocument => (
+            "ឯកសារនេះមាន macro ដែលអាចដំណើរការកូដ ពេលអ្នកចុច Enable Content។",
+            "This document has macros, which can run code if you click Enable Content.",
+        ),
+        Signal::PdfLaunch => (
+            "PDF នេះព្យាយាមបើកកម្មវិធីផ្សេង ពេលអ្នកបើកវា។",
+            "This PDF tries to start a program when you open it.",
+        ),
+        Signal::PdfScript => (
+            "PDF នេះមានកូដ JavaScript។ ទម្រង់បំពេញខ្លះប្រើវា តែវាក៏អាចត្រូវគេប្រើក្នុងគោលបំណងអាក្រក់ដែរ។",
+            "This PDF contains JavaScript. Some forms use it, but it can also be misused.",
+        ),
+        Signal::SendsToAttacker => (
+            "ទំព័រនេះផ្ញើអ្វីដែលអ្នកវាយបញ្ចូល ដូចជាលេខសម្ងាត់ ទៅឱ្យអ្នកផ្សេងដោយសម្ងាត់។",
+            "This page secretly sends what you type, like your password, to someone else.",
+        ),
+        Signal::DownloadsProgram(kind) => {
+            let kind = file_kind_name(kind, lang);
+            return match lang {
+                Lang::Km => format!("តំណនេះទាញយក{kind} ជំនួសឱ្យការបើកគេហទំព័រ។"),
+                Lang::En => format!("This link downloads {kind} instead of opening a page."),
+            };
+        }
         Signal::LockedArchive => (
             "ឯកសារ zip នេះដាក់លេខសម្ងាត់ ដូច្នេះកម្មវិធីកំចាត់មេរោគមិនអាចមើលខាងក្នុងបានទេ។ ជនបោកប្រាស់តែងប្រើល្បិចនេះ។",
             "This archive is password-protected, so antivirus can't look inside. Scammers often do this.",
@@ -1092,6 +1145,21 @@ fn file_card(file: &FileInfo, summary: Option<&str>, about: Option<&str>, lang: 
         name.push_str(&format!(" · {real}"));
     }
     let mut lines = vec![name];
+    if let Some(package) = &file.package {
+        lines.push(format!("📦 {}", file_name(package)));
+    }
+    if !file.powers.is_empty() {
+        let powers: Vec<&str> = file
+            .powers
+            .iter()
+            .map(|&power| power_name(power, lang))
+            .collect();
+        lines.push(format!(
+            "🔓 {} {}",
+            lang.pick("អាច៖", "Can:"),
+            powers.join(" · ")
+        ));
+    }
     if let Some(about) = about {
         lines.push(format!("↪️ {about}"));
     }
@@ -1135,6 +1203,16 @@ fn file_card(file: &FileInfo, summary: Option<&str>, about: Option<&str>, lang: 
         None => {}
     }
     lines.join("\n")
+}
+
+fn power_name(power: Power, lang: Lang) -> &'static str {
+    match power {
+        Power::ReadsSms => lang.pick("អាន SMS", "read SMS"),
+        Power::ControlsScreen => lang.pick("គ្រប់គ្រងអេក្រង់", "control the screen"),
+        Power::DrawsOverApps => lang.pick("បង្ហាញពីលើកម្មវិធីផ្សេង", "draw over apps"),
+        Power::DeviceAdmin => lang.pick("គ្រប់គ្រងឧបករណ៍", "act as device admin"),
+        Power::InstallsApps => lang.pick("ដំឡើងកម្មវិធីផ្សេង", "install apps"),
+    }
 }
 
 fn khmer_digits(number: i64) -> String {
@@ -1535,6 +1613,34 @@ mod tests {
             progress(&[Step::Download], Step::Scan, Lang::En),
             "<b>🔍 Checking…</b>\n✅ Download the file\n⏳ Scan for viruses…"
         );
+    }
+
+    #[test]
+    fn apps_that_steal_codes_are_high_risk_with_their_powers_on_the_card() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        use crate::analyzers::inside::tests::{manifest, zipped};
+        let apk = zipped(&[(
+            "AndroidManifest.xml",
+            &manifest(
+                "com.aba.update",
+                &[
+                    "android.permission.READ_SMS",
+                    "android.permission.SYSTEM_ALERT_WINDOW",
+                ],
+            ),
+        )]);
+        let check = inspect(
+            "ABA Update.apk",
+            None,
+            Content::Bytes(&apk),
+            Scans::default(),
+        );
+        assert_eq!(decide(&check), Level::HighRisk);
+        let reply = render(&[check], About::default(), Lang::En);
+        let (shown, folded) = reply.split_once("<blockquote").unwrap();
+        assert!(shown.contains("📦 com․aba․update\n🔓 Can: read SMS · draw over apps"));
+        assert!(!folded.contains("can read your text messages, including"));
+        assert!(!reply.contains("com.aba.update"));
     }
 
     #[test]

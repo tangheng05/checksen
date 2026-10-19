@@ -1,4 +1,5 @@
 pub mod file;
+pub mod inside;
 pub mod intent;
 pub mod khqr;
 pub mod link;
@@ -11,6 +12,7 @@ pub mod text;
 use khqr_core::DecodedKhqr;
 
 use file::{Detector, FileInfo, FileKind};
+use inside::Power;
 use reputation::Threat;
 
 use link::{LinkChecker, LinkInfo};
@@ -73,6 +75,13 @@ pub enum Signal {
     LockedArchive,
     KnownMalware(Detector),
     FlaggedByFewEngines(u16),
+    AppPower(Power),
+    StealsCodes,
+    MacroDocument,
+    PdfLaunch,
+    PdfScript,
+    SendsToAttacker,
+    DownloadsProgram(FileKind),
     Model { category: ScamCategory, cited: bool },
     ModelUnavailable,
 }
@@ -89,6 +98,8 @@ impl Signal {
                 | Self::FakeBankApp(_)
                 | Self::KnownMalware(_)
                 | Self::KnownBadSite(_)
+                | Self::StealsCodes
+                | Self::SendsToAttacker
         )
     }
 
@@ -98,7 +109,11 @@ impl Signal {
             Self::Urgency
             | Self::PasswordPage
             | Self::ImpersonatedAccount(_)
-            | Self::LockedArchive => 0.2,
+            | Self::LockedArchive
+            | Self::PdfScript
+            | Self::AppPower(Power::DrawsOverApps | Power::DeviceAdmin | Power::InstallsApps) => {
+                0.2
+            }
             Self::Punycode
             | Self::AccountThreat
             | Self::LoanBait
@@ -108,7 +123,8 @@ impl Signal {
             | Self::DonationRequest
             | Self::RecruitmentBait
             | Self::GamblingBait
-            | Self::FlaggedByFewEngines(_) => 0.4,
+            | Self::FlaggedByFewEngines(_)
+            | Self::AppPower(Power::ReadsSms | Power::ControlsScreen) => 0.4,
             Self::Malformed
             | Self::Expired
             | Self::NewDomain
@@ -126,7 +142,10 @@ impl Signal {
             | Self::Extortion
             | Self::MalwareFile
             | Self::DangerousFile(_)
-            | Self::ProgramInArchive => 0.6,
+            | Self::ProgramInArchive
+            | Self::MacroDocument
+            | Self::PdfLaunch
+            | Self::DownloadsProgram(_) => 0.6,
             Self::ChecksumInvalid
             | Self::DuplicateTag
             | Self::OtpRequest
@@ -134,7 +153,9 @@ impl Signal {
             | Self::HiddenFileName
             | Self::FakeBankApp(_)
             | Self::KnownMalware(_)
-            | Self::KnownBadSite(_) => 1.0,
+            | Self::KnownBadSite(_)
+            | Self::StealsCodes
+            | Self::SendsToAttacker => 1.0,
         }
     }
 }

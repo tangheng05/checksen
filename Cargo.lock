@@ -317,6 +317,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "dotenvy",
+ "flate2",
  "futures",
  "hex",
  "hmac 0.12.1",
@@ -4221,6 +4222,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
 dependencies = [
  "crc32fast",
+ "flate2",
  "indexmap 2.14.2",
  "memchr",
  "nix",

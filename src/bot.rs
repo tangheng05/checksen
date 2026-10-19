@@ -564,7 +564,27 @@ async fn check_document(
             (Scans::default(), matches!(why, Unread::TooBig(_))),
         ),
     };
-    let mut checks = vec![file::inspect(name, mime, content, scans)];
+    let file_check = file::inspect(name, mime, content, scans);
+    let links = match &file_check.subject {
+        Subject::File(file) => file.links.clone(),
+        _ => Vec::new(),
+    };
+    let mut checks = vec![file_check];
+    if !links.is_empty() {
+        progress.step(Step::CheckLinks).await;
+        let link_checks = join_all(
+            links
+                .into_iter()
+                .map(|url| services.links.check_without_visiting(url)),
+        )
+        .await;
+        // Only links that look wrong are worth a section; most files link to ordinary sites.
+        checks.extend(
+            link_checks
+                .into_iter()
+                .filter(|check| check.signals.iter().any(|signal| signal.weight() > 0.0)),
+        );
+    }
     if let Some(caption) = msg.caption() {
         let (caption_checks, _) =
             text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
