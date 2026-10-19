@@ -330,6 +330,16 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     {
         lines.push(escape(about));
     }
+    // A link found inside a file isn't one the person can see, so say which it is.
+    if let Subject::Link(link) = &lead.subject
+        && link.in_file
+    {
+        lines.push(format!(
+            "🔗 {} {}",
+            escape(lang.pick("តំណក្នុងឯកសារ៖", "Link inside the file:")),
+            escape(&defang(&link.host))
+        ));
+    }
     if let Some(summary) = &summary {
         lines.push(escape(summary));
     }
@@ -356,7 +366,9 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     }
 
     let mut details: Vec<String> = Vec::new();
-    for check in checks {
+    let lead_first =
+        std::iter::once(lead).chain(checks.iter().filter(|check| !std::ptr::eq(*check, lead)));
+    for check in lead_first {
         let is_lead = std::ptr::eq(check, lead);
         let section = detail_section(
             check,
@@ -1875,6 +1887,37 @@ mod tests {
         assert!(
             english.contains("• Owner: GitHub (code hosting site)") && english.contains("19 years")
         );
+    }
+
+    #[test]
+    fn a_bad_link_inside_a_file_is_named_up_top() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        let file = inspect(
+            "receipt.pdf",
+            None,
+            Content::Bytes(b"%PDF-1.7"),
+            Scans::default(),
+        );
+        let link = Check {
+            subject: Subject::Link(LinkInfo {
+                host: "aba-verify-login.top".to_owned(),
+                redirected_to: None,
+                age_days: None,
+                site: None,
+                title: None,
+                in_file: true,
+            }),
+            signals: vec![Signal::Lookalike("ABA")],
+        };
+        let reply = render(&[file, link], About::default(), Lang::En);
+        let mut lines = reply.lines();
+        assert_eq!(lines.next(), Some("<b>🟠 Suspicious</b>"));
+        assert_eq!(
+            lines.next(),
+            Some("🔗 Link inside the file: aba-verify-login[.]top")
+        );
+        let folded = reply.split_once("<blockquote expandable>").unwrap().1;
+        assert!(folded.find("Link inside the file").unwrap() < folded.find("receipt").unwrap());
     }
 
     #[test]
