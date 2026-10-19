@@ -24,6 +24,7 @@
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police or power-cut threats, scam-compound and overseas job ads, charity pleas to personal accounts, "send money before we call" romance scams, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
 | A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages. It also looks inside: what an Android app is allowed to do (read SMS codes, control the screen, draw fake login screens), Office macros, PDFs that run scripts or programs, saved web pages that send passwords away, and links inside PDFs and web pages. When set up, it adds a ClamAV scan and a VirusTotal lookup. A photo or KHQR screenshot sent as a file gets the same check as a photo |
+| A phone number, username or site that people reported | Warns once 3 different people have reported it with the "🚩 Report as a scam" button, so new scams get flagged before any rule or list knows them |
 | Who forwarded it | Flags personal accounts named like a bank or Telegram ("ABA Bank Support", "Telegram Security"), since neither writes to people from personal accounts, and names official channels |
 | A message forwarded from Telegram's own account | Confirms it really came from Telegram and warns never to share the login code; it isn't sent to the AI |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
@@ -69,7 +70,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
 - For a link to a site it doesn't know, the bot opens the page once from its server to read the title. It never opens links to well-known services, so one-time login links aren't used up.
-- If you tap "No" on a KHQR check, the bot stores a report against that payment account, linked only to a keyed hash of your Telegram ID. An account is shown as reported only after 3 different people report it.
+- If you tap "No" on a KHQR check, or "Report as a scam" on any other check, the bot stores a report against that payment account, phone number, Telegram username or website, linked only to a keyed hash of your Telegram ID. The message itself is never stored. Something is shown as reported only after 3 different people report it, and official sites and Telegram's own accounts can't be reported.
 - `/forget` deletes every report linked to you.
 
 ## Run it yourself
@@ -78,7 +79,7 @@ You need a recent stable Rust (1.96 or newer) and a bot token from [@BotFather](
 
 ```sh
 cp .env.example .env                 # then fill in the values below
-docker compose up -d postgres        # optional, only for KHQR reports
+docker compose up -d postgres        # optional, only for reports
 cargo run --release --bin checksen
 ```
 
@@ -88,7 +89,7 @@ cargo run --release --bin checksen
 | `GEMINI_API_KEY` | recommended | AI text checks and screenshot reading, using the free tier from [Google AI Studio](https://aistudio.google.com/apikey) |
 | `GEMINI_MODEL` | no | A model, or a comma-separated list tried in order when one is busy or out of quota (default `gemini-3.5-flash-lite,gemini-3.1-flash-lite`). Use a single model for `eval --llm` runs |
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
-| `DATABASE_URL` | no | Postgres for KHQR reports; migrations run on start |
+| `DATABASE_URL` | no | Postgres for reports (KHQR accounts, phone numbers, usernames, websites); migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
 | `ABUSECH_AUTH_KEY` | no | Free key from [auth.abuse.ch](https://auth.abuse.ch/) for URLhaus (links that spread malware) and MalwareBazaar (known malware files, by fingerprint). Free under fair use; the bot makes at most 5,000 lookups a day |
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |

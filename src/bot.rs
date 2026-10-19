@@ -13,6 +13,7 @@ use url::Url;
 
 use checksen::analyzers::abusech::AbuseCh;
 use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
+use checksen::analyzers::indicators::{self, Indicator};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
@@ -58,6 +59,7 @@ struct Outcome {
     /// Fixed advice shown above the verdict, for people who were already scammed.
     preface: Option<&'static str>,
     cacheable: bool,
+    reportable: Vec<Indicator>,
 }
 
 impl Outcome {
@@ -70,7 +72,13 @@ impl Outcome {
             body: Body::Checks(checks),
             preface: None,
             cacheable,
+            reportable: Vec::new(),
         }
+    }
+
+    fn reporting(mut self, reportable: Vec<Indicator>) -> Self {
+        self.reportable = reportable;
+        self
     }
 
     fn text(text: impl Into<String>, cacheable: bool) -> Self {
@@ -78,6 +86,7 @@ impl Outcome {
             body: Body::Text(text.into()),
             preface: None,
             cacheable,
+            reportable: Vec::new(),
         }
     }
 
@@ -86,6 +95,7 @@ impl Outcome {
             Body::Text(text) => Reply {
                 text,
                 account: None,
+                reportable: Vec::new(),
                 html: false,
             },
             Body::Checks(checks) => {
@@ -105,6 +115,7 @@ impl Outcome {
                 Reply {
                     text,
                     account,
+                    reportable: self.reportable,
                     html: true,
                 }
             }
@@ -169,7 +180,7 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
         }
     };
 
-    let keyboard = reports::keyboard(services.store.as_deref(), reply.account.as_deref(), lang);
+    let keyboard = reports::keyboard(services.store.as_deref(), &services.guard, &reply, lang);
     progress.finish(&reply, keyboard).await
 }
 
@@ -436,6 +447,7 @@ fn apply_sender(outcome: &mut Outcome, sender: &Sender) {
         }
     }
     if senders::official(sender).is_some() {
+        outcome.reportable.clear();
         for check in checks.iter_mut() {
             check
                 .signals
@@ -494,14 +506,14 @@ async fn check_text(
     }
 
     let has_links = !urls.is_empty();
-    let (checks, reading) =
+    let (checks, reading, reportable) =
         text_checks(message, urls, !has_links, services, CLASSIFIER_BUDGET).await;
     let intent = intent::decide(rules, reading.intent, message);
     let flagged = has_links
         || checks
             .iter()
             .any(|check| verdict::decide(check) != Level::NoKnownSignals);
-    let verdict = Outcome::of(checks);
+    let verdict = Outcome::of(checks).reporting(reportable);
     let outcome = match verdict::answer(intent, lang) {
         Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
             preface: Some(answer),
@@ -520,7 +532,7 @@ async fn text_checks(
     show_text: bool,
     services: &Services,
     budget: Duration,
-) -> (Vec<Check>, Reading) {
+) -> (Vec<Check>, Reading, Vec<Indicator>) {
     let text_check = text::check(message);
     // A bare link is covered by the link check; the model only sees real text.
     let classify = prose_chars(message) >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
@@ -534,6 +546,20 @@ async fn text_checks(
         },
         join_all(urls.into_iter().map(|url| services.links.check(url)))
     );
+    let (mut text_check, mut link_checks) = (text_check, link_checks);
+    let mut reportable = indicators::in_text(message);
+    for domain in link_checks.iter().filter_map(reports::link_domain) {
+        if !reportable.contains(&domain) {
+            reportable.push(domain);
+        }
+    }
+    reports::flag_reported(
+        services.store.as_deref(),
+        &reportable,
+        &mut text_check,
+        &mut link_checks,
+    )
+    .await;
 
     let mut checks = Vec::new();
     if show_text
@@ -545,7 +571,7 @@ async fn text_checks(
         checks.push(text_check);
     }
     checks.extend(link_checks);
-    (checks, reading)
+    (checks, reading, reportable)
 }
 
 async fn classify_text(
@@ -657,12 +683,14 @@ async fn check_document(
                 .filter(|check| check.signals.iter().any(|signal| signal.weight() > 0.0)),
         );
     }
+    let mut reportable = Vec::new();
     if let Some(caption) = msg.caption() {
-        let (caption_checks, _) =
+        let (caption_checks, _, found) =
             text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
         checks.extend(caption_checks);
+        reportable = found;
     }
-    let outcome = Outcome::of(checks);
+    let outcome = Outcome::of(checks).reporting(reportable);
     let cacheable = outcome.cacheable && scanned && inspected;
     (
         Outcome {
@@ -800,7 +828,7 @@ async fn check_image(
         .await;
         let mut checks = reports::with_reports(checks, services.store.as_deref()).await;
         if let Some(caption) = caption {
-            let (caption_checks, _) =
+            let (caption_checks, _, _) =
                 text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
             checks.extend(caption_checks);
         }
@@ -824,7 +852,7 @@ async fn check_image(
             };
             let urls = urls_in(msg);
             let show_text = urls.is_empty();
-            let (checks, reading) = text_checks(
+            let (checks, reading, reportable) = text_checks(
                 &message,
                 urls,
                 show_text,
@@ -832,7 +860,7 @@ async fn check_image(
                 SCREENSHOT_CLASSIFIER_BUDGET,
             )
             .await;
-            (Outcome::of(checks), reading.kind)
+            (Outcome::of(checks).reporting(reportable), reading.kind)
         }
         Ok(None) => {
             let nothing = Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true);
@@ -856,9 +884,9 @@ async fn caption_or(
     };
     let urls = urls_in(msg);
     let show_text = urls.is_empty();
-    let (checks, reading) =
+    let (checks, reading, reportable) =
         text_checks(caption, urls, show_text, services, CLASSIFIER_BUDGET).await;
-    let outcome = Outcome::of(checks);
+    let outcome = Outcome::of(checks).reporting(reportable);
     let cacheable = outcome.cacheable && fallback.cacheable;
     (
         Outcome {

@@ -1,4 +1,5 @@
 use anyhow::ensure;
+use checksen::analyzers::indicators::Indicator;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
@@ -7,7 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 type HmacSha256 = Hmac<Sha256>;
 
 pub const REPORT_THRESHOLD: i64 = 3;
-const REPORTS_PER_DAY: i64 = 5;
+const REPORTS_PER_DAY: i64 = 10;
 const MAX_ACCOUNT_BYTES: usize = 32;
 const TAG_BYTES: usize = 8;
 
@@ -89,19 +90,86 @@ impl Store {
         Some((intended, account.to_owned()))
     }
 
-    pub async fn reporters(&self, account: &str) -> anyhow::Result<i64> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT count(DISTINCT r.reporter_hash) FROM reports r
-             JOIN indicators i ON i.id = r.indicator_id
-             WHERE i.kind = 'khqr_account' AND i.value = $1 AND r.status <> 'disputed'",
-        )
-        .bind(normalize(account))
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(count)
+    /// The "report as a scam" button only carries an id; the indicators wait in memory.
+    pub fn report_callback(&self, id: u64) -> String {
+        let id = format!("{id:016x}");
+        let tag = self
+            .mac(b"report", &[id.as_bytes()])
+            .finalize()
+            .into_bytes();
+        format!("r:{id}:{}", hex::encode(&tag[..TAG_BYTES]))
     }
 
-    pub async fn report(&self, account: &str, user_id: u64) -> anyhow::Result<ReportOutcome> {
+    pub fn verify_report_callback(&self, data: &str) -> Option<u64> {
+        let (id, tag) = data.strip_prefix("r:")?.split_once(':')?;
+        let tag = hex::decode(tag).ok().filter(|tag| tag.len() == TAG_BYTES)?;
+        self.mac(b"report", &[id.as_bytes()])
+            .verify_truncated_left(&tag)
+            .ok()?;
+        u64::from_str_radix(id, 16).ok()
+    }
+
+    pub async fn reporters(&self, indicator: &Indicator) -> anyhow::Result<i64> {
+        Ok(self
+            .reporters_of(std::slice::from_ref(indicator))
+            .await?
+            .first()
+            .copied()
+            .unwrap_or(0))
+    }
+
+    /// How many people reported each indicator, in one query.
+    pub async fn reporters_of(&self, indicators: &[Indicator]) -> anyhow::Result<Vec<i64>> {
+        let kinds: Vec<&str> = indicators.iter().map(|found| found.kind.as_str()).collect();
+        let values: Vec<&str> = indicators
+            .iter()
+            .map(|found| found.value.as_str())
+            .collect();
+        let counts: Vec<(i32, i64)> = sqlx::query_as(
+            "SELECT wanted.n::int4, count(DISTINCT r.reporter_hash)
+             FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS wanted (kind, value, n)
+             JOIN indicators i ON i.kind = wanted.kind AND i.value = wanted.value
+             JOIN reports r ON r.indicator_id = i.id AND r.status <> 'disputed'
+             GROUP BY wanted.n",
+        )
+        .bind(&kinds)
+        .bind(&values)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut reporters = vec![0; indicators.len()];
+        for (position, count) in counts {
+            if let Some(slot) = usize::try_from(position - 1)
+                .ok()
+                .and_then(|index| reporters.get_mut(index))
+            {
+                *slot = count;
+            }
+        }
+        Ok(reporters)
+    }
+
+    /// Reports each indicator; the outcome is the first that isn't a repeat.
+    pub async fn report_all(
+        &self,
+        indicators: &[Indicator],
+        user_id: u64,
+    ) -> anyhow::Result<ReportOutcome> {
+        let mut outcome = ReportOutcome::AlreadyReported;
+        for indicator in indicators {
+            match self.report(indicator, user_id).await? {
+                ReportOutcome::DailyLimit => return Ok(ReportOutcome::DailyLimit),
+                ReportOutcome::Recorded => outcome = ReportOutcome::Recorded,
+                ReportOutcome::AlreadyReported => {}
+            }
+        }
+        Ok(outcome)
+    }
+
+    pub async fn report(
+        &self,
+        indicator: &Indicator,
+        user_id: u64,
+    ) -> anyhow::Result<ReportOutcome> {
         let reporter = self.reporter_hash(user_id);
         let mut tx = self.pool.begin().await?;
         let today: i64 = sqlx::query_scalar(
@@ -114,10 +182,11 @@ impl Store {
             return Ok(ReportOutcome::DailyLimit);
         }
         let indicator: i64 = sqlx::query_scalar(
-            "INSERT INTO indicators (kind, value) VALUES ('khqr_account', $1)
+            "INSERT INTO indicators (kind, value) VALUES ($1, $2)
              ON CONFLICT (kind, value) DO UPDATE SET last_seen = now() RETURNING id",
         )
-        .bind(normalize(account))
+        .bind(indicator.kind.as_str())
+        .bind(&indicator.value)
         .fetch_one(&mut *tx)
         .await?;
         let inserted = sqlx::query(
@@ -144,10 +213,6 @@ impl Store {
             .rows_affected();
         Ok(removed)
     }
-}
-
-fn normalize(account: &str) -> String {
-    account.trim().to_lowercase()
 }
 
 #[cfg(test)]
@@ -209,12 +274,12 @@ mod tests {
         Some(Store::connect(&url, SECRET).await.expect("test database"))
     }
 
-    fn unique_account(label: &str) -> String {
+    fn unique_account(label: &str) -> Indicator {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        format!("{label}{}@test", nanos % 1_000_000_000_000)
+        Indicator::khqr_account(&format!("{label}{}@test", nanos % 1_000_000_000_000))
     }
 
     fn unique_user() -> u64 {
@@ -242,7 +307,10 @@ mod tests {
         store.report(&account, first + 1).await.unwrap();
         assert_eq!(store.reporters(&account).await.unwrap(), 2);
         store
-            .report(&account.to_uppercase(), first + 2)
+            .report(
+                &Indicator::khqr_account(&account.value.to_uppercase()),
+                first + 2,
+            )
             .await
             .unwrap();
         assert_eq!(store.reporters(&account).await.unwrap(), REPORT_THRESHOLD);
@@ -259,7 +327,7 @@ mod tests {
             "UPDATE reports SET status = 'disputed' WHERE indicator_id =
              (SELECT id FROM indicators WHERE value = $1)",
         )
-        .bind(&account)
+        .bind(&account.value)
         .execute(&store.pool)
         .await
         .unwrap();
@@ -267,7 +335,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sixth_report_in_a_day_is_refused() {
+    async fn reports_over_the_daily_limit_are_refused() {
         let Some(store) = database().await else {
             return;
         };
@@ -282,6 +350,49 @@ mod tests {
         assert_eq!(
             store.report(&unique_account("limit"), user).await.unwrap(),
             ReportOutcome::DailyLimit
+        );
+    }
+
+    #[tokio::test]
+    async fn report_callbacks_round_trip_and_reject_tampering() {
+        let store = offline();
+        let data = store.report_callback(0xdead_beef);
+        assert!(data.len() <= 64);
+        assert_eq!(store.verify_report_callback(&data), Some(0xdead_beef));
+        assert!(
+            store
+                .verify_report_callback(&data.replacen("deadbeef", "deadbeee", 1))
+                .is_none()
+        );
+        assert!(store.verify_callback(&data).is_none());
+    }
+
+    #[tokio::test]
+    async fn phones_usernames_and_sites_are_counted_together() {
+        let Some(store) = database().await else {
+            return;
+        };
+        let user = unique_user();
+        let phone = Indicator {
+            kind: checksen::analyzers::indicators::IndicatorKind::Phone,
+            value: format!("85512{}", user % 1_000_000),
+        };
+        let site = Indicator::domain(&format!("scam{user}.example")).unwrap();
+        let same_value_other_kind = Indicator::khqr_account(&phone.value);
+        assert_eq!(
+            store
+                .report_all(&[phone.clone(), site.clone()], user)
+                .await
+                .unwrap(),
+            ReportOutcome::Recorded
+        );
+        store.report(&phone, user + 1).await.unwrap();
+        assert_eq!(
+            store
+                .reporters_of(&[site, phone, same_value_other_kind])
+                .await
+                .unwrap(),
+            [1, 2, 0]
         );
     }
 

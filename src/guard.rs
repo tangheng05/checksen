@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use moka::sync::Cache;
 
+use checksen::analyzers::indicators::Indicator;
 use checksen::verdict::Lang;
 
 const CHECKS_PER_WINDOW: u32 = 30;
@@ -15,10 +16,13 @@ const SCREENSHOT_CALLS_PER_DAY: u32 = 1_000;
 // VirusTotal's free key allows 500 lookups a day.
 const FILE_LOOKUPS_PER_DAY: u32 = 450;
 const LANGUAGE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const REPORT_BUTTON_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 pub struct Reply {
     pub text: String,
     pub account: Option<String>,
+    /// Phone numbers, usernames and sites in the message that can be reported as a scam.
+    pub reportable: Vec<Indicator>,
     /// Verdicts use Telegram HTML; fixed answers are plain text.
     pub html: bool,
 }
@@ -53,6 +57,7 @@ pub struct Guard {
     replies: Cache<u64, Arc<Reply>>,
     model_calls: Cache<(ModelCall, u64), Arc<AtomicU32>>,
     languages: Cache<u64, Lang>,
+    report_buttons: Cache<u64, Arc<Vec<Indicator>>>,
 }
 
 impl Guard {
@@ -75,7 +80,23 @@ impl Guard {
                 .max_capacity(100_000)
                 .time_to_live(LANGUAGE_TTL)
                 .build(),
+            report_buttons: Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(REPORT_BUTTON_TTL)
+                .build(),
         }
+    }
+
+    /// Keeps what a report button would report, and returns the id the button carries.
+    pub fn report_button(&self, indicators: &[Indicator]) -> u64 {
+        let id = self.key(("report", indicators));
+        self.report_buttons
+            .insert(id, Arc::new(indicators.to_vec()));
+        id
+    }
+
+    pub fn reported_by_button(&self, id: u64) -> Option<Arc<Vec<Indicator>>> {
+        self.report_buttons.get(&id)
     }
 
     pub fn key(&self, parts: impl Hash) -> u64 {
@@ -176,12 +197,22 @@ mod tests {
             Arc::new(Reply {
                 text: "reply".to_owned(),
                 account: Some("sok@abaa".to_owned()),
+                reportable: Vec::new(),
                 html: true,
             }),
         );
         let cached = guard.cached(key).unwrap();
         assert_eq!(cached.text, "reply");
         assert_eq!(cached.account.as_deref(), Some("sok@abaa"));
+    }
+
+    #[test]
+    fn report_buttons_find_their_indicators() {
+        let guard = Guard::new();
+        let found = vec![Indicator::khqr_account("sok@abaa")];
+        let id = guard.report_button(&found);
+        assert_eq!(guard.reported_by_button(id).as_deref(), Some(&found));
+        assert!(guard.reported_by_button(id.wrapping_add(1)).is_none());
     }
 
     #[test]

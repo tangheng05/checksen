@@ -1,6 +1,7 @@
 use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
+use crate::analyzers::indicators::IndicatorKind;
 use crate::analyzers::inside::Power;
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
@@ -100,8 +101,8 @@ const HOW_TO_REPORT: Text = text(
     "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• You can also report it to the police.",
 );
 const PRIVACY: Text = text(
-    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal និង MalwareBazaar មិនមែនឯកសារខ្លួនឯងទេ។ ចុច /forget ដើម្បីលុបការរាយការណ៍ KHQR របស់អ្នក។",
-    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Links are checked against Google's and URLhaus's lists of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal and MalwareBazaar, never the file itself. Tap /forget to delete your KHQR reports.",
+    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal និង MalwareBazaar មិនមែនឯកសារខ្លួនឯងទេ។ បើអ្នករាយការណ៍ការបោកប្រាស់ CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះគណនី គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ ចុច /forget ដើម្បីលុបការរាយការណ៍របស់អ្នក។",
+    "CheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Links are checked against Google's and URLhaus's lists of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal and MalwareBazaar, never the file itself. If you report a scam, CheckSen stores only that phone number, username, website or QR account, with your Telegram ID hashed. Tap /forget to delete your reports.",
 );
 const OTHER_QUESTION: Text = text(
     "ខ្ញុំអាចជួយពិនិត្យតែសារ តំណ កូដ QR រូបថតអេក្រង់ និងឯកសារ ដែលអ្នកសង្ស័យប៉ុណ្ណោះ។ សូម forward ឬចម្លងសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាមានសញ្ញាបោកប្រាស់ឬអត់។",
@@ -150,6 +151,15 @@ pub const REPORT_FAILED: Text = text(
 pub const REPLY_FAILED: Text = text(
     "ខ្ញុំមិនអាចបង្ហាញលទ្ធផលបានទេ។ សូមប្រយ័ត្ន ហើយកុំបើក ឬបង់ប្រាក់អ្វីទាំងអស់ ទាល់តែអ្នកប្រាកដ។",
     "I couldn't show the result. Be careful, and don't open or pay for anything until you're sure.",
+);
+pub const SCAM_REPORTED: Text = text(
+    "អរគុណសម្រាប់ការរាយការណ៍។ បើមានអ្នកផ្សេងទៀតរាយការណ៍ដូចគ្នា CheckSen នឹងព្រមានអ្នកដទៃ។",
+    "Thanks for reporting. If others report it too, CheckSen will warn people about it.",
+);
+pub const REPORT_BUTTON: Text = text("🚩 រាយការណ៍ថាជាការបោកប្រាស់", "🚩 Report as a scam");
+pub const REPORT_EXPIRED: Text = text(
+    "ប៊ូតុងនេះផុតកំណត់ហើយ។ សូមផ្ញើសារនោះមកម្តងទៀត ដើម្បីរាយការណ៍។",
+    "This button has expired. Send the message again to report it.",
 );
 pub const RATE_LIMITED: Text = text(
     "អ្នកផ្ញើមកច្រើនពេកក្នុងពេលខ្លី។ សូមរង់ចាំបន្តិច ហើយសាកម្តងទៀត។",
@@ -977,6 +987,23 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 ),
             };
         }
+        Signal::ReportedScam(kind, reporters) => {
+            let (km, en) = match kind {
+                IndicatorKind::Phone => ("លេខទូរស័ព្ទ", "phone number"),
+                IndicatorKind::TelegramUsername => ("គណនី Telegram", "Telegram account"),
+                IndicatorKind::Domain => ("គេហទំព័រ", "website"),
+                IndicatorKind::KhqrAccount => ("គណនី", "account"),
+            };
+            return match lang {
+                Lang::Km => format!(
+                    "មានអ្នកប្រើ {} នាក់ បានរាយការណ៍ថា{km}ក្នុងសារនេះជាការបោកប្រាស់។",
+                    khmer_digits(reporters.into())
+                ),
+                Lang::En => {
+                    format!("{reporters} people reported the {en} in this message as a scam.")
+                }
+            };
+        }
         Signal::Model { category, .. } => {
             return match lang {
                 Lang::Km => format!(
@@ -1555,6 +1582,16 @@ mod tests {
             Some("បញ្ជូនបន្តពី ＠ABA_Support")
         );
         assert_eq!(about_line(About::default(), Lang::Km), None);
+    }
+
+    #[test]
+    fn reported_contacts_say_what_was_reported() {
+        let check = Check {
+            subject: Subject::Text,
+            signals: vec![Signal::ReportedScam(IndicatorKind::Phone, 4)],
+        };
+        assert_eq!(decide(&check), Level::Suspicious);
+        assert!(render_km(&[check]).contains("មានអ្នកប្រើ ៤ នាក់ បានរាយការណ៍ថាលេខទូរស័ព្ទ"));
     }
 
     #[test]

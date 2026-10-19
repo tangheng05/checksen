@@ -1,5 +1,6 @@
 pub mod abusech;
 pub mod file;
+pub mod indicators;
 pub mod inside;
 pub mod intent;
 pub mod khqr;
@@ -14,6 +15,7 @@ pub mod text;
 use khqr_core::DecodedKhqr;
 
 use file::{Detector, FileInfo, FileKind};
+use indicators::IndicatorKind;
 use inside::Power;
 use reputation::Threat;
 
@@ -46,6 +48,7 @@ pub enum Signal {
     Punycode,
     NewDomain,
     Reported(u32),
+    ReportedScam(IndicatorKind, u32),
     OtpRequest,
     UpfrontFee,
     MoveMoneyOut,
@@ -142,6 +145,7 @@ impl Signal {
             | Self::BrandClaim(_)
             | Self::ImpersonatedSender(_)
             | Self::Reported(_)
+            | Self::ReportedScam(..)
             | Self::UpfrontFee
             | Self::MoveMoneyOut
             | Self::AccountRental

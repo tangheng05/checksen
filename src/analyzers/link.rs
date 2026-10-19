@@ -509,6 +509,11 @@ fn named_brand(text: &str, any_word: bool) -> Option<&'static str> {
         .map(|brand| brand.name)
 }
 
+/// Telegram's own accounts, which can't be reported.
+pub fn is_official_telegram(username: &str) -> bool {
+    OFFICIAL_TELEGRAM_ACCOUNTS.contains(&username.to_ascii_lowercase().as_str())
+}
+
 /// The brand a support-style Telegram username pretends to be, like @ABA_Support_KH.
 pub fn impersonated_brand(username: &str) -> Option<&'static str> {
     let lower = username.to_ascii_lowercase();
