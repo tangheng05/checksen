@@ -67,6 +67,11 @@ fn parse_clamd_reply(reply: &str) -> anyhow::Result<bool> {
     }
 }
 
+/// A file's SHA-256, the only thing sent to VirusTotal and MalwareBazaar.
+pub fn fingerprint(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
+}
+
 /// VirusTotal by hash only: the file itself is never uploaded, so private documents stay private.
 pub struct VirusTotalClient {
     http: Client,
@@ -84,11 +89,10 @@ impl VirusTotalClient {
         }))
     }
 
-    pub async fn lookup(&self, bytes: &[u8]) -> anyhow::Result<VirusTotal> {
-        let hash = hex::encode(Sha256::digest(bytes));
+    pub async fn lookup(&self, sha256: &str) -> anyhow::Result<VirusTotal> {
         let response = self
             .http
-            .get(format!("https://www.virustotal.com/api/v3/files/{hash}"))
+            .get(format!("https://www.virustotal.com/api/v3/files/{sha256}"))
             .header("x-apikey", &self.api_key)
             .send()
             .await?;

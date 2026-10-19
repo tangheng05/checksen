@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 10;
+pub const RULES_VERSION: u32 = 11;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -38,6 +38,13 @@ impl Rule {
 
 fn compile(pattern: &str) -> Regex {
     Regex::new(&format!("(?s){pattern}")).expect("rule patterns are valid")
+}
+
+static WARNING: LazyLock<Regex> = LazyLock::new(|| compile(NEWS_OR_WARNING));
+
+/// News or a warning that describes a scam, rather than the scam itself.
+pub fn reads_as_warning(text: &str) -> bool {
+    Normalized::new(text).matches(&WARNING)
 }
 
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {

@@ -63,8 +63,8 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 
 ## Privacy
 
-- Links, and every page they redirect through, are sent to Google Safe Browsing when it is configured.
-- Files are downloaded into memory (up to Telegram's 20 MB bot limit, or 100 MB with a [local Bot API server](#files-up-to-100-mb)), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal gets only the file's SHA-256 fingerprint; files are never uploaded. Bigger files are judged by their name and type only.
+- Links, and every page they redirect through, are sent to Google Safe Browsing and abuse.ch's URLhaus when they are configured. Links found inside a file are sent without their query string.
+- Files are downloaded into memory (up to Telegram's 20 MB bot limit, or 100 MB with a [local Bot API server](#files-up-to-100-mb)), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal and abuse.ch's MalwareBazaar get only the file's SHA-256 fingerprint; files are never uploaded. Bigger files are judged by their name and type only.
 - Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
@@ -90,6 +90,7 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for KHQR reports; migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
+| `ABUSECH_AUTH_KEY` | no | Free key from [auth.abuse.ch](https://auth.abuse.ch/) for URLhaus (links that spread malware) and MalwareBazaar (known malware files, by fingerprint). Free under fair use; the bot makes at most 5,000 lookups a day |
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |
 | `VIRUSTOTAL_API_KEY` | no | Free key from [virustotal.com](https://www.virustotal.com/gui/my-apikey); looks up file fingerprints (500 a day) |
@@ -168,7 +169,7 @@ CI runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo
 
 ## Stack
 
-Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, Gemini (free tier) with Claude as an option, and [ClamAV](https://www.clamav.net/) and [VirusTotal](https://www.virustotal.com/) for files. Webhooks and Google Web Risk are planned.
+Rust, [teloxide](https://docs.rs/teloxide/), reqwest, rxing and khqr-rs, moka, PostgreSQL with sqlx, Gemini (free tier) with Claude as an option, and [ClamAV](https://www.clamav.net/), [VirusTotal](https://www.virustotal.com/) and [abuse.ch](https://abuse.ch/) for files and links. Webhooks and Google Web Risk are planned.
 
 ## License
 

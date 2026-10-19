@@ -1,3 +1,4 @@
+pub mod abusech;
 pub mod file;
 pub mod inside;
 pub mod intent;
@@ -74,6 +75,7 @@ pub enum Signal {
     FakeBankApp(&'static str),
     DangerousFile(FileKind),
     KnownBadSite(Threat),
+    KnownMalwareLink,
     ProgramInArchive,
     LockedArchive,
     KnownMalware(Detector),
@@ -101,6 +103,7 @@ impl Signal {
                 | Self::FakeBankApp(_)
                 | Self::KnownMalware(_)
                 | Self::KnownBadSite(_)
+                | Self::KnownMalwareLink
                 | Self::StealsCodes
                 | Self::SendsToAttacker
         )
@@ -159,6 +162,7 @@ impl Signal {
             | Self::FakeBankApp(_)
             | Self::KnownMalware(_)
             | Self::KnownBadSite(_)
+            | Self::KnownMalwareLink
             | Self::StealsCodes
             | Self::SendsToAttacker => 1.0,
         }

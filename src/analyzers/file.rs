@@ -53,6 +53,7 @@ impl FileKind {
 pub enum Detector {
     ClamAv,
     VirusTotal(u16),
+    MalwareBazaar,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +89,8 @@ pub enum Unread {
 pub struct Scans {
     pub clamav_clean: Option<bool>,
     pub virustotal: Option<VirusTotal>,
+    /// Whether MalwareBazaar knows the file.
+    pub malwarebazaar: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -301,6 +304,9 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
     }
     if scans.clamav_clean == Some(false) {
         signals.push(Signal::KnownMalware(Detector::ClamAv));
+    }
+    if scans.malwarebazaar == Some(true) {
+        signals.push(Signal::KnownMalware(Detector::MalwareBazaar));
     }
     let mut unique = Vec::with_capacity(signals.len());
     for signal in signals {
@@ -538,5 +544,13 @@ mod tests {
             ..Scans::default()
         };
         assert_eq!(scanned(clamav), [Signal::KnownMalware(Detector::ClamAv)]);
+        let bazaar = Scans {
+            malwarebazaar: Some(true),
+            ..Scans::default()
+        };
+        assert_eq!(
+            scanned(bazaar),
+            [Signal::KnownMalware(Detector::MalwareBazaar)]
+        );
     }
 }

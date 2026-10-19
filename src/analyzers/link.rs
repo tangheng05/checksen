@@ -13,6 +13,7 @@ use tokio::sync::OnceCell;
 use tokio::time::{Instant, timeout_at};
 use url::Host;
 
+use super::abusech::AbuseCh;
 use super::file::{self, FileKind};
 use super::reputation::SafeBrowsing;
 use super::sites::{self, Kind, Site};
@@ -164,6 +165,7 @@ pub struct LinkChecker {
     http: Client,
     rdap_servers: OnceCell<HashMap<String, Url>>,
     safe_browsing: Option<SafeBrowsing>,
+    abusech: Option<Arc<AbuseCh>>,
 }
 
 impl LinkChecker {
@@ -179,7 +181,13 @@ impl LinkChecker {
             http,
             rdap_servers: OnceCell::new(),
             safe_browsing: None,
+            abusech: None,
         })
+    }
+
+    pub fn with_abusech(mut self, abusech: Option<Arc<AbuseCh>>) -> Self {
+        self.abusech = abusech;
+        self
     }
 
     pub fn with_safe_browsing(mut self, safe_browsing: Option<SafeBrowsing>) -> Self {
@@ -225,7 +233,7 @@ impl LinkChecker {
         let final_host = last.host_str().unwrap_or_default();
         let site = sites::identify(final_host);
         let deadline = start + TOTAL_BUDGET;
-        let (age_days, page, threat) = tokio::join!(
+        let (age_days, page, threat, malware_link) = tokio::join!(
             async {
                 let domain = last.domain()?;
                 timeout_at(deadline, self.domain_age_days(domain))
@@ -256,8 +264,25 @@ impl LinkChecker {
                         None
                     }
                 }
+            },
+            async {
+                let abusech = self.abusech.as_ref()?;
+                match timeout_at(deadline, abusech.known_link(&chain)).await {
+                    Ok(Ok(listed)) => Some(listed),
+                    Ok(Err(error)) => {
+                        tracing::warn!(%error, "URLhaus lookup failed");
+                        None
+                    }
+                    Err(_) => {
+                        tracing::warn!("URLhaus lookup timed out");
+                        None
+                    }
+                }
             }
         );
+        if malware_link == Some(true) {
+            signals.push(Signal::KnownMalwareLink);
+        }
         if let Some(threat) = threat {
             signals.push(Signal::KnownBadSite(threat));
         }

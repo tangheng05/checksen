@@ -11,11 +11,12 @@ use teloxide::types::{
 use tokio::sync::Mutex;
 use url::Url;
 
+use checksen::analyzers::abusech::AbuseCh;
 use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
-use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
+use checksen::analyzers::scan::{self, ClamAv, VirusTotalClient};
 use checksen::analyzers::senders::{self, Sender};
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
@@ -43,6 +44,7 @@ pub struct Services {
     pub store: Option<Arc<Store>>,
     pub clamav: Option<ClamAv>,
     pub virustotal: Option<VirusTotalClient>,
+    pub abusech: Option<Arc<AbuseCh>>,
     pub max_file_bytes: u32,
 }
 
@@ -607,7 +609,10 @@ async fn check_document(
 
     let (scans, scanned) = match &bytes {
         Ok(bytes) => {
-            if services.clamav.is_some() || services.virustotal.is_some() {
+            if services.clamav.is_some()
+                || services.virustotal.is_some()
+                || services.abusech.is_some()
+            {
                 progress.step(Step::Scan).await;
             }
             scan(bytes, services).await
@@ -670,6 +675,7 @@ async fn check_document(
 
 /// Runs the configured antivirus checks; the flag is false when one of them failed.
 async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
+    let sha256 = scan::fingerprint(bytes);
     let clamav = async {
         let clamav = services.clamav.as_ref()?;
         match tokio::time::timeout(CLAMAV_BUDGET, clamav.is_clean(bytes)).await {
@@ -690,7 +696,7 @@ async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
             tracing::warn!("daily VirusTotal budget used up");
             return Some(Err(()));
         }
-        match tokio::time::timeout(VIRUSTOTAL_BUDGET, virustotal.lookup(bytes)).await {
+        match tokio::time::timeout(VIRUSTOTAL_BUDGET, virustotal.lookup(&sha256)).await {
             Ok(Ok(report)) => Some(Ok(report)),
             Ok(Err(error)) => {
                 tracing::warn!(%error, "VirusTotal lookup failed");
@@ -702,11 +708,28 @@ async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
             }
         }
     };
-    let (clamav, virustotal) = tokio::join!(clamav, virustotal);
-    let scanned = !matches!(clamav, Some(Err(()))) && !matches!(virustotal, Some(Err(())));
+    let malwarebazaar = async {
+        let abusech = services.abusech.as_ref()?;
+        match tokio::time::timeout(VIRUSTOTAL_BUDGET, abusech.known_file(&sha256)).await {
+            Ok(Ok(known)) => Some(Ok(known)),
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "MalwareBazaar lookup failed");
+                Some(Err(()))
+            }
+            Err(_) => {
+                tracing::warn!("MalwareBazaar lookup timed out");
+                Some(Err(()))
+            }
+        }
+    };
+    let (clamav, virustotal, malwarebazaar) = tokio::join!(clamav, virustotal, malwarebazaar);
+    let scanned = !matches!(clamav, Some(Err(())))
+        && !matches!(virustotal, Some(Err(())))
+        && !matches!(malwarebazaar, Some(Err(())));
     let scans = Scans {
         clamav_clean: clamav.and_then(Result::ok),
         virustotal: virustotal.and_then(Result::ok),
+        malwarebazaar: malwarebazaar.and_then(Result::ok),
     };
     (scans, scanned)
 }

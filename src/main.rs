@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 
+use checksen::analyzers::abusech::AbuseCh;
 use checksen::analyzers::link::LinkChecker;
 use checksen::analyzers::llm::anthropic::AnthropicClassifier;
 use checksen::analyzers::llm::gemini::GeminiClassifier;
@@ -30,7 +31,17 @@ async fn main() -> anyhow::Result<()> {
             "SAFE_BROWSING_API_KEY is not set; links are not checked against Google Safe Browsing"
         );
     }
-    let links = Arc::new(LinkChecker::new()?.with_safe_browsing(safe_browsing));
+    let abusech = AbuseCh::from_env(Duration::from_secs(4))?.map(Arc::new);
+    if abusech.is_none() {
+        tracing::warn!(
+            "ABUSECH_AUTH_KEY is not set; links and files are not looked up on URLhaus and MalwareBazaar"
+        );
+    }
+    let links = Arc::new(
+        LinkChecker::new()?
+            .with_safe_browsing(safe_browsing)
+            .with_abusech(abusech.clone()),
+    );
     let classifier = classifier()?;
     let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 3)?
         .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>);
@@ -81,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         store: store.clone(),
         clamav,
         virustotal,
+        abusech,
         max_file_bytes: max_file_mb * 1024 * 1024,
     });
 
