@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 8;
+pub const RULES_VERSION: u32 = 9;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -142,6 +142,13 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             None,
         ),
         Rule::new(
+            Signal::FamilyImpersonation,
+            &[
+                r"(?:សាច់ញាតិ|កូន|ប្តី|ប្រពន្ធ|ឪពុក|ម្តាយ)(?:របស់)?អ្នក.{0,30}(?:គ្រោះថ្នាក់|ចាប់ខ្លួន|មន្ទីរពេទ្យ)|\byour (?:son|daughter|relative|husband|wife|father|mother)\b.{0,40}\b(?:accident|arrested|hospital)",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
             Signal::LoanBait,
             &[concat!(
                 r"(?:មិនត្រូវការ|គ្មាន|អត់)(?:អ្នក|ទ្រព្យ)ធានា|មិនចាំបាច់មាន(?:ប្លង់|អ្នកធានា)|អនុម័តលឿន|អនុម័តភ្លាម|មិនពិនិត្យប្រវត្តិ|ខ្ចីលុយងាយ|ការប្រាក់ទាប",
@@ -167,7 +174,16 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"|ស្ទង់មតិ.{0,60}(?:ឈ្នះ|រង្វាន់)|(?:ឈ្នះ|ទទួលបាន)រង្វាន់.{0,40}គ្រាន់តែ(?:ឆ្លើយ|ចែករំលែក|ស៊ែរ|ចុច)",
                 r"|\byou(?:'ve| have)? won\b|\byou (?:are|have been selected as) (?:the |a )?(?:lucky )?winner",
                 r"|\bclaim your (?:prize|reward|winnings)|\breceive your (?:cash )?(?:prize|reward)",
+                r"|\b(?:won|win|get|got) (?:a |an |the )?(?:cash )?(?:reward|prize)s? (?:just )?for (?:answering|completing|taking|sharing)",
             )],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
+            Signal::PrizeBait,
+            &[
+                r"រង្វាន់|\b(?:prize|reward|lucky draw)\b",
+                r"តើ(?:បង|អ្នក)(?:ស្រី|ប្រុស)?ជាម្ចាស់គណនី|\bare you the (?:account )?owner\b",
+            ],
             Some(NEWS_OR_WARNING),
         ),
         Rule::new(
@@ -176,6 +192,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
                 r"ធានា(?:ប្រាក់)?ចំណេញ|មិនខាត|ចំណេញ.{0,15}%.{0,20}(?:ក្នុងមួយ|ប្រចាំ)(?:ថ្ងៃ|សប្តាហ៍)",
                 r"|\bguaranteed (?:returns?|profits?)|\bprofit guaranteed|\d+% (?:daily|per day|a day|weekly)|\bdouble your money|\bno risk\b",
                 r"|\bhigh (?:returns?|profits?)\b.{0,30}\b(?:short time|quickly|fast|days?|weeks?)\b|ចំណេញខ្ពស់.{0,20}រយៈពេលខ្លី",
+                r"|ចូលហ៊ុន.{0,40}(?:សំងាត់|សម្ងាត់)|(?:សំងាត់|សម្ងាត់).{0,40}ចូលហ៊ុន|ប្រមូលលុយជា(?:សំងាត់|សម្ងាត់)|\binsider (?:tips?|info)|\bbefore (?:it'?s|it is) (?:public|announced)",
             )],
             Some(NEWS_OR_WARNING),
         ),
@@ -198,8 +215,8 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         Rule::new(
             Signal::DonationRequest,
             &[
-                r"បរិច្ចាគ|ឧបត្ថម្ភ|ប្រមូល(?:មូលនិធិ|ទុន|ថវិកា)|តាម(?:សទ្ធា|សិទ្ធា)|\bdonat(?:e|ed|ion|ions)\b",
-                r"គណនី|ផ្ទេរ|បាញ់លុយ|បញ្ចូលទឹកប្រាក់|\bqr\b|\b(?:transfer|account|aba|wing|acleda|bakong|true ?money)\b",
+                r"បរិច្(?:ចា|ឆា)គ|ឧបត្ថម្ភ|ប្រមូល(?:មូលនិធិ|ទុន|ថវិកា)|តាម(?:សទ្ធា|សិទ្ធា)|(?:សុំ|សូម)ជួយ.{0,20}\d+\s*(?:\$|៛|ដុល្លារ|រៀល)|\bdonat(?:e|ed|ion|ions)\b",
+                r"គណនី|ផ្ទេរ|បាញ់លុយ|បញ្ចូលទឹកប្រាក់|ឈឺធ្ងន់|សង្គ្រោះបន្ទាន់|សង្រ្គោះបន្ទាន់|គ្មានលុយ|អត់លុយ|\bqr\b|\b(?:transfer|account|aba|wing|acleda|bakong|true ?money)\b",
             ],
             Some(NEWS_OR_WARNING),
         ),
@@ -226,6 +243,29 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             &[
                 r"វាយអក្សរ|ឆាត|\b(?:typing|chatting|add contact|ai model|real model|model ai|call cent(?:er|re))\b|\bcustomer (?:service|chats?)\b.{0,60}\b(?:game|platform|casino)\b",
                 r"ប្រាក់ខែ|ប៉ោយប៉ែត|ព្រះសីហនុ|បាវិត|\bsalary\b|\$\s?\d{3,}|\b(?:poipet|sihanoukville|bavet|myawaddy)\b",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
+            Signal::RecruitmentBait,
+            &[
+                r"(?:ធ្វើការ|ការងារ|ជ្រើសរើស).{0,80}(?:ប្រទេសថៃ|នៅថៃ|បាងកក|ម៉ាឡេស៊ី|មីយ៉ាន់ម៉ា|ដុបៃ)|\bjobs? in (?:thailand|bangkok|malaysia|myanmar|dubai)\b",
+                r"ស្រួល|ងាយ|ប្រាក់ចំណេញ|ប្រាក់ខែខ្ពស់|ទីផ្សារ|\btm\b|\b(?:easy|high (?:pay|salary)|telemarketing|marketing)\b",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
+            Signal::AuthorityThreat,
+            &[
+                r"អគ្គិសនី|រដ្ឋាករទឹក|\b(?:edc|electricity|ppwsa)\b",
+                r"(?:ពុំនោះទេ|បើមិន|បើពុំ).{0,40}(?:បិទ|ផ្តាច់|កាត់)(?:ភ្លើង|ទឹក|ចរន្ត)|\b(?:otherwise|or (?:else|we will))\b.{0,40}\b(?:cut|disconnect)",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
+            Signal::PayBeforeMeeting,
+            &[
+                r"មុន(?:ខល|ហៅ|ជួប|វីដេអូ|video).{0,30}(?:ផ្ញើ|ផ្ទេរ|បាញ់)(?:លុយ|ប្រាក់)|(?:ផ្ញើ|ផ្ទេរ|បាញ់)(?:លុយ|ប្រាក់).{0,30}មុន(?:ខល|ជួប)|\b(?:send|transfer)\b.{0,30}\bbefore (?:we|i) (?:call|meet|video)",
             ],
             Some(NEWS_OR_WARNING),
         ),
@@ -494,6 +534,47 @@ mod tests {
                 Signal::AccountThreat,
                 "ផេករបស់អ្នកខុសនឹងគោលការណ៍ សូមចុចតំណដើម្បីផ្ទៀងផ្ទាត់",
             ),
+            (Signal::PayBeforeMeeting, "មុនខលបងផ្ញើលុយឱ្យអូនខ្លះមក"),
+            (
+                Signal::PayBeforeMeeting,
+                "Send me $50 before we video call, babe",
+            ),
+            (Signal::RecruitmentBait, "ការងារនៅប្រទេសថៃ ស្រួល ប្រាក់ខែខ្ពស់"),
+            (
+                Signal::RecruitmentBait,
+                "Easy jobs in Thailand, high salary, free flight",
+            ),
+            (
+                Signal::AuthorityThreat,
+                "ខាងអគ្គិសនីមកប្រាប់ថា ត្រូវប្តូរកុងទ័រ ពុំនោះទេនឹងបិទភ្លើង",
+            ),
+            (
+                Signal::AuthorityThreat,
+                "EDC: pay the meter fee today, otherwise we will cut your power",
+            ),
+            (Signal::FamilyImpersonation, "កូនរបស់អ្នកជួបគ្រោះថ្នាក់ចរាចរណ៍"),
+            (
+                Signal::FamilyImpersonation,
+                "Your son had an accident and is in hospital",
+            ),
+            (Signal::InvestmentBait, "ត្រូវចូលហ៊ុនជាសម្ងាត់ មុនគេប្រកាស"),
+            (
+                Signal::InvestmentBait,
+                "Insider tip: buy before it is announced",
+            ),
+            (Signal::DonationRequest, "សុំជួយគាត់ផង ឈឺធ្ងន់ណាស់ តាមសទ្ធា"),
+            (
+                Signal::DonationRequest,
+                "សូមជួយត្រឹម 2$ ទិញទឹកដោះកូន ABA 000 111 222",
+            ),
+            (
+                Signal::PrizeBait,
+                "ចែករង្វាន់ $1000 តើបងជាម្ចាស់គណនីលេខ 096 ដែរមែនទេ?",
+            ),
+            (
+                Signal::PrizeBait,
+                "I got a prize just for answering a survey, try it!",
+            ),
         ];
         for (signal, text) in cases {
             assert!(signals(text).contains(&signal), "{signal:?}: {text}");
@@ -532,6 +613,13 @@ mod tests {
             "You can pay your EDC bill in the Bakong app or at any Wing agent.",
             "Hotel in Sihanoukville is hiring receptionists, salary $400, English required.",
             "Your ABA account has been verified. Thank you for banking with us.",
+            "EDC will cut power in Toul Kork from 8am to 11am on Sunday for line maintenance.",
+            "អគ្គិសនីកម្ពុជានឹងផ្តាច់ចរន្តអគ្គិសនីនៅថ្ងៃអាទិត្យ ដើម្បីជួសជុលខ្សែបណ្តាញ",
+            "My cousin works in Bangkok now, she loves the food there",
+            "ខ្ញុំទៅធ្វើការនៅថៃ ខែក្រោយ ជួបគ្នាមុនទៅណា",
+            "Call me before we meet, I'll send the address",
+            "សូមជួយចែករំលែកដំណឹងនេះផង",
+            "Your son's school trip is on Friday, please send $5 for the bus",
         ] {
             assert!(signals(text).is_empty(), "{:?}: {text}", signals(text));
         }

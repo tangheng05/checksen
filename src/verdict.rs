@@ -810,6 +810,10 @@ fn reason(signal: Signal, lang: Lang) -> String {
             "ឯកសារនេះជាកម្មវិធី (ដូចជា .apk ឬ .exe) មិនមែនឯកសារធម្មតាទេ។ កុំបើក ឬដំឡើង ព្រោះវាអាចចូលគ្រប់គ្រងទូរស័ព្ទរបស់អ្នក។",
             "This file is a program (like .apk or .exe), not a normal document. Don't open or install it, because it can take control of your phone.",
         ),
+        Signal::PayBeforeMeeting => (
+            "សារនេះសុំឱ្យផ្ញើលុយមុនពេលខល ឬជួបគ្នា។ អ្នកបោកប្រាស់តាមការស្នេហា ឬសេវាផ្លូវភេទ តែងបាត់ខ្លួនក្រោយទទួលបានលុយ។",
+            "This message asks for money before a call or a meeting. Romance and escort scammers disappear once they're paid.",
+        ),
         Signal::GamblingBait => (
             "សារនេះផ្សាយល្បែងភ្នាល់ ឬកាស៊ីណូអនឡាញ។ ល្បែងស៊ីសងអនឡាញខុសច្បាប់នៅកម្ពុជា ហើយគេហទំព័របែបនេះច្រើនតែមិនឱ្យដកលុយវិញទេ។",
             "This message advertises online betting or a casino. Online gambling is illegal in Cambodia, and sites like this often won't let you withdraw your money.",
