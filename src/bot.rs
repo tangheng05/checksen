@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::future::join_all;
 use teloxide::net::Download;
@@ -40,6 +41,8 @@ const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
 const SCREENSHOT_CLASSIFIER_BUDGET: Duration = Duration::from_secs(10);
 const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
 const TYPING_EVERY: Duration = Duration::from_secs(4);
+/// Telegram sends an album's parts within a moment of each other, with no sign of which is last.
+const ALBUM_WAIT: Duration = Duration::from_millis(1500);
 
 pub struct Services {
     pub links: Arc<LinkChecker>,
@@ -52,6 +55,7 @@ pub struct Services {
     pub abusech: Option<Arc<AbuseCh>>,
     pub max_file_bytes: u32,
     pub big_files: tokio::sync::Semaphore,
+    pub albums: Albums,
 }
 
 enum Body {
@@ -134,11 +138,18 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
     let Some(target) = target(&msg, &me, command) else {
         return Ok(());
     };
+    if let Some(group) = target.media_group_id()
+        && target.id == msg.id
+        && (msg.photo().is_some() || msg.video().is_some())
+    {
+        let key = (msg.chat.id, group.0.clone());
+        if services.albums.add(key.clone(), msg.clone()).await {
+            tokio::spawn(answer_album(bot, key, services));
+        }
+        return Ok(());
+    }
     let guard = &services.guard;
-    let sender = msg
-        .from
-        .as_ref()
-        .map_or(msg.chat.id.0 as u64, |user| user.id.0);
+    let sender = sender_id(&msg);
     let lang = language(guard, sender, target);
 
     let fixed = match command {
@@ -160,22 +171,66 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
         answer(&bot, target, verdict::HELP.get(lang)).await?;
         return Ok(());
     };
+    respond(&bot, target, &[], key, sender, lang, &services).await
+}
 
+/// Answers a whole album once, after its last part arrived.
+async fn answer_album(bot: Bot, key: (ChatId, String), services: Arc<Services>) {
+    let parts = services.albums.settled(&key).await;
+    let Some(lead) = parts
+        .iter()
+        .find(|part| part.caption().is_some())
+        .or(parts.first())
+    else {
+        return;
+    };
+    let guard = &services.guard;
+    let sender = sender_id(lead);
+    let lang = language(guard, sender, lead);
+    let result = if parts.iter().all(|part| part.photo().is_none()) {
+        answer(&bot, lead, verdict::CANT_LISTEN.get(lang))
+            .await
+            .map(drop)
+    } else if parts.len() == 1 {
+        match cache_key(guard, lead, lang) {
+            Some(key) => respond(&bot, lead, &[], key, sender, lang, &services).await,
+            None => Ok(()),
+        }
+    } else {
+        let key = album_key(guard, lead, &parts, lang);
+        respond(&bot, lead, &parts, key, sender, lang, &services).await
+    };
+    if let Err(error) = result {
+        tracing::warn!(%error, "could not answer an album");
+    }
+}
+
+/// Checks `target` (with the rest of its `album`, if any) and replies, unless the sender is over the limit.
+async fn respond(
+    bot: &Bot,
+    target: &Message,
+    album: &[Message],
+    key: u64,
+    sender: u64,
+    lang: Lang,
+    services: &Services,
+) -> ResponseResult<()> {
+    let guard = &services.guard;
     match guard.admit(sender) {
         Admission::Allowed => {}
         Admission::LimitReached => {
-            answer(&bot, target, verdict::RATE_LIMITED.get(lang)).await?;
+            answer(bot, target, verdict::RATE_LIMITED.get(lang)).await?;
             return Ok(());
         }
         Admission::Silent => return Ok(()),
     }
 
-    let progress = Progress::new(&bot, target, lang);
+    let progress = Progress::new(bot, target, lang);
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let typing = StopOnDrop(tokio::spawn(keep_typing(bot.clone(), msg.chat.id)));
-            let (reply, cacheable) = check(&bot, target, lang, &services, &progress).await;
+            let typing = StopOnDrop(tokio::spawn(keep_typing(bot.clone(), target.chat.id)));
+            let (reply, cacheable) = check(bot, target, album, lang, services, &progress).await;
             drop(typing);
             let reply = Arc::new(reply);
             if cacheable {
@@ -187,6 +242,52 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
 
     let keyboard = reports::keyboard(services.store.as_deref(), &services.guard, &reply, lang);
     progress.finish(&reply, keyboard).await
+}
+
+/// Album parts arrive as separate messages, so they're held here until no more come.
+#[derive(Default)]
+pub struct Albums(Mutex<HashMap<(ChatId, String), Album>>);
+
+struct Album {
+    parts: Vec<Message>,
+    last: Instant,
+}
+
+impl Albums {
+    /// Returns true for the album's first part, whose task answers the whole album.
+    async fn add(&self, key: (ChatId, String), part: Message) -> bool {
+        let mut albums = self.0.lock().await;
+        if let Some(album) = albums.get_mut(&key) {
+            album.parts.push(part);
+            album.last = Instant::now();
+            return false;
+        }
+        let album = Album {
+            parts: vec![part],
+            last: Instant::now(),
+        };
+        albums.insert(key, album);
+        true
+    }
+
+    /// Waits until no part arrived for `ALBUM_WAIT`, then takes all the parts, in order.
+    async fn settled(&self, key: &(ChatId, String)) -> Vec<Message> {
+        loop {
+            tokio::time::sleep(ALBUM_WAIT).await;
+            let mut albums = self.0.lock().await;
+            if albums
+                .get(key)
+                .is_some_and(|album| album.last.elapsed() < ALBUM_WAIT)
+            {
+                continue;
+            }
+            let mut parts = albums
+                .remove(key)
+                .map_or_else(Vec::new, |album| album.parts);
+            parts.sort_by_key(|part| part.id.0);
+            return parts;
+        }
+    }
 }
 
 /// A status message for slow checks that ticks off their steps, then is edited into the reply.
@@ -360,6 +461,12 @@ fn fixed_reply(msg: &Message) -> Option<&'static Text> {
     }
 }
 
+fn sender_id(msg: &Message) -> u64 {
+    msg.from
+        .as_ref()
+        .map_or(msg.chat.id.0 as u64, |user| user.id.0)
+}
+
 fn language(guard: &Guard, sender: u64, msg: &Message) -> Lang {
     let typed = msg
         .text()
@@ -402,9 +509,21 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     })
 }
 
+fn album_key(guard: &Guard, lead: &Message, album: &[Message], lang: Lang) -> u64 {
+    let photos: Vec<&str> = album
+        .iter()
+        .filter_map(largest_photo)
+        .map(|photo| photo.file.unique_id.0.as_str())
+        .collect();
+    let urls: Vec<String> = urls_in(lead).iter().map(Url::to_string).collect();
+    let caption = (lead.caption().unwrap_or_default(), sender(lead));
+    guard.key((RULES_VERSION, lang, "album", photos, caption, urls))
+}
+
 async fn check(
     bot: &Bot,
     msg: &Message,
+    album: &[Message],
     lang: Lang,
     services: &Services,
     progress: &Progress<'_>,
@@ -416,6 +535,8 @@ async fn check(
     );
     let (mut outcome, kind) = if from_telegram {
         (Outcome::text(verdict::FROM_TELEGRAM.get(lang), true), None)
+    } else if !album.is_empty() {
+        check_album(bot, msg, album, lang, services, progress).await
     } else if let Some(photo) = largest_photo(msg) {
         check_photo(bot, msg, photo, lang, services, progress).await
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
@@ -893,6 +1014,122 @@ async fn check_image(
     }
 }
 
+/// An album is one post, so its photos and caption are checked together, like `check_image`.
+async fn check_album(
+    bot: &Bot,
+    msg: &Message,
+    album: &[Message],
+    lang: Lang,
+    services: &Services,
+    progress: &Progress<'_>,
+) -> (Outcome, Option<MessageKind>) {
+    progress.step(Step::FindQr).await;
+    let photos: Vec<&PhotoSize> = album.iter().filter_map(largest_photo).collect();
+    let downloads = join_all(photos.iter().map(|photo| download_photo(bot, photo))).await;
+    let decoded = join_all(downloads.into_iter().filter_map(|download| {
+        download
+            .map_err(|error| tracing::warn!(%error, "photo download failed"))
+            .ok()
+            .map(|image| {
+                tokio::task::spawn_blocking(move || {
+                    let payloads = khqr::payloads_from_image(&image);
+                    (image, payloads)
+                })
+            })
+    }))
+    .await;
+    let mut complete = decoded.len() == photos.len();
+    let mut payloads: Vec<String> = Vec::new();
+    let mut without_qr = Vec::new();
+    for result in decoded {
+        match result {
+            Ok((image, found)) if found.is_empty() => without_qr.push(image),
+            Ok((_, found)) => {
+                for payload in found {
+                    if !payloads.contains(&payload) {
+                        payloads.push(payload);
+                    }
+                }
+            }
+            Err(error) => {
+                tracing::warn!(%error, "QR decoding failed");
+                complete = false;
+            }
+        }
+    }
+    let checks = join_all(
+        payloads
+            .iter()
+            .map(|payload| analyzers::check_qr_payload(payload, &services.links)),
+    )
+    .await;
+    let mut checks = reports::with_reports(checks, services.store.as_deref()).await;
+
+    let mut transcripts = Vec::new();
+    if let Some(transcriber) = services.transcriber.as_deref()
+        && !without_qr.is_empty()
+    {
+        progress.step(Step::ReadText).await;
+        let read = join_all(without_qr.iter().map(|image| async move {
+            if !services.guard.allow_model_call(ModelCall::Screenshot) {
+                tracing::warn!("daily screenshot budget used up");
+                return Err(());
+            }
+            llm::transcribe(image, transcriber, TRANSCRIBE_BUDGET)
+                .await
+                .map_err(|error| tracing::warn!(%error, "screenshot transcription failed"))
+        }))
+        .await;
+        for result in read {
+            match result {
+                Ok(transcript) => transcripts.extend(transcript),
+                Err(()) => complete = false,
+            }
+        }
+    }
+
+    let budget = if transcripts.is_empty() {
+        CLASSIFIER_BUDGET
+    } else {
+        SCREENSHOT_CLASSIFIER_BUDGET
+    };
+    let message = msg
+        .caption()
+        .map(str::to_owned)
+        .into_iter()
+        .chain(transcripts)
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let had_qr = !checks.is_empty();
+    let mut kind = None;
+    let mut reportable = Vec::new();
+    if !message.is_empty() {
+        let urls = urls_in(msg);
+        let show_text = !had_qr && urls.is_empty();
+        let (text, reading, found) = text_checks(&message, urls, show_text, services, budget).await;
+        checks.extend(text);
+        reportable = found;
+        kind = reading.kind.filter(|_| !had_qr);
+    }
+    let outcome = if !checks.is_empty() {
+        Outcome::of(checks).reporting(reportable)
+    } else if !complete {
+        Outcome::text(verdict::screenshot_unread(lang), false)
+    } else if services.transcriber.is_some() {
+        Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true)
+    } else {
+        Outcome::of(checks)
+    };
+    let cacheable = outcome.cacheable && complete;
+    (
+        Outcome {
+            cacheable,
+            ..outcome
+        },
+        kind,
+    )
+}
+
 /// Checks the caption when the image itself gave nothing, otherwise replies with `fallback`.
 async fn caption_or(
     msg: &Message,
@@ -1060,6 +1297,27 @@ mod tests {
             Some(2)
         );
         assert_eq!(target_id(&message("private", "hello there", None)), Some(2));
+    }
+
+    #[tokio::test]
+    async fn album_parts_are_answered_once_in_order() {
+        let part = |id: i32| -> Message {
+            serde_json::from_value(serde_json::json!({
+                "message_id": id, "date": 0, "media_group_id": "a",
+                "chat": {"id": 7, "type": "private", "first_name": "Sok"},
+                "photo": [{"file_id": "f", "file_unique_id": "u", "width": 1, "height": 1}],
+            }))
+            .unwrap()
+        };
+        let albums = Albums::default();
+        let key = (ChatId(7), "a".to_owned());
+        assert!(albums.add(key.clone(), part(3)).await);
+        assert!(!albums.add(key.clone(), part(1)).await);
+        assert!(!albums.add(key.clone(), part(2)).await);
+        assert!(albums.add((ChatId(8), "a".to_owned()), part(4)).await);
+        let ids: Vec<i32> = albums.settled(&key).await.iter().map(|m| m.id.0).collect();
+        assert_eq!(ids, [1, 2, 3]);
+        assert!(albums.add(key, part(5)).await);
     }
 
     #[test]
