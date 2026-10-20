@@ -228,6 +228,17 @@ impl Level {
             Self::CantTell => lang.pick("❔ មិនអាចពិនិត្យបាន", "❔ Can't check"),
         }
     }
+
+    /// Files are checked for viruses and dangerous content, not for a scammer's words.
+    fn label_for(self, subject: &Subject, lang: Lang) -> &'static str {
+        match (self, subject) {
+            (Self::NoKnownSignals, Subject::File(_)) => lang.pick(
+                "⚪ មិនទាន់រកឃើញសញ្ញាគ្រោះថ្នាក់ទេ",
+                "⚪ No signs of danger found yet",
+            ),
+            _ => self.label(lang),
+        }
+    }
 }
 
 pub fn decide(check: &Check) -> Level {
@@ -328,7 +339,10 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     });
     let about = about_line(about, lang);
 
-    let mut lines = vec![format!("<b>{}</b>", escape(level.label(lang)))];
+    let mut lines = vec![format!(
+        "<b>{}</b>",
+        escape(level.label_for(&lead.subject, lang))
+    )];
     let lead_file = match &lead.subject {
         Subject::File(file) => Some(file),
         _ => None,
@@ -680,7 +694,7 @@ fn detail_section(
     let level = decide(check);
     let mut lines = Vec::new();
     if labeled {
-        lines.push(level.label(lang).to_owned());
+        lines.push(level.label_for(&check.subject, lang).to_owned());
     }
     // A file's card already shows its scan results and an app's powers, and its real type when it leads.
     let on_card = |signal: &Signal| match (&check.subject, signal) {
@@ -1716,6 +1730,25 @@ mod tests {
             Lang::En,
         );
         assert!(big.contains("Couldn't look inside: the file is over 50 MB"));
+    }
+
+    #[test]
+    fn clean_files_say_no_danger_rather_than_no_scam() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        let file = || {
+            inspect(
+                "notes.pdf",
+                None,
+                Content::Bytes(b"%PDF-1.4"),
+                Scans::default(),
+            )
+        };
+        assert_eq!(decide(&file()), Level::NoKnownSignals);
+        let km = render_km(&[file()]);
+        assert!(km.starts_with("<b>⚪ មិនទាន់រកឃើញសញ្ញាគ្រោះថ្នាក់ទេ</b>"));
+        let en = render(&[file()], About::default(), Lang::En);
+        assert!(en.starts_with("<b>⚪ No signs of danger found yet</b>"));
+        assert!(!en.contains("scam signs"));
     }
 
     #[test]
