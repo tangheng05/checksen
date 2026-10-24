@@ -1,11 +1,13 @@
 <!doctype html>
-<html class="no-js" lang="km">
+<html lang="km">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CheckSen ឆែកសិន: ពិនិត្យការបោកប្រាស់ សារ តំណ KHQR និងឯកសារ ក្នុង Telegram</title>
   <meta name="description" content="មិនប្រាកដថាសារ តំណ កូដ KHQR ឯកសារ ឬកម្មវិធី ជាការបោកប្រាស់ឬអត់? ផ្ញើទៅ CheckSen ក្នុង Telegram។ វាប្រាប់កម្រិតហានិភ័យ មូលហេតុ និងអ្វីដែលត្រូវធ្វើ ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ឥតគិតថ្លៃ មិនបាច់ដំឡើងអ្វីទេ។">
-  <meta name="theme-color" content="#0E716B">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ECE8E1">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0E1016">
   <link rel="canonical" href="https://checksen.horizxon.tech/">
   <link rel="alternate" hreflang="km" href="https://checksen.horizxon.tech/">
   <link rel="alternate" hreflang="en" href="https://checksen.horizxon.tech/en">
@@ -22,247 +24,343 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="CheckSen ឆែកសិន មុនចុច មុនបង់">
   <meta name="twitter:card" content="summary_large_image">
-  <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://checksen.horizxon.tech/#website", "url": "https://checksen.horizxon.tech/", "name": "CheckSen", "alternateName": ["ឆែកសិន", "CheckSen ឆែកសិន"], "inLanguage": ["km", "en"]}, {"@type": "WebApplication", "name": "CheckSen", "alternateName": "ឆែកសិន", "url": "https://t.me/CheckSen_bot", "description": "មិនប្រាកដថាសារ តំណ កូដ KHQR ឯកសារ ឬកម្មវិធី ជាការបោកប្រាស់ឬអត់? ផ្ញើទៅ CheckSen ក្នុង Telegram។ វាប្រាប់កម្រិតហានិភ័យ មូលហេតុ និងអ្វីដែលត្រូវធ្វើ ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ឥតគិតថ្លៃ មិនបាច់ដំឡើងអ្វីទេ។", "applicationCategory": "SecurityApplication", "operatingSystem": "Telegram", "inLanguage": ["km", "en"], "isAccessibleForFree": true, "image": "https://checksen.horizxon.tech/assets/icon-512.png", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "sameAs": ["https://github.com/tangheng05/checksen"]}, {"@type": "FAQPage", "inLanguage": "km", "mainEntity": [{"@type": "Question", "name": "តើធ្វើដូចម្តេចដើម្បីដឹងថា KHQR ពិត ឬត្រូវគេកែបន្លំ?", "acceptedAnswer": {"@type": "Answer", "text": "ផ្ញើរូបថត QR ទៅកាន់ CheckSen។ ប្រព័ន្ធនឹងបង្ហាញឈ្មោះអ្នកទទួល គណនី ធនាគារ និងចំនួនទឹកប្រាក់ពិតប្រាកដ ព្រមទាំងពិនិត្យលេខផ្ទៀងផ្ទាត់កូដ។ ទោះជាយ៉ាងណា មុនពេលបង់ប្រាក់ សូមផ្ទៀងផ្ទាត់ឈ្មោះអ្នកទទួលនៅក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។"}}, {"@type": "Question", "name": "តើធនាគារធ្លាប់ទាមទារសុំលេខកូដ OTP តាមទូរស័ព្ទ ឬ Telegram ដែរឬទេ?", "acceptedAnswer": {"@type": "Answer", "text": "មិនដែលឡើយ! ធនាគារ និងក្រុមហ៊ុនផ្លូវការទាំងអស់ មិនដែលទាមទារសុំលេខកូដ OTP, លេខ PIN ឬលេខសម្ងាត់របស់អ្នកជាដាច់ខាត។ អ្នកណាដែលទាមទារសុំលេខទាំងនេះ គឺពិតជាអ្នកបោកប្រាស់។"}}, {"@type": "Question", "name": "តើ CheckSen ឥតគិតថ្លៃមែនទេ? តើចាំបាច់ត្រូវដំឡើងកម្មវិធីបន្ថែមដែរឬទេ?", "acceptedAnswer": {"@type": "Answer", "text": "ប្រើប្រាស់ដោយឥតគិតថ្លៃ ហើយមិនបាច់ដំឡើងកម្មវិធីអ្វីបន្ថែមឡើយ! គ្រាន់តែបើក Telegram រួចស្វែងរក @CheckSen_bot ហើយផ្ញើសារ តំណភ្ជាប់ រូបភាព ឬឯកសារ ទៅជាការស្រេច។"}}, {"@type": "Question", "name": "ប្រសិនបើខ្ញុំបានច្រឡំបង់ប្រាក់ទៅអ្នកបោកប្រាស់រួចហើយ តើត្រូវធ្វើដូចម្តេច?", "acceptedAnswer": {"@type": "Answer", "text": "សូមទូរស័ព្ទទៅកាន់ធនាគាររបស់អ្នកភ្លាមៗ (តាមរយៈលេខនៅលើកាត ឬក្នុងកម្មវិធីធនាគារ) ដើម្បីស្នើសុំបង្កកប្រតិបត្តិការ។ ត្រូវថតរូបភាពអេក្រង់ (Screenshot) នៃកិច្ចសន្ទនា និងបង្កាន់ដៃបង់ប្រាក់ទុកជាភស្តុតាង រួចប្រញាប់ទៅរាយការណ៍ជូនសមត្ថកិច្ច។ ប្រយ័ត្ន៖ កុំបង់ប្រាក់ឱ្យនរណាម្នាក់ដែលសន្យាថានឹងយកប្រាក់មកវិញឱ្យអ្នកដោយគិតថ្លៃសេវាឱ្យសោះ!"}}, {"@type": "Question", "name": "តើ CheckSen អាចបញ្ជាក់បានទេថា សារមួយសុវត្ថិភាព ១០០%?", "acceptedAnswer": {"@type": "Answer", "text": "មិនអាចទេ! CheckSen អាចប្រាប់បានត្រឹមតែថា រកឃើញសញ្ញាបោកប្រាស់ដែលធ្លាប់ស្គាល់ ឬអត់ប៉ុណ្ណោះ។ ល្បិចបោកប្រាស់ថ្មីៗអាចនឹងមិនទាន់មានក្នុងប្រព័ន្ធនៅឡើយ ដូច្នេះបើមិនប្រាកដចិត្ត សូមផ្ទៀងផ្ទាត់តាមរយៈលេខទូរស័ព្ទ ឬកម្មវិធីផ្លូវការរបស់ធនាគារដោយផ្ទាល់។"}}, {"@type": "Question", "name": "តើ CheckSen អាចពិនិត្យមេរោគក្នុងឯកសារ ឬកម្មវិធីបានទេ?", "acceptedAnswer": {"@type": "Answer", "text": "បាន! ផ្ញើឯកសារ ឬកម្មវិធីនោះទៅ CheckSen។ វាពិនិត្យមើលថាឯកសារនោះជាអ្វីពិតប្រាកដ (ឧទាហរណ៍៖ «PDF» ដែលតាមពិតជាកម្មវិធី) បង្ហាញថាកម្មវិធី Android អាចធ្វើអ្វីខ្លះ ដូចជាអានសារ SMS ហើយពិនិត្យជាមួយ ClamAV, VirusTotal និង MalwareBazaar។ មេរោគថ្មីខ្លាំងអាចមិនទាន់ស្គាល់ ដូច្នេះសូមបើកតែឯកសារពីអ្នកដែលអ្នកទុកចិត្ត។ ឯកសារធំជាង 100 MB ត្រូវពិនិត្យតែឈ្មោះ និងប្រភេទប៉ុណ្ណោះ។"}}, {"@type": "Question", "name": "តើមានអ្វីកើតឡើង ពេលខ្ញុំចុច 🚩 រាយការណ៍?", "acceptedAnswer": {"@type": "Answer", "text": "CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះ Telegram គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ សាររបស់អ្នកមិនត្រូវបានរក្សាទុកឡើយ។ ពេលមានអ្នក ៣ នាក់ផ្សេងគ្នារាយការណ៍ CheckSen នឹងព្រមានអ្នកដែលផ្ញើវាមកពិនិត្យ។ ផ្ញើ /forget ដើម្បីលុបការរាយការណ៍របស់អ្នក។"}}, {"@type": "Question", "name": "តើខ្ញុំអាចបញ្ចូល CheckSen ទៅក្នុងគ្រុបគ្រួសារ ឬគ្រុបការងារបានទេ?", "acceptedAnswer": {"@type": "Answer", "text": "បាន។ បញ្ចូល @CheckSen_bot ទៅក្នុងគ្រុប។ វានៅស្ងៀម រហូតដល់មានអ្នកហៅ @CheckSen_bot ឆ្លើយតបសាររបស់វា ឬឆ្លើយតបសារណាមួយដោយសរសេរ /check។"}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://checksen.horizxon.tech/#website","url":"https://checksen.horizxon.tech/","name":"CheckSen","alternateName":["ឆែកសិន","CheckSen ឆែកសិន"],"inLanguage":["km","en"]},{"@type":"WebApplication","name":"CheckSen","alternateName":"ឆែកសិន","url":"https://t.me/CheckSen_bot","description":"មិនប្រាកដថាសារ តំណ កូដ KHQR ឯកសារ ឬកម្មវិធី ជាការបោកប្រាស់ឬអត់? ផ្ញើទៅ CheckSen ក្នុង Telegram។ វាប្រាប់កម្រិតហានិភ័យ មូលហេតុ និងអ្វីដែលត្រូវធ្វើ ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ឥតគិតថ្លៃ មិនបាច់ដំឡើងអ្វីទេ។","applicationCategory":"SecurityApplication","operatingSystem":"Telegram","inLanguage":["km","en"],"isAccessibleForFree":true,"image":"https://checksen.horizxon.tech/assets/icon-512.png","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/tangheng05/checksen"]},{"@type":"FAQPage","inLanguage":"km","mainEntity":[{"@type":"Question","name":"តើធ្វើដូចម្តេចដើម្បីដឹងថា KHQR ពិត ឬត្រូវគេកែបន្លំ?","acceptedAnswer":{"@type":"Answer","text":"ផ្ញើរូបថត QR ទៅ CheckSen។ វាបង្ហាញឈ្មោះអ្នកទទួល គណនី ធនាគារ និងចំនួនទឹកប្រាក់ពិតប្រាកដ ព្រមទាំងពិនិត្យលេខផ្ទៀងផ្ទាត់កូដ។ មុនពេលបង់ប្រាក់ សូមផ្ទៀងផ្ទាត់ឈ្មោះអ្នកទទួលក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។"}},{"@type":"Question","name":"តើធនាគារធ្លាប់សុំលេខកូដ OTP តាមទូរស័ព្ទ ឬ Telegram ដែរឬទេ?","acceptedAnswer":{"@type":"Answer","text":"មិនដែលឡើយ។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ។ អ្នកណាដែលសុំលេខទាំងនេះ ទំនងជាអ្នកបោកប្រាស់។"}},{"@type":"Question","name":"តើ CheckSen ឥតគិតថ្លៃមែនទេ? ត្រូវដំឡើងអ្វីទេ?","acceptedAnswer":{"@type":"Answer","text":"ឥតគិតថ្លៃ ហើយមិនបាច់ដំឡើងអ្វីទេ។ បើក @CheckSen_bot ក្នុង Telegram ហើយផ្ញើសារ តំណ រូបភាព ឬឯកសារ។"}},{"@type":"Question","name":"ខ្ញុំបានបង់ប្រាក់ទៅអ្នកបោកប្រាស់រួចហើយ។ ត្រូវធ្វើអ្វី?","acceptedAnswer":{"@type":"Answer","text":"ទូរស័ព្ទទៅធនាគាររបស់អ្នកភ្លាមៗ តាមលេខនៅលើកាត ឬក្នុងកម្មវិធី ដើម្បីសុំបង្កកប្រតិបត្តិការ។ ថតរូបអេក្រង់សារ និងបង្កាន់ដៃទុកជាភស្តុតាង ហើយរាយការណ៍ទៅប៉ូលិស។ កុំបង់ប្រាក់ឱ្យអ្នកណាដែលសន្យាយកលុយមកវិញដោយគិតថ្លៃ។"}},{"@type":"Question","name":"តើ CheckSen អាចប្រាប់ថាសារមួយគ្មានបញ្ហា ១០០% បានទេ?","acceptedAnswer":{"@type":"Answer","text":"មិនអាចទេ។ វាប្រាប់បានតែថា រកឃើញសញ្ញាបោកប្រាស់ដែលស្គាល់ ឬអត់។ ល្បិចថ្មីអាចមិនទាន់ចាប់បាន ដូច្នេះបើមិនប្រាកដ សូមផ្ទៀងផ្ទាត់តាមលេខ ឬកម្មវិធីផ្លូវការរបស់ធនាគារ។"}},{"@type":"Question","name":"តើ CheckSen ពិនិត្យមេរោគក្នុងឯកសារ ឬកម្មវិធីបានទេ?","acceptedAnswer":{"@type":"Answer","text":"បាន។ វាមើលថាឯកសារជាអ្វីពិតប្រាកដ (ឧ. «PDF» ដែលតាមពិតជាកម្មវិធី) បង្ហាញថាកម្មវិធី Android អាចធ្វើអ្វីខ្លះ ហើយពិនិត្យជាមួយ ClamAV, VirusTotal និង MalwareBazaar។ មេរោគថ្មីខ្លាំងអាចមិនទាន់ស្គាល់ ដូច្នេះសូមបើកតែឯកសារពីអ្នកដែលអ្នកទុកចិត្ត។"}},{"@type":"Question","name":"តើខ្ញុំអាចបញ្ចូល CheckSen ទៅក្នុងគ្រុបបានទេ?","acceptedAnswer":{"@type":"Answer","text":"បាន។ បញ្ចូល @CheckSen_bot ទៅក្នុងគ្រុប។ វានៅស្ងៀម រហូតដល់មានអ្នកហៅ @CheckSen_bot ឆ្លើយតបសាររបស់វា ឬឆ្លើយតបសារណាមួយដោយសរសេរ /check។"}}]}]}</script>
   <link rel="icon" href="/assets/favicon.ico" sizes="any">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon-180.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,800;125,800&amp;family=Kantumruy+Pro:wght@400;500;600;700&amp;family=Koulen&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@75..125,200..900&amp;family=Kantumruy+Pro:wght@300..700&amp;family=Koulen&amp;display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-  <header class="wrap site-header">
-    <a class="logo" href="/" aria-label="CheckSen">
-      <img class="on-light" src="/assets/checksen-logo-horizontal.svg" alt="CheckSen" width="207" height="40">
-      <img class="on-dark" src="/assets/checksen-logo-horizontal-on-dark.svg" alt="CheckSen" width="207" height="40">
-    </a>
-    <nav aria-label="តំណ">
-      <a class="nav-try" href="https://t.me/CheckSen_bot">បើកក្នុង Telegram</a>
-      <a class="lang-switch" href="/en" hreflang="en" lang="en">English</a>
+<body data-theme="paper" data-lang="km">
+<script>
+  let saved = null;
+  try { saved = localStorage.getItem("checksen-theme"); } catch (e) {}
+  document.body.dataset.theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "paper");
+</script>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <mask id="m-cut" maskUnits="userSpaceOnUse" x="-20" y="-20" width="160" height="140">
+      <rect x="-20" y="-20" width="160" height="140" fill="#fff" />
+      <rect x="13" y="45" width="32" height="32" rx="8.5" transform="rotate(45 29 61)" fill="#000" stroke="#000" stroke-width="7" />
+    </mask>
+    <symbol id="mark" viewBox="4 2 112 100">
+      <path d="M40 82 C58 60 80 28 100 8 A9 9 0 0 1 113.5 20 C93 43 73 71 61 90 A14.5 14.5 0 0 1 40 82 Z" fill="currentColor" mask="url(#m-cut)" />
+      <rect x="13" y="45" width="32" height="32" rx="8.5" transform="rotate(45 29 61)" fill="currentColor" />
+    </symbol>
+    <symbol id="tg" viewBox="0 0 24 24"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5ZM9.7 14.3l-.5 3.5-1.3-4.1 10.4-6.6-8.6 7.2Z" /></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></symbol>
+    <symbol id="doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></symbol>
+    <symbol id="qri" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.4" /><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.4" /><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.4" /></g><g fill="currentColor"><rect x="13.5" y="13.5" width="3" height="3" rx=".7" /><rect x="18" y="18" width="3" height="3" rx=".7" /><rect x="18" y="13.5" width="3" height="3" rx=".7" /><rect x="13.5" y="18" width="3" height="3" rx=".7" /></g></symbol>
+    <symbol id="qr" viewBox="0 0 33 33"><path fill="currentColor" d="M4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM7 4h1v1h-1zM8 4h1v1h-1zM9 4h1v1h-1zM10 4h1v1h-1zM12 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM22 4h1v1h-1zM23 4h1v1h-1zM24 4h1v1h-1zM25 4h1v1h-1zM26 4h1v1h-1zM27 4h1v1h-1zM28 4h1v1h-1zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h1v1h-1zM14 5h1v1h-1zM18 5h1v1h-1zM20 5h1v1h-1zM22 5h1v1h-1zM28 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1zM7 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM17 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h1v1h-1zM24 6h1v1h-1zM25 6h1v1h-1zM26 6h1v1h-1zM28 6h1v1h-1zM4 7h1v1h-1zM6 7h1v1h-1zM7 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM16 7h1v1h-1zM20 7h1v1h-1zM22 7h1v1h-1zM24 7h1v1h-1zM25 7h1v1h-1zM26 7h1v1h-1zM28 7h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM13 8h1v1h-1zM15 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h1v1h-1zM25 8h1v1h-1zM26 8h1v1h-1zM28 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM14 9h1v1h-1zM16 9h1v1h-1zM17 9h1v1h-1zM22 9h1v1h-1zM28 9h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM7 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM25 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM28 10h1v1h-1zM12 11h1v1h-1zM14 11h1v1h-1zM15 11h1v1h-1zM17 11h1v1h-1zM20 11h1v1h-1zM4 12h1v1h-1zM5 12h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1zM10 12h1v1h-1zM13 12h1v1h-1zM14 12h1v1h-1zM15 12h1v1h-1zM18 12h1v1h-1zM19 12h1v1h-1zM20 12h1v1h-1zM22 12h1v1h-1zM28 12h1v1h-1zM5 13h1v1h-1zM8 13h1v1h-1zM9 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM16 13h1v1h-1zM18 13h1v1h-1zM19 13h1v1h-1zM24 13h1v1h-1zM25 13h1v1h-1zM26 13h1v1h-1zM27 13h1v1h-1zM4 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM8 14h1v1h-1zM9 14h1v1h-1zM10 14h1v1h-1zM14 14h1v1h-1zM15 14h1v1h-1zM19 14h1v1h-1zM24 14h1v1h-1zM25 14h1v1h-1zM28 14h1v1h-1zM7 15h1v1h-1zM11 15h1v1h-1zM12 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM16 15h1v1h-1zM18 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM23 15h1v1h-1zM25 15h1v1h-1zM26 15h1v1h-1zM27 15h1v1h-1zM28 15h1v1h-1zM4 16h1v1h-1zM5 16h1v1h-1zM7 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM12 16h1v1h-1zM13 16h1v1h-1zM15 16h1v1h-1zM16 16h1v1h-1zM20 16h1v1h-1zM22 16h1v1h-1zM28 16h1v1h-1zM4 17h1v1h-1zM5 17h1v1h-1zM6 17h1v1h-1zM7 17h1v1h-1zM8 17h1v1h-1zM9 17h1v1h-1zM11 17h1v1h-1zM12 17h1v1h-1zM18 17h1v1h-1zM19 17h1v1h-1zM20 17h1v1h-1zM24 17h1v1h-1zM27 17h1v1h-1zM4 18h1v1h-1zM5 18h1v1h-1zM7 18h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM12 18h1v1h-1zM14 18h1v1h-1zM15 18h1v1h-1zM16 18h1v1h-1zM18 18h1v1h-1zM19 18h1v1h-1zM21 18h1v1h-1zM24 18h1v1h-1zM25 18h1v1h-1zM26 18h1v1h-1zM27 18h1v1h-1zM28 18h1v1h-1zM4 19h1v1h-1zM8 19h1v1h-1zM12 19h1v1h-1zM15 19h1v1h-1zM18 19h1v1h-1zM19 19h1v1h-1zM20 19h1v1h-1zM21 19h1v1h-1zM22 19h1v1h-1zM23 19h1v1h-1zM25 19h1v1h-1zM26 19h1v1h-1zM28 19h1v1h-1zM4 20h1v1h-1zM6 20h1v1h-1zM8 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM12 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM16 20h1v1h-1zM19 20h1v1h-1zM20 20h1v1h-1zM21 20h1v1h-1zM22 20h1v1h-1zM23 20h1v1h-1zM24 20h1v1h-1zM26 20h1v1h-1zM27 20h1v1h-1zM12 21h1v1h-1zM13 21h1v1h-1zM15 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM20 21h1v1h-1zM24 21h1v1h-1zM26 21h1v1h-1zM27 21h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM6 22h1v1h-1zM7 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM15 22h1v1h-1zM16 22h1v1h-1zM19 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h1v1h-1zM28 22h1v1h-1zM4 23h1v1h-1zM10 23h1v1h-1zM13 23h1v1h-1zM14 23h1v1h-1zM17 23h1v1h-1zM19 23h1v1h-1zM20 23h1v1h-1zM24 23h1v1h-1zM27 23h1v1h-1zM28 23h1v1h-1zM4 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM10 24h1v1h-1zM12 24h1v1h-1zM13 24h1v1h-1zM18 24h1v1h-1zM19 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM4 25h1v1h-1zM6 25h1v1h-1zM7 25h1v1h-1zM8 25h1v1h-1zM10 25h1v1h-1zM12 25h1v1h-1zM14 25h1v1h-1zM15 25h1v1h-1zM18 25h1v1h-1zM19 25h1v1h-1zM21 25h1v1h-1zM22 25h1v1h-1zM27 25h1v1h-1zM28 25h1v1h-1zM4 26h1v1h-1zM6 26h1v1h-1zM7 26h1v1h-1zM8 26h1v1h-1zM10 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM15 26h1v1h-1zM17 26h1v1h-1zM18 26h1v1h-1zM20 26h1v1h-1zM21 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM27 26h1v1h-1zM28 26h1v1h-1zM4 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM14 27h1v1h-1zM22 27h1v1h-1zM23 27h1v1h-1zM24 27h1v1h-1zM26 27h1v1h-1zM27 27h1v1h-1zM28 27h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM7 28h1v1h-1zM8 28h1v1h-1zM9 28h1v1h-1zM10 28h1v1h-1zM12 28h1v1h-1zM13 28h1v1h-1zM16 28h1v1h-1zM19 28h1v1h-1zM20 28h1v1h-1zM22 28h1v1h-1zM25 28h1v1h-1zM28 28h1v1h-1z" /></symbol>
+  </defs>
+</svg>
+
+<section class="hero" id="top">
+  <header class="hd wrap" style="--dl:.15s">
+    <a class="brand" href="#top"><svg class="mark"><use href="#mark" /></svg>CheckSen</a>
+    <nav>
+      <a class="u" href="#replies">ចម្លើយ</a>
+      <a class="u" href="#checks">ពិនិត្យអ្វីខ្លះ</a>
+      <a class="u" href="#privacy">ឯកជនភាព</a>
+      <a lang="en" hreflang="en" class="u lang" href="/en">English</a>
+      <button type="button" class="theme-btn" id="theme-btn" aria-label="Light / dark">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <mask id="moon-cut"><rect width="24" height="24" fill="#fff" /><circle class="cut" cx="25" cy="3" r="7" fill="#000" /></mask>
+          <circle class="core" cx="12" cy="12" r="5" fill="currentColor" mask="url(#moon-cut)" />
+          <g class="rays" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 1.8v2.2M12 20v2.2M1.8 12h2.2M20 12h2.2M4.8 4.8l1.5 1.5M17.7 17.7l1.5 1.5M4.8 19.2l1.5-1.5M17.7 6.3l1.5-1.5" />
+          </g>
+        </svg>
+      </button>
+      <a class="outline" href="https://t.me/CheckSen_bot" aria-label="Telegram"><svg class="tgi"><use href="#tg" /></svg><span>បើកក្នុង Telegram</span></a>
     </nav>
   </header>
 
-  <main>
-    <section class="wrap hero">
-      <div class="hero-copy">
-        <h1>ឆែកសិន<br>មុនចុច មុនបង់</h1>
-        <p class="lede">មិនប្រាកដ? ផ្ញើសារ តំណ កូដ KHQR រូបថតអេក្រង់ ឯកសារ ឬកម្មវិធី ទៅ CheckSen ក្នុង Telegram។ ក្នុងប៉ុន្មានវិនាទី វាប្រាប់ថាមានហានិភ័យប៉ុណ្ណា ហេតុអ្វី និងគួរធ្វើអ្វី ជាភាសាខ្មែរ។</p>
-        <div class="cta-row">
-          <a class="cta" href="https://t.me/CheckSen_bot">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5ZM9.7 14.3l-.5 3.5-1.3-4.1 10.4-6.6-8.6 7.2Z"/></svg>
-            បើក CheckSen ក្នុង Telegram
-          </a>
-          <div class="qr">
-            <img src="/assets/telegram-qr.svg" alt="QR ទៅ t.me/CheckSen_bot" width="72" height="72">
-            <span>ឬ ស្កេនតាមទូរស័ព្ទ</span>
-          </div>
-        </div>
-        <p class="promise">ឥតគិតថ្លៃ។ មិនបាច់ដំឡើងអ្វីទេ។ សាររបស់អ្នកមិនត្រូវបានរក្សាទុកឡើយ។</p>
-      </div>
+  <div class="hero-title wrap">
+    <h1 class="mega" data-cap=".42">
+      <span class="mask"><span class="fit">ឆែកសិន</span></span>
+    </h1>
+  </div>
 
-      <div class="demo" aria-label="ឧទាហរណ៍នៃការផ្ញើសារទៅ CheckSen">
-        <div class="picker">
-          <p class="demo-ask">ជ្រើសរើសអ្វីមួយ ដើម្បីផ្ញើមកពិនិត្យ៖</p>
-          <ul class="tray">
-            <li><button type="button" data-sample="otp" aria-pressed="true"><span class="thumb" aria-hidden="true">💬</span><span><b>សារពី «ABA»</b><small>សុំលេខកូដ OTP</small></span></button></li>
-            <li><button type="button" data-sample="apk" aria-pressed="false"><span class="thumb file" aria-hidden="true">APK</span><span><b>ABA Mobile.apk</b><small>6.2 MB</small></span></button></li>
-            <li><button type="button" data-sample="link" aria-pressed="false"><span class="thumb link" aria-hidden="true">🔗</span><span><b>aba-verify-login.top</b><small>តំណភ្ជាប់</small></span></button></li>
-            <li><button type="button" data-sample="khqr" aria-pressed="false"><span class="thumb khqr" aria-hidden="true">KHQR</span><span><b>រូបថត KHQR</b><small>50,000 ៛</small></span></button></li>
-            <li><button type="button" data-sample="job" aria-pressed="false"><span class="thumb" aria-hidden="true">💼</span><span><b>ការងារវាយអក្សរ $1000</b><small>ប៉ោយប៉ែត</small></span></button></li>
-            <li><button type="button" data-sample="mum" aria-pressed="false"><span class="thumb" aria-hidden="true">👩</span><span><b>ម៉ាក់</b><small>ផ្ញើលុយ $50 ហើយ</small></span></button></li>
-          </ul>
-          <p class="demo-note">ឧទាហរណ៍ទាំងនេះដំណើរការនៅលើទំព័រនេះតែប៉ុណ្ណោះ ដោយមិនមានការផ្ញើទិន្នន័យចេញក្រៅឡើយ។</p>
-        </div>
-        <div class="phone">
-          <div class="phone-bar">
-            <img src="/assets/checksen-bot-photo.svg" alt="" width="38" height="38">
-            <div><strong>CheckSen</strong><span>bot</span></div>
-          </div>
-          <div class="thread" aria-live="polite">
-            <div class="bubble user" lang="km">សួស្តីបង ខ្ញុំមកពីធនាគារ ABA។ គណនីរបស់បងនឹងត្រូវបង្កកក្នុងរយៈពេល ២៤ម៉ោង។ សូមផ្ញើលេខកូដ OTP ដែលបងទើបទទួលបាន មកខ្ញុំភ្លាមៗ ដើម្បីដោះសោ។</div>
-            <div class="bubble bot"><b class="level high">🔴 ហានិភ័យខ្ពស់</b>សារនេះមានការទាមទារលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ ដាច់ខាតមិនដែលសុំលេខទាំងនេះឡើយ។ សូមកុំប្រាប់ព័ត៌មាននេះទៅនរណាម្នាក់ឱ្យសោះ!
-👉 កុំឆ្លើយតប កុំប្រាប់លេខកូដ ហើយកុំផ្ទេរលុយ។<span class="gap"></span>⚠️ មុនពេលបង់ប្រាក់៖ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។<details class="fold"><summary>ℹ️ ព័ត៌មានលម្អិត</summary><p>សារនេះមានចេតនាបង្ខំឱ្យអ្នកប្រញាប់ធ្វើសកម្មភាពភ្លាមៗ។</p></details></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="what">
-      <div class="wrap">
-        <h2>CheckSen ពិនិត្យអ្វីខ្លះ</h2>
-        <ul class="diamonds">
-          <li><h3>សារ</h3><p>ល្បិចដែលអ្នកបោកប្រាស់ប្រើ ជាភាសាខ្មែរ និងអង់គ្លេស៖ ការសុំលេខកូដ OTP ការឱ្យបង់ថ្លៃមុន ដើម្បីបានកម្ចី ការងារ ឬរង្វាន់ ការគំរាមបិទគណនី ឬផ្តាច់ភ្លើង ការធ្វើពុតជាប៉ូលិស ការសុំលុយទៅគណនីផ្ទាល់ខ្លួន និងការងារនៅក្រៅប្រទេស។<span class="says">សារនេះមានការទាមទារលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ ដាច់ខាតមិនដែលសុំលេខទាំងនេះឡើយ។</span></p></li>
-          <li><h3>តំណភ្ជាប់</h3><p>តំណនោះនាំទៅណាពិតប្រាកដ គេហទំព័រទើបបង្កើតថ្មីឬអត់ ក្លែងធ្វើជាធនាគារ កាបូបលុយ Telegram ឬស្ថាប័នរដ្ឋឬអត់ មាននៅក្នុងបញ្ជីបោកប្រាស់ ឬមេរោគរបស់ Google និង URLhaus ឬអត់ និងទាញយកកម្មវិធី ជំនួសឱ្យការបើកគេហទំព័រឬអត់។<span class="says">ឈ្មោះគេហទំព័រនេះស្រដៀង ABA តែមិនមែនគេហទំព័រផ្លូវការទេ។</span></p></li>
-          <li><h3>កូដ KHQR</h3><p>ឈ្មោះអ្នកទទួល គណនី ធនាគារ និងចំនួនទឹកប្រាក់ពិតប្រាកដ ព្រមទាំងពិនិត្យថាកូដ QR នោះត្រូវបានគេកែបន្លំដែរឬទេ។<span class="says">QR នេះអាចត្រូវគេកែ ឬខូច (លេខផ្ទៀងផ្ទាត់មិនត្រូវ)។ កុំបង់ប្រាក់តាម QR នេះ។</span></p></li>
-          <li><h3>រូបថតអេក្រង់</h3><p>ស្រង់អត្ថបទចេញពីរូបថតអេក្រង់ SMS ឬកិច្ចសន្ទនា ហើយពិនិត្យដូចសារធម្មតា។</p></li>
-          <li><h3>ឯកសារ និងកម្មវិធី</h3><p>ឯកសារនោះជាអ្វីពិតប្រាកដ ទោះឈ្មោះវាថាអ្វីក៏ដោយ។ សម្រាប់កម្មវិធី Android វាបង្ហាញថាកម្មវិធីអាចធ្វើអ្វីខ្លះ ដូចជាអានសារ SMS ដែលមានលេខកូដ OTP ឬគ្រប់គ្រងអេក្រង់។ វាក៏រកឃើញ macro ក្នុងឯកសារ Word ឯកសារ PDF ដែលបើកកម្មវិធី ទំព័រចូលគណនីក្លែងក្លាយ ហើយពិនិត្យមេរោគជាមួយ ClamAV, VirusTotal និង MalwareBazaar។ រហូតដល់ 100 MB។<span class="says">កម្មវិធីនេះអាចអានសារ SMS និងគ្រប់គ្រងអេក្រង់របស់អ្នក ដូចកម្មវិធីដែលលួចលុយពីគណនីធនាគារ។</span></p></li>
-          <li><h3>អ្នកណាជាអ្នកផ្ញើ</h3><p>គណនីផ្ទាល់ខ្លួនដែលដាក់ឈ្មោះដូចធនាគារ ឬ Telegram ដូចជា «ABA Bank Support»។ ធនាគារ និង Telegram មិនដែលផ្ញើសារមកអ្នកពីគណនីផ្ទាល់ខ្លួនទេ។<span class="says">សារនេះបញ្ជូនបន្តពីគណនីផ្ទាល់ខ្លួន ដែលដាក់ឈ្មោះដូច ABA។ ABA មិនដែលផ្ញើសារមកអ្នកពីគណនីផ្ទាល់ខ្លួនទេ។</span></p></li>
-          <li><h3>អ្វីដែលអ្នកដទៃបានរាយការណ៍</h3><p>លេខទូរស័ព្ទ ឈ្មោះ Telegram និងគេហទំព័រ ដែលអ្នកប្រើផ្សេងទៀតបានរាយការណ៍ថាជាការបោកប្រាស់។<span class="says">មានអ្នកប្រើ ៣ នាក់ បានរាយការណ៍ថាលេខទូរស័ព្ទក្នុងសារនេះជាការបោកប្រាស់។</span></p></li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="section band" id="read">
-      <div class="wrap">
-        <h2>របៀបអានចម្លើយ</h2>
-        <p class="section-intro">ចម្លើយនីមួយៗមានលំដាប់ដូចគ្នា ដើម្បីឱ្យអ្នកដឹងភ្លាមថាត្រូវធ្វើអ្វី។ នេះជាចម្លើយពិតសម្រាប់កម្មវិធី ABA ក្លែងក្លាយ៖</p>
-        <div class="anatomy">
-          <div class="bubble bot"><b class="level high"><span class="part" aria-hidden="true">1</span>🔴 ហានិភ័យខ្ពស់</b><span class="part" aria-hidden="true">2</span>កម្មវិធីនេះប្រើឈ្មោះ ABA។ ធនាគារមិនដែលផ្ញើកម្មវិធីតាម Telegram ទេ។ សូមដំឡើងតែពី Play Store ឬ App Store ប៉ុណ្ណោះ។
-<span class="part" aria-hidden="true">3</span>👉 កុំបើក ឬដំឡើងឯកសារនេះ ហើយលុបវាចោល។<span class="gap"></span><span class="part" aria-hidden="true">4</span>📎 ABA Mobile․apk · កម្មវិធីទូរស័ព្ទ Android (.apk)
-📦 com․aba․mobile․update
-🔓 អាច៖ អាន SMS · គ្រប់គ្រងអេក្រង់ · បង្ហាញពីលើកម្មវិធីផ្សេង
-🛡️ ClamAV: មិនរកឃើញមេរោគ
-🛡️ MalwareBazaar: មិនមានក្នុងបញ្ជីមេរោគ
-🛡️ VirusTotal: មិនទាន់មានអ្នកណាស្កេនឯកសារនេះទេ<details class="fold"><summary><span class="part" aria-hidden="true">5</span>ℹ️ ព័ត៌មានលម្អិត</summary><p>កម្មវិធីនេះអាចអានសារ SMS និងគ្រប់គ្រងអេក្រង់របស់អ្នក ដូចកម្មវិធីដែលលួចលុយពីគណនីធនាគារ។
-
-🆘 បើអ្នកបានបើកវារួចហើយ៖
-1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។
-2. ប្តូរលេខសម្ងាត់ Two-Step Verification។
-3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។
-4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។</p></details></div>
-          <div>
-            <ol class="parts">
-            <li><span class="part" aria-hidden="true">1</span><div><h3>កម្រិតហានិភ័យ</h3><ul class="levels"><li class="high"><strong>🔴 ហានិភ័យខ្ពស់</strong><span>មានសញ្ញាបោកប្រាស់ច្បាស់។ កុំបង់ប្រាក់ ហើយកុំប្រាប់លេខកូដណាមួយ។</span></li><li class="suspicious"><strong>🟠 គួរឱ្យសង្ស័យ</strong><span>មានសញ្ញាមិនប្រក្រតី។ ផ្ទៀងផ្ទាត់តាមលេខ ឬកម្មវិធីផ្លូវការសិន។</span></li><li><strong>⚪ មិនទាន់រកឃើញសញ្ញាបោកប្រាស់ទេ</strong><span>មិនទាន់ឃើញល្បិចដែលគេស្គាល់ទេ តែនេះមិនមែនមានន័យថាគ្មានហានិភ័យទាំងស្រុងឡើយ។</span></li><li><strong>❔ មិនអាចពិនិត្យបាន</strong><span>រូបមិនច្បាស់ ឬអានមិនបាន។ សូមផ្ញើម្តងទៀត។</span></li></ul></div></li>
-            <li><span class="part" aria-hidden="true">2</span><div><h3>មូលហេតុ</h3><p>ហេតុផលសំខាន់បំផុត ជាពាក្យសាមញ្ញ។</p></div></li>
-            <li><span class="part" aria-hidden="true">3</span><div><h3>ត្រូវធ្វើអ្វី</h3><p>រឿងមួយដែលត្រូវធ្វើឥឡូវនេះ នៅក្រោយ 👉។</p></div></li>
-            <li><span class="part" aria-hidden="true">4</span><div><h3>អ្វីដែលវារកឃើញ</h3><p>សម្រាប់ឯកសារ៖ ប្រភេទពិត អ្វីដែលកម្មវិធីអាចធ្វើបាន និងលទ្ធផលស្កេនមេរោគនីមួយៗ។ សម្រាប់តំណ និង QR៖ គេហទំព័រ ឬអ្នកទទួលប្រាក់។</p></div></li>
-            <li><span class="part" aria-hidden="true">5</span><div><h3>ព័ត៌មានលម្អិត</h3><p>ហេតុផលផ្សេងទៀត និងជំហានដែលត្រូវធ្វើ បើអ្នកបានបើកឯកសារ ឬបង់ប្រាក់រួចហើយ។ ចុចដើម្បីបើកមើល។</p></div></li>
-            </ol>
-            <p class="report-note">នៅក្រោមចម្លើយអំពីសារ ឬតំណ ដែលមានលេខទូរស័ព្ទ ឈ្មោះ Telegram ឬគេហទំព័រ អ្នកក៏នឹងឃើញប៊ូតុង 🚩 សម្រាប់<a href="#report">រាយការណ៍</a>ផងដែរ។</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="report">
-      <div class="wrap">
-        <h2>ពេលមានអ្នករាយការណ៍ អ្នកទាំងអស់គ្នានឹងបានដឹង</h2>
-        <ol class="steps">
-          <li><h3>ចុច 🚩 រាយការណ៍</h3><p>ប៊ូតុងនេះនៅក្រោមចម្លើយរបស់ CheckSen ពេលសារមានលេខទូរស័ព្ទ ឈ្មោះ Telegram ឬគេហទំព័រដែលមិនស្គាល់។</p></li>
-          <li><h3>អ្នកផ្សេងរាយការណ៍ដូចគ្នា</h3><p>ពេលមានអ្នក ៣ នាក់ផ្សេងគ្នារាយការណ៍លេខ គណនី ឬគេហទំព័រតែមួយ ការរាយការណ៍នោះត្រូវបានរាប់។</p></li>
-          <li><h3>អ្នកទាំងអស់គ្នាបានព្រមាន</h3><p>ចាប់ពីពេលនោះ អ្នកណាក៏ដោយដែលផ្ញើវាមកពិនិត្យ នឹងឃើញថាមានអ្នករាយការណ៍ ទោះបីល្បិចនោះថ្មីពេកសម្រាប់ច្បាប់ណាមួយក៏ដោយ។</p></li>
-        </ol>
-        <p class="report-note">CheckSen រក្សាទុកតែលេខ ឈ្មោះគណនី គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash) ប៉ុណ្ណោះ មិនមែនសាររបស់អ្នកទេ។ គេហទំព័រផ្លូវការរបស់ធនាគារ និងគណនីរបស់ Telegram មិនអាចត្រូវបានរាយការណ៍ទេ។ ផ្ញើ <code>/forget</code> ដើម្បីលុបការរាយការណ៍របស់អ្នក។</p>
-      </div>
-    </section>
-
-    <section class="section band signs">
-      <div class="wrap">
-        <h2>សញ្ញានៃការបោកប្រាស់នៅកម្ពុជា</h2>
-        <p class="section-intro">ល្បិចទាំងនេះត្រូវបានធនាគារ ក្រសួង និងសមត្ថកិច្ចនៅកម្ពុជា ព្រមានជាញឹកញាប់៖</p>
-        <ul class="diamonds">
-          <li><p>ការសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់ ទោះបីអះអាងថាមកពីធនាគាររបស់អ្នកក៏ដោយ។</p></li>
-          <li><p>ការឱ្យបង់ថ្លៃសេវា ថ្លៃពន្ធ ឬប្រាក់កក់មុន ដើម្បីទទួលបានកម្ចី ការងារ ឬរង្វាន់។</p></li>
-          <li><p>ការគំរាមថានឹងបង្កកគណនី ឬផ្តាច់ភ្លើង ផ្តាច់ទឹក បើមិនធ្វើតាមភ្លាមៗ។</p></li>
-          <li><p>ការផ្ញើកម្មវិធី (.apk) តាម Telegram ហើយប្រាប់ថាមកពីធនាគាររបស់អ្នក។</p></li>
-          <li><p>ការអះអាងថាជាសាច់ញាតិដែលប្តូរលេខថ្មី ឬប្រាប់ថាសាច់ញាតិរបស់អ្នកជួបគ្រោះថ្នាក់ ហើយសុំលុយ។</p></li>
-          <li><p>ការផ្តល់ការងារវាយអក្សរ ឆាត ឬ Call Center ប្រាក់ខែខ្ពស់ នៅប៉ោយប៉ែត ព្រះសីហនុ បាវិត ឬប្រទេសថៃ។</p></li>
-          <li><p>ការសុំឱ្យមនុស្សមិនស្គាល់គ្នា បរិច្ចាគលុយទៅគណនីផ្ទាល់ខ្លួន សម្រាប់អ្នកជំងឺ។</p></li>
-          <li><p>ការសុំឱ្យផ្ញើលុយមុនពេលខល ឬជួបគ្នា។</p></li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="section faq">
-      <div class="wrap">
-        <h2>សំណួរដែលជួបញឹកញាប់</h2>
-        <div class="faq-list">
-          <details>
-            <summary>តើធ្វើដូចម្តេចដើម្បីដឹងថា KHQR ពិត ឬត្រូវគេកែបន្លំ?</summary>
-            <p>ផ្ញើរូបថត QR ទៅកាន់ CheckSen។ ប្រព័ន្ធនឹងបង្ហាញឈ្មោះអ្នកទទួល គណនី ធនាគារ និងចំនួនទឹកប្រាក់ពិតប្រាកដ ព្រមទាំងពិនិត្យលេខផ្ទៀងផ្ទាត់កូដ។ ទោះជាយ៉ាងណា មុនពេលបង់ប្រាក់ សូមផ្ទៀងផ្ទាត់ឈ្មោះអ្នកទទួលនៅក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។</p>
-          </details>
-          <details>
-            <summary>តើធនាគារធ្លាប់ទាមទារសុំលេខកូដ OTP តាមទូរស័ព្ទ ឬ Telegram ដែរឬទេ?</summary>
-            <p>មិនដែលឡើយ! ធនាគារ និងក្រុមហ៊ុនផ្លូវការទាំងអស់ មិនដែលទាមទារសុំលេខកូដ OTP, លេខ PIN ឬលេខសម្ងាត់របស់អ្នកជាដាច់ខាត។ អ្នកណាដែលទាមទារសុំលេខទាំងនេះ គឺពិតជាអ្នកបោកប្រាស់។</p>
-          </details>
-          <details>
-            <summary>តើ CheckSen ឥតគិតថ្លៃមែនទេ? តើចាំបាច់ត្រូវដំឡើងកម្មវិធីបន្ថែមដែរឬទេ?</summary>
-            <p>ប្រើប្រាស់ដោយឥតគិតថ្លៃ ហើយមិនបាច់ដំឡើងកម្មវិធីអ្វីបន្ថែមឡើយ! គ្រាន់តែបើក Telegram រួចស្វែងរក @CheckSen_bot ហើយផ្ញើសារ តំណភ្ជាប់ រូបភាព ឬឯកសារ ទៅជាការស្រេច។</p>
-          </details>
-          <details>
-            <summary>ប្រសិនបើខ្ញុំបានច្រឡំបង់ប្រាក់ទៅអ្នកបោកប្រាស់រួចហើយ តើត្រូវធ្វើដូចម្តេច?</summary>
-            <p>សូមទូរស័ព្ទទៅកាន់ធនាគាររបស់អ្នកភ្លាមៗ (តាមរយៈលេខនៅលើកាត ឬក្នុងកម្មវិធីធនាគារ) ដើម្បីស្នើសុំបង្កកប្រតិបត្តិការ។ ត្រូវថតរូបភាពអេក្រង់ (Screenshot) នៃកិច្ចសន្ទនា និងបង្កាន់ដៃបង់ប្រាក់ទុកជាភស្តុតាង រួចប្រញាប់ទៅរាយការណ៍ជូនសមត្ថកិច្ច។ ប្រយ័ត្ន៖ កុំបង់ប្រាក់ឱ្យនរណាម្នាក់ដែលសន្យាថានឹងយកប្រាក់មកវិញឱ្យអ្នកដោយគិតថ្លៃសេវាឱ្យសោះ!</p>
-          </details>
-          <details>
-            <summary>តើ CheckSen អាចបញ្ជាក់បានទេថា សារមួយសុវត្ថិភាព ១០០%?</summary>
-            <p>មិនអាចទេ! CheckSen អាចប្រាប់បានត្រឹមតែថា រកឃើញសញ្ញាបោកប្រាស់ដែលធ្លាប់ស្គាល់ ឬអត់ប៉ុណ្ណោះ។ ល្បិចបោកប្រាស់ថ្មីៗអាចនឹងមិនទាន់មានក្នុងប្រព័ន្ធនៅឡើយ ដូច្នេះបើមិនប្រាកដចិត្ត សូមផ្ទៀងផ្ទាត់តាមរយៈលេខទូរស័ព្ទ ឬកម្មវិធីផ្លូវការរបស់ធនាគារដោយផ្ទាល់។</p>
-          </details>
-          <details>
-            <summary>តើ CheckSen អាចពិនិត្យមេរោគក្នុងឯកសារ ឬកម្មវិធីបានទេ?</summary>
-            <p>បាន! ផ្ញើឯកសារ ឬកម្មវិធីនោះទៅ CheckSen។ វាពិនិត្យមើលថាឯកសារនោះជាអ្វីពិតប្រាកដ (ឧទាហរណ៍៖ «PDF» ដែលតាមពិតជាកម្មវិធី) បង្ហាញថាកម្មវិធី Android អាចធ្វើអ្វីខ្លះ ដូចជាអានសារ SMS ហើយពិនិត្យជាមួយ ClamAV, VirusTotal និង MalwareBazaar។ មេរោគថ្មីខ្លាំងអាចមិនទាន់ស្គាល់ ដូច្នេះសូមបើកតែឯកសារពីអ្នកដែលអ្នកទុកចិត្ត។ ឯកសារធំជាង 100 MB ត្រូវពិនិត្យតែឈ្មោះ និងប្រភេទប៉ុណ្ណោះ។</p>
-          </details>
-          <details>
-            <summary>តើមានអ្វីកើតឡើង ពេលខ្ញុំចុច 🚩 រាយការណ៍?</summary>
-            <p>CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះ Telegram គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ សាររបស់អ្នកមិនត្រូវបានរក្សាទុកឡើយ។ ពេលមានអ្នក ៣ នាក់ផ្សេងគ្នារាយការណ៍ CheckSen នឹងព្រមានអ្នកដែលផ្ញើវាមកពិនិត្យ។ ផ្ញើ /forget ដើម្បីលុបការរាយការណ៍របស់អ្នក។</p>
-          </details>
-          <details>
-            <summary>តើខ្ញុំអាចបញ្ចូល CheckSen ទៅក្នុងគ្រុបគ្រួសារ ឬគ្រុបការងារបានទេ?</summary>
-            <p>បាន។ បញ្ចូល @CheckSen_bot ទៅក្នុងគ្រុប។ វានៅស្ងៀម រហូតដល់មានអ្នកហៅ @CheckSen_bot ឆ្លើយតបសាររបស់វា ឬឆ្លើយតបសារណាមួយដោយសរសេរ /check។</p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <section class="section privacy">
-      <div class="wrap privacy-grid">
-        <div>
-          <h2>សាររបស់អ្នកមិនត្រូវបានរក្សាទុកឡើយ</h2>
-          <p class="section-intro">CheckSen ពិនិត្យសារ និងរូបភាពនៅក្នុង Memory (RAM) បណ្តោះអាសន្នប៉ុណ្ណោះ ដោយមិនរក្សាទុកឡើយ។ កូដរបស់វាជា Open-source ដែលអ្នកណាក៏អាចពិនិត្យបាននៅលើ <a href="https://github.com/tangheng05/checksen">GitHub</a>។</p>
-        </div>
-        <dl class="privacy-facts">
-          <div>
-            <dt>សារ និងរូបភាព</dt>
-            <dd>មិនមានការរក្សាទុកឡើយ។ លទ្ធផលត្រូវបានរក្សាទុកក្នុង Memory បណ្តោះអាសន្នរយៈពេល ១ម៉ោង ដោយប្រើប្រាស់តែកូដ Hash នៃខ្លឹមសារប៉ុណ្ណោះ។</dd>
-          </div>
-          <div>
-            <dt>តំណភ្ជាប់ (Link)</dt>
-            <dd>តំណភ្ជាប់ដែលអ្នកផ្ញើ ត្រូវបានផ្ញើទៅ Google Safe Browsing និង URLhaus របស់ abuse.ch ដើម្បីពិនិត្យថាជាគេហទំព័របោកប្រាស់ ឬមានមេរោគដែលគេស្គាល់ឬអត់។</dd>
-          </div>
-          <div>
-            <dt>ឯកសារ</dt>
-            <dd>ពិនិត្យក្នុង Memory ហើយលុបចោលវិញភ្លាមៗ។ ClamAV ដំណើរការនៅលើម៉ាស៊ីនមេ (Server) ផ្ទាល់របស់យើង ហើយ VirusTotal និង MalwareBazaar របស់ abuse.ch ទទួលបានតែលេខសម្គាល់ឯកសារ (Hash) ប៉ុណ្ណោះ ដោយមិនបានទទួលឯកសារដើមរបស់អ្នកឡើយ។ តំណ (Link) នៅក្នុងឯកសារ ត្រូវបានផ្ទៀងផ្ទាត់ជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus ដោយមិនបើកវាឡើយ។</dd>
-          </div>
-          <div>
-            <dt>ការវិភាគដោយ AI</dt>
-            <dd>អត្ថបទ និងរូបថតអេក្រង់ ត្រូវបានផ្ញើទៅកាន់ Google Gemini (កម្រិតឥតគិតថ្លៃ)។ Google អាចនឹងប្រើប្រាស់ទិន្នន័យទាំងនោះដើម្បីអភិវឌ្ឍផលិតផលរបស់ខ្លួន ហើយបុគ្គលិករបស់ Google អាចមើលឃើញ។<strong>សូមបិទបាំងលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួន មុនពេលផ្ញើ។</strong></dd>
-          </div>
-          <div>
-            <dt>ការរាយការណ៍ (Report)</dt>
-            <dd>ប្រសិនបើអ្នកចុច ❌ លើការពិនិត្យ KHQR ឬ «រាយការណ៍ថាជាការបោកប្រាស់» លើការពិនិត្យផ្សេងទៀត ការរាយការណ៍នឹងត្រូវកត់ត្រាទុកលើគណនី QR លេខទូរស័ព្ទ ឈ្មោះ Telegram ឬគេហទំព័រនោះ ដោយភ្ជាប់តែជាមួយកូដ Hash នៃលេខ Telegram របស់អ្នកប៉ុណ្ណោះ។ សាររបស់អ្នកមិនត្រូវបានរក្សាទុកឡើយ។ វានឹងត្រូវបង្ហាញថាមានការរាយការណ៍ លុះត្រាតែមានអ្នកប្រើ ៣នាក់ផ្សេងគ្នារាយការណ៍។</dd>
-          </div>
-          <div>
-            <dt>ការលុបទិន្នន័យរាយការណ៍</dt>
-            <dd>ផ្ញើសារ <code>/forget</code> ទៅកាន់ CheckSen ដើម្បីលុបទិន្នន័យរាយការណ៍ទាំងអស់ដែលពាក់ព័ន្ធនឹងអ្នក។</dd>
-          </div>
-        </dl>
-      </div>
-    </section>
-
-    <section class="section closing">
-      <div class="wrap">
-        <h2>មិនប្រាកដ? ឆែកសិន។</h2>
-        <p>ផ្ញើវាទៅ CheckSen មុនពេលចុច បើក ឬបង់ប្រាក់។</p>
-        <a class="cta" href="https://t.me/CheckSen_bot">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.4-1.5ZM9.7 14.3l-.5 3.5-1.3-4.1 10.4-6.6-8.6 7.2Z"/></svg>
-            បើក CheckSen ក្នុង Telegram
-          </a>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="wrap">
-      <p>CheckSen ជាគម្រោងឯករាជ្យ និងមិនមែនជាសេវាផ្លូវការរបស់ធនាគារ ឬស្ថាប័នរដ្ឋាភិបាលឡើយ។ កូដប្រភពបើកចំហក្រោមអាជ្ញាប័ណ្ណ MIT។</p>
-      <nav aria-label="តំណ">
-        <a href="https://t.me/CheckSen_bot">Telegram</a>
-        <a href="https://github.com/tangheng05/checksen">GitHub</a>
-        <a href="/en" hreflang="en" lang="en">English</a>
-      </nav>
+  <div class="hero-foot wrap grid line-top">
+    <div class="hf-copy" style="--dl:.75s">
+      <p class="kicker">មុនចុច មុនបង់។</p>
+      <p class="t-body">ផ្ញើសារ តំណ KHQR ឬឯកសារ ទៅ CheckSen ក្នុង Telegram។ ក្នុងប៉ុន្មានវិនាទី វាប្រាប់ថាជាការបោកប្រាស់ឬអត់។</p>
     </div>
-  </footer>
+    <div class="hf-act" style="--dl:.9s">
+      <div class="cta-row">
+        <a class="btn" href="https://t.me/CheckSen_bot"><svg class="tgi"><use href="#tg" /></svg><span class="roll"><span>បើក CheckSen ក្នុង Telegram</span><span aria-hidden="true">បើក CheckSen ក្នុង Telegram</span></span></a>
+        <button type="button" class="qr-btn" id="qr-btn" aria-expanded="false" aria-label="QR t.me/CheckSen_bot"><svg viewBox="0 0 24 24"><use href="#qri" /></svg></button>
+        <div class="qr-pop" role="tooltip"><svg viewBox="0 0 33 33"><use href="#qr" /></svg><p>ស្កេនដោយកាមេរ៉ាទូរស័ព្ទ</p></div>
+      </div>
+      <p class="facts">ឥតគិតថ្លៃ · មិនបាច់ដំឡើង · មិនរក្សាទុកសារ</p>
+    </div>
+  </div>
+</section>
 
-  <script src="/demo.js" defer></script>
+<main>
+  <section class="sec" id="replies">
+    <div class="wrap">
+      <header class="sec-head grid">
+        <p class="sec-tag t-label rv">(០១) ចម្លើយ</p>
+        <h2 class="t-h2 mask"><span class="in-mask">ចម្លើយច្បាស់ ក្នុងប៉ុន្មានវិនាទី។</span></h2>
+      </header>
+
+      <div class="demo grid" id="demo">
+        <div class="picks rv">
+          <p class="picks-hint t-label">ឧទាហរណ៍ · ចុចលើមួយ ដើម្បីមើលចម្លើយ</p>
+          <ol id="picks" class="auto"><li><button type="button" class="pick" data-i="0" aria-pressed="true">
+        <span class="no">០១</span>
+        <span><span class="t-h3">សារសុំលេខកូដ OTP</span><span class="meta"><span class="lvl" style="--c:var(--high)">ហានិភ័យខ្ពស់</span></span></span>
+        <span class="bar"></span>
+      </button></li>
+      <li><button type="button" class="pick" data-i="1" aria-pressed="false">
+        <span class="no">០២</span>
+        <span><span class="t-h3">តំណក្លែងធនាគារ</span><span class="meta"><span class="lvl" style="--c:var(--high)">ហានិភ័យខ្ពស់</span></span></span>
+        <span class="bar"></span>
+      </button></li>
+      <li><button type="button" class="pick" data-i="2" aria-pressed="false">
+        <span class="no">០៣</span>
+        <span><span class="t-h3">កម្មវិធី «ABA» .apk</span><span class="meta"><span class="lvl" style="--c:var(--high)">ហានិភ័យខ្ពស់</span></span></span>
+        <span class="bar"></span>
+      </button></li>
+      <li><button type="button" class="pick" data-i="3" aria-pressed="false">
+        <span class="no">០៤</span>
+        <span><span class="t-h3">ការងារប្រាក់ខែខ្ពស់</span><span class="meta"><span class="lvl" style="--c:var(--sus)">គួរឱ្យសង្ស័យ</span></span></span>
+        <span class="bar"></span>
+      </button></li></ol>
+        </div>
+        <div class="chat-col rv" style="--dl:.1s">
+          <div class="tg" aria-live="polite">
+            <div class="tg-head">
+              <svg class="back"><use href="#chev" /></svg>
+              <span class="tg-av"><svg class="mark"><use href="#mark" /></svg></span>
+              <div><div class="tg-name">CheckSen</div><div class="tg-status" id="status">bot</div></div>
+            </div>
+            <div class="tg-body" id="thread"></div>
+          </div>
+        </div>
+        <ol class="notes" id="notes">
+          <li style="--dl:0.00s" data-k="sent"><span class="n">១</span><div><b>អ្នកផ្ញើបន្ត</b></div></li>
+          <li style="--dl:0.07s" data-k="level"><span class="n">២</span><div><b>កម្រិតហានិភ័យ</b></div></li>
+          <li style="--dl:0.14s" data-k="why"><span class="n">៣</span><div><b>មូលហេតុ</b></div></li>
+          <li style="--dl:0.21s" data-k="act"><span class="n">៤</span><div><b>ត្រូវធ្វើអ្វី</b></div></li>
+          <li style="--dl:0.28s" data-k="more"><span class="n">៥</span><div><b>ព័ត៌មានលម្អិត</b></div></li>
+          <li style="--dl:0.35s" data-k="report"><span class="n">៦</span><div><b>រាយការណ៍</b></div></li>
+        </ol>
+        <svg class="leaders" id="leaders" aria-hidden="true" />
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="checks">
+    <div class="wrap">
+      <header class="sec-head grid">
+        <p class="sec-tag t-label rv">(០២) ពិនិត្យអ្វីខ្លះ</p>
+        <h2 class="t-h2 mask"><span class="in-mask">ផ្ញើអ្វីក៏បាន។</span></h2>
+      </header>
+      <div class="tiles grid" id="tiles"><article class="tile rv" style="--span:7;--tint:var(--t-rose);--dl:0s">
+        <div class="art"><div class="obj"><div class="mb"><span class="fw">បញ្ជូនបន្តពី ABA Bank Support</span>គណនីរបស់បងនឹងត្រូវបង្កក។ សូមផ្ញើ<mark>លេខកូដ OTP</mark> មកខ្ញុំភ្លាមៗ។</div></div></div>
+        <h3 class="t-h3">សារ</h3>
+        <p class="t-small">សុំ OTP ការងារក្លែង និងការគំរាម</p>
+      </article>
+      <article class="tile rv" style="--span:5;--tint:var(--t-peach);--dl:0.1s">
+        <div class="art"><div class="obj"><div class="mcol"><div class="khqr"><div class="top">KHQR</div><div class="who"><small>SOK DARA</small><b>50,000<i>៛</i></b></div><hr><svg viewBox="0 0 33 33"><use href="#qr" /></svg></div></div></div></div>
+        <h3 class="t-h3">កូដ KHQR</h3>
+        <p class="t-small">អ្នកទទួលពិត និងកូដត្រូវគេកែឬអត់</p>
+      </article>
+      <article class="tile rv" style="--span:5;--tint:var(--t-sky);--dl:0s">
+        <div class="art"><div class="obj"><div class="shot"><div class="sms"><i style="width:70%"></i><i style="width:90%"></i><i style="width:50%"></i></div><div class="sms me"><i style="width:60%"></i></div><div class="sms"><i style="width:85%"></i><i style="width:40%"></i></div><div class="sms"><i style="width:75%"></i></div><div class="scan"></div></div></div></div>
+        <h3 class="t-h3">រូបថតអេក្រង់</h3>
+        <p class="t-small">អានអត្ថបទក្នុងរូប ហើយពិនិត្យ</p>
+      </article>
+      <article class="tile rv" style="--span:7;--tint:var(--t-lilac);--dl:0.1s">
+        <div class="art"><div class="obj"><div class="mb"><span class="url">https://aba-<mark>verify-login</mark>.top</span><span class="pv"><b>ABA Bank</b><span>Internet Banking · Login</span></span></div></div></div>
+        <h3 class="t-h3">តំណភ្ជាប់</h3>
+        <p class="t-small">នាំទៅណាពិត និងក្លែងធនាគារឬអត់</p>
+      </article>
+      <article class="tile rv" style="--span:7;--tint:var(--t-butter);--dl:0s">
+        <div class="art"><div class="obj"><div class="mcol"><div class="mb file"><span class="doc"><svg><use href="#doc" /></svg></span><span><b>ABA Mobile.apk</b><small>6.2 MB</small></span></div></div></div></div>
+        <h3 class="t-h3">ឯកសារ និងកម្មវិធី</h3>
+        <p class="t-small">កម្មវិធីអាចធ្វើអ្វីខ្លះ និងមេរោគ</p>
+      </article>
+      <article class="tile rv" style="--span:5;--tint:var(--t-mint);--dl:0.1s">
+        <div class="art"><div class="obj"><div class="mcol"><div class="prof"><span class="av">A</span><div><b>ABA Bank Support</b><small>@aba_support_kh</small></div></div></div></div></div>
+        <h3 class="t-h3">អ្នកផ្ញើ</h3>
+        <p class="t-small">គណនីដែលដាក់ឈ្មោះដូចធនាគារ</p>
+      </article></div>
+    </div>
+  </section>
+
+  <section class="sec" id="report">
+    <div class="wrap">
+      <header class="sec-head grid">
+        <p class="sec-tag t-label rv">(០៣) ការរាយការណ៍</p>
+        <h2 class="t-h2 mask"><span class="in-mask">ការរាយការណ៍មួយ<br>ការពារអ្នកទាំងអស់គ្នា។</span></h2>
+      </header>
+      <div class="tiles grid">
+        <article class="tile rv" style="--span:4;--tint:var(--t-sky)">
+          <div class="art"><div class="mcol">
+            <div class="mb in"><strong>🔴 ហានិភ័យខ្ពស់</strong><br>សារនេះមានការទាមទារលេខកូដ OTP…</div>
+            <div class="mkb"><span>🚩 រាយការណ៍ថាជាការបោកប្រាស់</span><span class="tap"></span></div>
+          </div></div>
+          <h3 class="t-h3">១. ចុច «រាយការណ៍»</h3>
+        </article>
+        <article class="tile rv" style="--span:4;--tint:var(--t-butter);--dl:.1s">
+          <div class="art"><div>
+            <div class="ppl"><span style="--d:0s"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg></span><span style="--d:.5s"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg></span><span style="--d:1s"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor" /></svg></span></div>
+            <p class="count"><b>៣ / ៣</b></p>
+          </div></div>
+          <h3 class="t-h3">២. អ្នក ៣ នាក់រាយការណ៍ដូចគ្នា</h3>
+        </article>
+        <article class="tile rv" style="--span:4;--tint:var(--t-rose);--dl:.2s">
+          <div class="art"><div class="mcol">
+            <div class="mb out">097 555 1234 – ផ្ញើប្រាក់កក់មកលេខនេះ</div>
+            <div class="mb in"><strong>🔴 ហានិភ័យខ្ពស់</strong><br>មានអ្នកប្រើ ៣ នាក់ បានរាយការណ៍លេខទូរស័ព្ទក្នុងសារនេះថាជាការបោកប្រាស់។</div>
+          </div></div>
+          <h3 class="t-h3">៣. អ្នកបន្ទាប់ត្រូវបានព្រមាន</h3>
+        </article>
+      </div>
+      <p class="forget t-small rv">រក្សាទុកតែលេខ ឈ្មោះ គេហទំព័រ ឬគណនី QR នោះ ជាមួយ ID របស់អ្នកដែលបំប្លែងជាកូដ។ ផ្ញើ <code>/forget</code> ដើម្បីលុប។</p>
+    </div>
+  </section>
+
+  <section class="band" id="privacy">
+    <div class="wrap grid">
+      <div class="band-head">
+        <p class="t-label rv">(០៤) ឯកជនភាព</p>
+        <h2 class="t-h2 mask" style="margin-top:18px"><span class="in-mask">សាររបស់អ្នក<br>មិនត្រូវបានរក្សាទុកឡើយ។</span></h2>
+      </div>
+
+      <div class="flow rv" id="flow">
+        <div class="node src" data-wire="src"><span class="k">អ្នកផ្ញើ</span><b>សារ · តំណ · រូប · ឯកសារ</b></div>
+        <div class="node core" data-wire="core"><svg class="mark"><use href="#mark" /></svg><b>CheckSen</b><span class="k">ពិនិត្យក្នុង Memory ហើយលុបចោល</span></div>
+        <div class="dests">
+          <div class="node" data-wire="dest"><span class="k">តំណ</span><b>Google Safe Browsing · URLhaus</b></div>
+          <div class="node" data-wire="dest"><span class="k">ឯកសារ៖ តែលេខសម្គាល់ (hash)</span><b>VirusTotal · MalwareBazaar</b></div>
+          <div class="node" data-wire="dest"><span class="k">អត្ថបទ និងរូបថតអេក្រង់</span><b>Google Gemini (ឥតគិតថ្លៃ)</b><span class="w">Google អាចប្រើ ហើយមនុស្សអាចអាន។ សូមបិទបាំងលេខគណនីមុនផ្ញើ។</span></div>
+        </div>
+        <svg class="wires" id="wires" aria-hidden="true" />
+      </div>
+
+      <div class="kept">
+        <p class="t-small">មិនមានអ្វីផ្សេងទៀតត្រូវបានរក្សាទុកទេ។ កូដបើកចំហនៅលើ <a class="u" href="https://github.com/tangheng05/checksen">GitHub</a>។</p>
+        <button type="button" class="more" id="more" aria-expanded="false"><span>អានព័ត៌មានលម្អិត</span><span class="pm" aria-hidden="true"></span></button>
+      </div>
+      <div class="fine" id="fine"><div>
+        <dl>
+        <div><dt>សារ និងរូបភាព</dt><dd class="t-small">មិនមានការរក្សាទុកឡើយ។ លទ្ធផលត្រូវបានរក្សាទុកក្នុង Memory បណ្តោះអាសន្នរយៈពេល ១ម៉ោង ដោយប្រើតែកូដ Hash នៃខ្លឹមសារប៉ុណ្ណោះ។</dd></div>
+        <div><dt>តំណភ្ជាប់</dt><dd class="t-small">ត្រូវបានផ្ញើទៅ Google Safe Browsing និង URLhaus របស់ abuse.ch ដើម្បីពិនិត្យថាជាគេហទំព័របោកប្រាស់ ឬមានមេរោគដែលគេស្គាល់ឬអត់។</dd></div>
+        <div><dt>ឯកសារ</dt><dd class="t-small">ពិនិត្យក្នុង Memory ហើយលុបចោលភ្លាមៗ។ ClamAV ដំណើរការលើម៉ាស៊ីនមេផ្ទាល់របស់យើង ហើយ VirusTotal និង MalwareBazaar ទទួលបានតែលេខសម្គាល់ឯកសារ (Hash) ប៉ុណ្ណោះ មិនមែនឯកសារទេ។ តំណក្នុងឯកសារ ត្រូវបានពិនិត្យដោយមិនបើកវាឡើយ។</dd></div>
+        <div><dt>ការវិភាគដោយ AI</dt><dd class="t-small">អត្ថបទ និងរូបថតអេក្រង់ ត្រូវបានផ្ញើទៅ Google Gemini (កម្រិតឥតគិតថ្លៃ)។ Google អាចប្រើទិន្នន័យទាំងនោះដើម្បីអភិវឌ្ឍផលិតផលរបស់ខ្លួន ហើយបុគ្គលិករបស់ Google អាចមើលឃើញ។<strong>សូមបិទបាំងលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួន មុនពេលផ្ញើ។</strong></dd></div>
+        <div><dt>ការរាយការណ៍</dt><dd class="t-small">កត់ត្រាលើគណនី QR លេខទូរស័ព្ទ ឈ្មោះ Telegram ឬគេហទំព័រនោះ ដោយភ្ជាប់តែជាមួយកូដ Hash នៃលេខ Telegram របស់អ្នក។ បង្ហាញតែពេលមានអ្នក ៣ នាក់ផ្សេងគ្នារាយការណ៍។ ផ្ញើ <code>/forget</code> ដើម្បីលុបរបស់អ្នក។</dd></div>
+      </dl>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="faq">
+    <div class="wrap grid">
+      <div class="faq-side">
+        <p class="t-label rv">(០៥) សំណួរ</p>
+        <h2 class="t-h2 mask" style="margin-top:18px"><span class="in-mask">គួរដឹង។</span></h2>
+        <p class="t-body rv" style="--dl:.15s">នៅមានសំណួរ? សួរ CheckSen ផ្ទាល់ក៏បាន វាឆ្លើយសំណួរដែរ។</p>
+      </div>
+      <div class="faq" id="faq-list"><div class="qa rv" style="--dl:0s">
+        <button type="button" aria-expanded="false"><span>តើធ្វើដូចម្តេចដើម្បីដឹងថា KHQR ពិត ឬត្រូវគេកែបន្លំ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">ផ្ញើរូបថត QR ទៅ CheckSen។ វាបង្ហាញឈ្មោះអ្នកទទួល គណនី ធនាគារ និងចំនួនទឹកប្រាក់ពិតប្រាកដ ព្រមទាំងពិនិត្យលេខផ្ទៀងផ្ទាត់កូដ។ មុនពេលបង់ប្រាក់ សូមផ្ទៀងផ្ទាត់ឈ្មោះអ្នកទទួលក្នុងកម្មវិធីធនាគាររបស់អ្នកជានិច្ច។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.05s">
+        <button type="button" aria-expanded="false"><span>តើធនាគារធ្លាប់សុំលេខកូដ OTP តាមទូរស័ព្ទ ឬ Telegram ដែរឬទេ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">មិនដែលឡើយ។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ។ អ្នកណាដែលសុំលេខទាំងនេះ ទំនងជាអ្នកបោកប្រាស់។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.1s">
+        <button type="button" aria-expanded="false"><span>តើ CheckSen ឥតគិតថ្លៃមែនទេ? ត្រូវដំឡើងអ្វីទេ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">ឥតគិតថ្លៃ ហើយមិនបាច់ដំឡើងអ្វីទេ។ បើក @CheckSen_bot ក្នុង Telegram ហើយផ្ញើសារ តំណ រូបភាព ឬឯកសារ។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.15000000000000002s">
+        <button type="button" aria-expanded="false"><span>ខ្ញុំបានបង់ប្រាក់ទៅអ្នកបោកប្រាស់រួចហើយ។ ត្រូវធ្វើអ្វី?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">ទូរស័ព្ទទៅធនាគាររបស់អ្នកភ្លាមៗ តាមលេខនៅលើកាត ឬក្នុងកម្មវិធី ដើម្បីសុំបង្កកប្រតិបត្តិការ។ ថតរូបអេក្រង់សារ និងបង្កាន់ដៃទុកជាភស្តុតាង ហើយរាយការណ៍ទៅប៉ូលិស។ កុំបង់ប្រាក់ឱ្យអ្នកណាដែលសន្យាយកលុយមកវិញដោយគិតថ្លៃ។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.2s">
+        <button type="button" aria-expanded="false"><span>តើ CheckSen អាចប្រាប់ថាសារមួយគ្មានបញ្ហា ១០០% បានទេ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">មិនអាចទេ។ វាប្រាប់បានតែថា រកឃើញសញ្ញាបោកប្រាស់ដែលស្គាល់ ឬអត់។ ល្បិចថ្មីអាចមិនទាន់ចាប់បាន ដូច្នេះបើមិនប្រាកដ សូមផ្ទៀងផ្ទាត់តាមលេខ ឬកម្មវិធីផ្លូវការរបស់ធនាគារ។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.25s">
+        <button type="button" aria-expanded="false"><span>តើ CheckSen ពិនិត្យមេរោគក្នុងឯកសារ ឬកម្មវិធីបានទេ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">បាន។ វាមើលថាឯកសារជាអ្វីពិតប្រាកដ (ឧ. «PDF» ដែលតាមពិតជាកម្មវិធី) បង្ហាញថាកម្មវិធី Android អាចធ្វើអ្វីខ្លះ ហើយពិនិត្យជាមួយ ClamAV, VirusTotal និង MalwareBazaar។ មេរោគថ្មីខ្លាំងអាចមិនទាន់ស្គាល់ ដូច្នេះសូមបើកតែឯកសារពីអ្នកដែលអ្នកទុកចិត្ត។</p></div></div>
+      </div>
+      <div class="qa rv" style="--dl:0.30000000000000004s">
+        <button type="button" aria-expanded="false"><span>តើខ្ញុំអាចបញ្ចូល CheckSen ទៅក្នុងគ្រុបបានទេ?</span><span class="pm" aria-hidden="true"></span></button>
+        <div class="ans"><div><p class="t-body">បាន។ បញ្ចូល @CheckSen_bot ទៅក្នុងគ្រុប។ វានៅស្ងៀម រហូតដល់មានអ្នកហៅ @CheckSen_bot ឆ្លើយតបសាររបស់វា ឬឆ្លើយតបសារណាមួយដោយសរសេរ /check។</p></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="end wrap" id="end">
+    <div class="end-panel">
+    <svg class="end-mark" viewBox="4 2 112 100" aria-hidden="true"><use href="#mark" /></svg>
+    <h2 class="t-h2 mask"><span class="in-mask">មិនប្រាកដ? ឆែកសិន។</span></h2>
+    <p class="t-body rv" style="--dl:.15s">ផ្ញើវាទៅ CheckSen មុនពេលចុច បើក ឬបង់ប្រាក់។</p>
+    <div class="acts rv" style="--dl:.25s">
+      <a class="btn" href="https://t.me/CheckSen_bot"><svg class="tgi"><use href="#tg" /></svg><span class="roll"><span>បើក CheckSen ក្នុង Telegram</span><span aria-hidden="true">បើក CheckSen ក្នុង Telegram</span></span></a>
+      <div class="qr"><svg viewBox="0 0 33 33"><use href="#qr" /></svg><p><span>ឬស្កេនដោយទូរស័ព្ទ</span><b>t.me/CheckSen_bot</b></p></div>
+    </div>
+    </div>
+    <footer class="ft">
+      <div class="ft-top grid line-top">
+        <div class="ft-brand">
+          <a class="brand" href="#top"><svg class="mark"><use href="#mark" /></svg>CheckSen</a>
+          <p class="ft-tag">ឆែកសិន មុនចុច មុនបង់។</p>
+          <p class="ft-note">គម្រោងឯករាជ្យ មិនមែនជាសេវាផ្លូវការរបស់ធនាគារ ឬស្ថាប័នរដ្ឋាភិបាលឡើយ។</p>
+        </div>
+        <nav class="ft-col site">
+          <p class="t-label">គេហទំព័រ</p>
+          <a class="u" href="#replies">ចម្លើយ</a>
+          <a class="u" href="#checks">ពិនិត្យអ្វីខ្លះ</a>
+          <a class="u" href="#privacy">ឯកជនភាព</a>
+          <a class="u" href="#faq">សំណួរ</a>
+        </nav>
+        <nav class="ft-col touch">
+          <p class="t-label">ទំនាក់ទំនង</p>
+          <a class="u" href="https://t.me/CheckSen_bot">Telegram ↗</a>
+          <a class="u" href="https://github.com/tangheng05/checksen">GitHub ↗</a>
+          <a class="u" href="https://github.com/tangheng05/checksen/issues">រាយការណ៍បញ្ហា ↗</a>
+        </nav>
+        <div class="ft-col prefs">
+          <p class="t-label">ការកំណត់</p>
+          <div class="pref">
+            <span class="pref-k">ភាសា</span>
+            <div class="seg" role="group" aria-label="Language" style="--n:2;--i:0"><span class="thumb" aria-hidden="true"></span><a href="/" hreflang="km" lang="km" aria-current="page">ខ្មែរ</a><a href="/en" hreflang="en" lang="en">English</a></div>
+          </div>
+          <div class="pref">
+            <span class="pref-k">ពណ៌</span>
+            <div class="seg" role="group" aria-label="Theme" style="--n:3"><span class="thumb" aria-hidden="true"></span><button type="button" data-set-theme="auto" aria-pressed="true" aria-label="Auto" title="Auto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" /></svg></button><button type="button" data-set-theme="paper" aria-pressed="false" aria-label="Light" title="Light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button><button type="button" data-set-theme="night" aria-pressed="false" aria-label="Dark" title="Dark"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="currentColor" /></svg></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="mega foot-mega" id="foot-mega" data-cap="1" aria-hidden="true"><span class="mask"><span class="fit">CheckSen</span></span></div>
+      <div class="ft-bottom">
+        <p>© 2026 CheckSen · <span>កូដបើកចំហ អាជ្ញាប័ណ្ណ MIT</span></p>
+        <p><span>បង្កើតដោយ</span> <a class="u" href="https://hengg.foo">Tang Heng</a></p>
+      </div>
+    </footer>
+  </section>
+</main>
+
+<nav class="dock" id="dock">
+  <a class="go" href="https://t.me/CheckSen_bot"><svg class="tgi"><use href="#tg" /></svg><span class="roll"><span>បើកក្នុង Telegram</span><span aria-hidden="true">បើកក្នុង Telegram</span></span></a>
+  <a class="opt" href="#replies">ចម្លើយ</a>
+  <a class="opt" href="#checks">ពិនិត្យ</a>
+  <a class="opt" href="#privacy">ឯកជនភាព</a>
+  <a class="opt" href="#faq">សំណួរ</a>
+</nav>
+
+<script src="/site.js" defer></script>
 </body>
 </html>
