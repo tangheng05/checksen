@@ -296,11 +296,10 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
     if real == Some(FileKind::Archive)
         && let Some(entries) = bytes.and_then(archive_entries)
     {
-        if entries
-            .names
-            .iter()
-            .any(|entry| kind_from_name(entry).is_some_and(FileKind::is_dangerous))
-        {
+        if entries.names.iter().any(|entry| {
+            kind_from_name(entry)
+                .is_some_and(|kind| kind.is_dangerous() && kind != FileKind::WebPage)
+        }) {
             signals.push(Signal::ProgramInArchive);
         }
         if entries.encrypted {
@@ -551,6 +550,17 @@ mod tests {
         assert_eq!(
             signals("locked.zip", &zip_with(&[("data.bin", true)])),
             [Signal::LockedArchive]
+        );
+    }
+
+    #[test]
+    fn web_pages_inside_zips_are_not_programs() {
+        assert!(
+            signals(
+                "export.zip",
+                &zip_with(&[("posts.csv", false), ("posts/1.post.html", false)])
+            )
+            .is_empty()
         );
     }
 

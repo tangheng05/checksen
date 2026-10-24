@@ -17,6 +17,7 @@ use super::{link, sites};
 const MAX_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_NESTED_APP_BYTES: u64 = 30 * 1024 * 1024;
 const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_ZIPPED_PAGES: usize = 10;
 const MAX_PDF_BYTES: usize = 20 * 1024 * 1024;
 const MAX_PDF_STREAMS: usize = 200;
 const MAX_STREAM_BYTES: u64 = 1024 * 1024;
@@ -81,7 +82,7 @@ pub struct Inside {
 pub fn look(kind: FileKind, bytes: &[u8]) -> Inside {
     match kind {
         FileKind::AndroidApp => app(bytes),
-        FileKind::Archive => nested_app(bytes).unwrap_or_default(),
+        FileKind::Archive => archive(bytes),
         FileKind::Document if has_macros(bytes) => Inside {
             signals: vec![Signal::MacroDocument],
             ..Inside::default()
@@ -123,6 +124,33 @@ fn app(bytes: &[u8]) -> Inside {
         powers,
         links: Vec::new(),
     }
+}
+
+/// Zipped web pages are only flagged by what they do, since site and blog exports are full of them.
+fn archive(bytes: &[u8]) -> Inside {
+    let mut inside = nested_app(bytes).unwrap_or_default();
+    let pages: Vec<String> = file::open_zip(bytes)
+        .map(|archive| {
+            archive
+                .file_names()
+                .filter_map(Result::ok)
+                .filter(|name| file::kind_from_name(name) == Some(FileKind::WebPage))
+                .take(MAX_ZIPPED_PAGES)
+                .map(|name| name.into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    for page in pages {
+        let Some(html) = zip_entry(bytes, &page, MAX_HTML_BYTES as u64) else {
+            continue;
+        };
+        for signal in web_page(&html).signals {
+            if !inside.signals.contains(&signal) {
+                inside.signals.push(signal);
+            }
+        }
+    }
+    inside
 }
 
 /// Apps are often sent zipped, so the first one inside a zip is opened too.
@@ -607,6 +635,15 @@ pub(crate) mod tests {
 
         let receipt = b"<html><title>Receipt</title><p>Thank you</p></html>";
         assert!(look(FileKind::WebPage, receipt).signals.is_empty());
+
+        let zipped_kit = zipped(&[("posts.csv", b"id"), ("login/index.html", kit)]);
+        assert!(
+            look(FileKind::Archive, &zipped_kit)
+                .signals
+                .contains(&Signal::SendsToAttacker)
+        );
+        let export = zipped(&[("posts/1.post.html", receipt)]);
+        assert!(look(FileKind::Archive, &export).signals.is_empty());
 
         let saved = br#"<title>ABA Bank</title><form action="https://ebank.ababank.com/login"><input type="password"></form>"#;
         assert!(
