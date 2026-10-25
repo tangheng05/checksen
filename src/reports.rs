@@ -7,7 +7,7 @@ use checksen::analyzers::indicators::{Indicator, IndicatorKind};
 use checksen::analyzers::{Check, Signal, Subject};
 use checksen::verdict::{self, Lang};
 
-use crate::bot::Services;
+use crate::bot::{self, Services};
 use crate::guard::{Guard, Reply};
 use crate::store::{REPORT_THRESHOLD, ReportOutcome, Reports, Review, Store};
 
@@ -85,12 +85,7 @@ pub async fn handle_callback(
     if reported.is_none() && khqr.is_none() {
         return Ok(());
     }
-    if let Err(error) = bot
-        .edit_message_reply_markup(message.chat.id, message.id)
-        .await
-    {
-        tracing::warn!(%error, "could not remove report buttons");
-    }
+    bot::remove_row(&bot, message, data).await;
 
     let lang = message.text().and_then(Lang::of).unwrap_or(Lang::Km);
     let reporter = query.from.id.0;

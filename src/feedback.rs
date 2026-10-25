@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use teloxide::prelude::*;
-use teloxide::types::{
-    CallbackQuery, InlineKeyboardButton, InlineKeyboardButtonKind, InlineKeyboardMarkup,
-    ReplyParameters,
-};
+use teloxide::types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, ReplyParameters};
 
 use checksen::verdict::{self, Lang, Text};
 
@@ -76,7 +73,9 @@ async fn rate(
             return Ok(());
         }
     };
-    remove_feedback_buttons(bot, message).await;
+    if let Some(data) = &query.data {
+        bot::remove_row(bot, message, data).await;
+    }
     // Only the person who sent it can agree to share it, so only in their own chat.
     let original = message
         .reply_to_message()
@@ -142,28 +141,4 @@ fn shareable(message: &Message) -> Option<(Option<&str>, Option<&str>)> {
     let text = message.text().or(message.caption());
     let photo = bot::largest_photo(message).map(|photo| photo.file.id.0.as_str());
     (text.is_some() || photo.is_some()).then_some((text, photo))
-}
-
-/// Keeps the other buttons under a verdict, like 🚩, after 👍/👎 is tapped.
-async fn remove_feedback_buttons(bot: &Bot, message: &Message) {
-    let Some(markup) = message.reply_markup() else {
-        return;
-    };
-    let rows: Vec<Vec<InlineKeyboardButton>> = markup
-        .inline_keyboard
-        .iter()
-        .filter(|row| {
-            !row.iter().any(|button| {
-                matches!(&button.kind, InlineKeyboardButtonKind::CallbackData(data) if data.starts_with("f:"))
-            })
-        })
-        .cloned()
-        .collect();
-    if let Err(error) = bot
-        .edit_message_reply_markup(message.chat.id, message.id)
-        .reply_markup(InlineKeyboardMarkup::new(rows))
-        .await
-    {
-        tracing::warn!(%error, "could not remove feedback buttons");
-    }
 }

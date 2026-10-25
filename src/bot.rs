@@ -6,8 +6,9 @@ use futures::future::join_all;
 use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::types::{
-    ChatAction, Document, FileId, InlineKeyboardMarkup, Me, MessageEntityKind, MessageId,
-    MessageOrigin, ParseMode, PhotoSize, Recipient, ReplyParameters,
+    ChatAction, Document, FileId, InlineKeyboardButton, InlineKeyboardButtonKind,
+    InlineKeyboardMarkup, Me, MessageEntityKind, MessageId, MessageOrigin, ParseMode, PhotoSize,
+    Recipient, ReplyParameters,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -420,6 +421,32 @@ impl<'a> Progress<'a> {
 fn answer(bot: &Bot, to: &Message, text: impl Into<String>) -> <Bot as Requester>::SendMessage {
     bot.send_message(to.chat.id, text)
         .reply_parameters(ReplyParameters::new(to.id).allow_sending_without_reply())
+}
+
+/// Removes the row of buttons the tapped one is in, and keeps the rest (🚩 and 👍/👎).
+pub async fn remove_row(bot: &Bot, message: &Message, tapped: &str) {
+    let rows: Vec<Vec<InlineKeyboardButton>> = message
+        .reply_markup()
+        .map(|markup| {
+            markup
+                .inline_keyboard
+                .iter()
+                .filter(|row| {
+                    !row.iter().any(|button| {
+                        matches!(&button.kind, InlineKeyboardButtonKind::CallbackData(data) if data == tapped)
+                    })
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut edit = bot.edit_message_reply_markup(message.chat.id, message.id);
+    if !rows.is_empty() {
+        edit = edit.reply_markup(InlineKeyboardMarkup::new(rows));
+    }
+    if let Err(error) = edit.await {
+        tracing::warn!(%error, "could not remove the tapped buttons");
+    }
 }
 
 /// Stops the typing indicator however the check ends, even if it panics.
