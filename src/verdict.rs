@@ -1,5 +1,6 @@
 use khqr_core::{Currency, DecodedKhqr};
 
+use crate::analyzers::contacts::Official;
 use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
 use crate::analyzers::indicators::{Indicator, IndicatorKind};
 use crate::analyzers::inside::Power;
@@ -421,10 +422,12 @@ pub struct About<'a> {
     pub kind: Option<MessageKind>,
     /// The owner of the official channel it was forwarded from.
     pub official: Option<&'static str>,
+    /// An institution the message names, whose official contact is known.
+    pub names: Option<&'static Official>,
+    /// The institution whose official number the message gives.
+    pub number_of: Option<&'static Official>,
 }
 
-/// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
-/// A file's name, type and scan results stay outside the fold.
 /// The kind of scam a flagged check looks like, for the weekly numbers. Rules win over the
 /// model, since they are reviewed.
 pub fn scam_category(check: &Check) -> Option<ScamCategory> {
@@ -521,6 +524,8 @@ pub fn lead(checks: &[Check]) -> Option<&Check> {
         .min_by_key(|check| std::cmp::Reverse(severity(decide(check))))
 }
 
+/// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
+/// A file's name, type and scan results stay outside the fold.
 pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     let Some(lead) = lead(checks) else {
         return escape(&no_qr_found(lang));
@@ -533,6 +538,7 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
             .as_deref()
             .is_some_and(|summary| summary.contains(action.as_str()))
     });
+    let contact = contact_line(about, level, lang);
     let about = about_line(about, lang);
 
     let mut lines = vec![format!(
@@ -563,6 +569,9 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     }
     if let Some(action) = &action {
         lines.push(format!("👉 {}", escape(action)));
+    }
+    if let Some(contact) = &contact {
+        lines.push(escape(contact));
     }
     if let Some(file) = lead_file {
         lines.push(String::new());
@@ -880,6 +889,30 @@ fn kind_tip(kind: Option<MessageKind>, lang: Lang) -> Option<&'static str> {
         | MessageKind::Other => return None,
     };
     Some(lang.pick(km, en))
+}
+
+/// Whom to contact to check, from the institution's own website; or, when the message gives that
+/// number, whose it is. Never that a number is unofficial: the list is too short to know.
+fn contact_line(about: About, level: Level, lang: Lang) -> Option<String> {
+    if let Some(owner) = about.number_of {
+        let (km, en) = owner.reach;
+        return Some(match lang {
+            Lang::Km => format!("📞 នេះជា{km} របស់ {} ដែលមាននៅលើគេហទំព័ររបស់ខ្លួន។", owner.name),
+            Lang::En => format!(
+                "📞 This is {}'s {en}, as listed on its own website.",
+                owner.name
+            ),
+        });
+    }
+    let named = about
+        .names
+        .filter(|_| matches!(level, Level::HighRisk | Level::Suspicious))?;
+    let (km, en) = named.reach;
+    let name = named.name;
+    Some(match lang {
+        Lang::Km => format!("📞 ចង់ផ្ទៀងផ្ទាត់ សូមទាក់ទង {name}៖ {km} (ពីគេហទំព័រផ្លូវការរបស់ {name})។"),
+        Lang::En => format!("📞 To check, contact {name}: {en} (from {name}'s own website)."),
+    })
 }
 
 fn about_line(about: About, lang: Lang) -> Option<String> {
@@ -1891,6 +1924,39 @@ mod tests {
     }
 
     #[test]
+    fn flagged_messages_naming_a_bank_say_whom_to_contact() {
+        use crate::analyzers::contacts;
+        let otp = || Check {
+            subject: Subject::Text,
+            signals: vec![Signal::OtpRequest],
+        };
+        let wing = About {
+            names: contacts::mentioned("Wing support here"),
+            ..About::default()
+        };
+        let reply = render(&[otp()], wing, Lang::En);
+        assert!(
+            reply.contains("📞 To check, contact Wing: hotline 023 999 989"),
+            "{reply}"
+        );
+        let clean = Check {
+            subject: Subject::Text,
+            signals: vec![],
+        };
+        assert!(!render(&[clean], wing, Lang::En).contains("📞"));
+        let listed = About {
+            number_of: contacts::owner_of("85523999989"),
+            ..About::default()
+        };
+        let reply = render(&[otp()], listed, Lang::Km);
+        assert!(
+            reply.contains("📞 នេះជាហតឡាញ 023 999 989 របស់ Wing"),
+            "{reply}"
+        );
+        assert!(!reply.to_lowercase().contains("unofficial"));
+    }
+
+    #[test]
     fn valid_reply_shows_payee() {
         let reply = render_km(&[khqr::check(INDIVIDUAL_KHR_500)]);
         assert!(reply.contains("jonhsmith@nbcq") && reply.contains("500 KHR"));
@@ -1943,6 +2009,7 @@ mod tests {
             forwarded_from: Some("NEO GAME OASIS"),
             kind: Some(MessageKind::Promotion),
             official: None,
+            ..About::default()
         };
         assert_eq!(
             about_line(about, Lang::En).as_deref(),
@@ -1952,6 +2019,7 @@ mod tests {
             forwarded_from: Some("@ABA_Support"),
             kind: Some(MessageKind::Other),
             official: None,
+            ..About::default()
         };
         assert_eq!(
             about_line(impostor, Lang::Km).as_deref(),
@@ -2070,6 +2138,7 @@ mod tests {
             forwarded_from: Some("Telegram News"),
             kind: None,
             official: Some("Telegram"),
+            ..About::default()
         };
         assert_eq!(
             about_line(about, Lang::En).as_deref(),
@@ -2121,6 +2190,7 @@ mod tests {
             forwarded_from: None,
             kind: Some(MessageKind::JobAd),
             official: None,
+            ..About::default()
         };
         let reply = render(&[link], about, Lang::Km);
         assert!(reply.contains("go[.]gov[.]kh · គេហទំព័ររដ្ឋាភិបាលកម្ពុជា"));
@@ -2245,6 +2315,7 @@ mod tests {
             forwarded_from: Some("Dara"),
             kind: None,
             official: None,
+            ..About::default()
         };
         let program = render(
             &[inspect(

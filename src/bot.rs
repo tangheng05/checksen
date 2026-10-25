@@ -14,6 +14,7 @@ use tokio::sync::Mutex;
 use url::Url;
 
 use checksen::analyzers::abusech::AbuseCh;
+use checksen::analyzers::contacts;
 use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::indicators::{self, Indicator};
 use checksen::analyzers::intent::{self, Intent};
@@ -724,6 +725,7 @@ async fn check(
     if let Some(sender) = &sender {
         apply_sender(&mut outcome, sender);
     }
+    let text = msg.text().or(msg.caption()).unwrap_or_default();
     let about = verdict::About {
         forwarded_from: sender
             .as_ref()
@@ -731,6 +733,10 @@ async fn check(
             .filter(|name| !name.is_empty()),
         kind,
         official: sender.as_ref().and_then(senders::official),
+        names: contacts::mentioned(text),
+        number_of: indicators::in_text(text)
+            .iter()
+            .find_map(|found| contacts::owner_of(&found.value)),
     };
     outcome.finish(about, lang)
 }

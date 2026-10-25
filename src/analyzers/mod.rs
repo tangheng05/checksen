@@ -1,4 +1,5 @@
 pub mod abusech;
+pub mod contacts;
 pub mod file;
 pub mod indicators;
 pub mod inside;

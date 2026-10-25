@@ -27,6 +27,7 @@
 | A phone number, username or site that people reported | Warns once 3 different people have reported it with the "🚩 Report as a scam" button, so new scams get flagged before any rule or list knows them. Reviewers then check each one: a confirmed scam is shown as High risk, and one they clear is never flagged again |
 | Who forwarded it | Flags personal accounts named like a bank or Telegram ("ABA Bank Support", "Telegram Security"), since neither writes to people from personal accounts, and names official channels |
 | A message forwarded from Telegram's own account | Confirms it really came from Telegram and warns never to share the login code; it isn't sent to the AI |
+| A message that names a bank or telco | When the message is flagged, the official way to contact it to check, copied from its own website (so far Wing, ACLEDA, Canadia Bank and Smart). If the message gives that official number, the reply says whose it is. It never calls a number unofficial, since banks have many numbers the list doesn't hold |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
 
 Each reply gives one of four levels:
