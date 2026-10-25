@@ -74,6 +74,7 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 - If you tap "No" on a KHQR check, or "Report as a scam" on any other check, the bot stores a report against that payment account, phone number, Telegram username or website, linked only to a keyed hash of your Telegram ID. The message itself is never stored. Something is shown as reported only after 3 different people report it, and official sites and Telegram's own accounts can't be reported.
 - 👍/👎 under a reply saves only the risk level, the rules version and the names of the signals found, linked to a keyed hash of your Telegram ID, never the message.
 - After 👎 in a private chat, the bot asks whether you want to share the message with the CheckSen team. Only if you tap Share is its text (or the photo's Telegram file id; files are never shared) stored, for 30 days at most, and only reviewers see it. Text that reviewers label may be added, with personal details removed, to the public test messages in [`evals/`](evals/README.md).
+- The bot counts checks per day by what was checked (text, link, KHQR, file), the risk level and the kind of scam. These counts hold no message and no person, and are what the weekly numbers are made from.
 - `/forget` deletes every report, rating and shared message linked to you.
 
 ## Run it yourself
@@ -94,7 +95,8 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for reports (KHQR accounts, phone numbers, usernames, websites); migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
-| `ADMIN_IDS` | no | Comma-separated Telegram user IDs who can `/review` reported contacts and shared messages, `/export` labelled ones as eval rows, and are told when a contact reaches 3 reports. Needs `DATABASE_URL` |
+| `ADMIN_IDS` | no | Comma-separated Telegram user IDs who can `/review` reported contacts and shared messages, `/export` labelled ones as eval rows, and are told when a contact reaches 3 reports. They also get `/stats` and, each Monday, last week's numbers to post. Needs `DATABASE_URL` |
+| `ALERT_CHANNEL` | no | A channel (`@name` or chat id) where a reviewer can post the weekly numbers with one tap. The bot must be an admin there |
 | `ABUSECH_AUTH_KEY` | no | Free key from [auth.abuse.ch](https://auth.abuse.ch/) for URLhaus (links that spread malware) and MalwareBazaar (known malware files, by fingerprint). Free under fair use; the bot makes at most 5,000 lookups a day |
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |

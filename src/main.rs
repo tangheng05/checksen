@@ -3,6 +3,7 @@ mod bot;
 mod feedback;
 mod guard;
 mod reports;
+mod stats;
 mod store;
 
 use std::sync::Arc;
@@ -66,6 +67,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(store) = store.clone() {
         tokio::spawn(purge_shared(store));
     }
+    let stats = Arc::new(stats::Stats::default());
+    if let Some(store) = store.clone() {
+        tokio::spawn(stats::keep_flushing(stats.clone(), store));
+    }
+    let alert_channel = stats::channel_from_env()?;
     let admins = admin::Admins::from_env()?;
     anyhow::ensure!(
         admins.is_empty() || store.is_some(),
@@ -108,7 +114,10 @@ async fn main() -> anyhow::Result<()> {
         big_files: tokio::sync::Semaphore::new(2),
         albums: bot::Albums::default(),
         admins,
+        stats: stats.clone(),
+        alert_channel,
     });
+    tokio::spawn(stats::send_weekly_drafts(bot.clone(), services.clone()));
 
     Dispatcher::builder(
         bot,
@@ -121,16 +130,25 @@ async fn main() -> anyhow::Result<()> {
             )
             .branch(
                 Update::filter_callback_query()
+                    .filter(stats::is_post)
+                    .endpoint(stats::handle_callback),
+            )
+            .branch(
+                Update::filter_callback_query()
                     .filter(feedback::is_feedback)
                     .endpoint(feedback::handle_callback),
             )
             .branch(Update::filter_callback_query().endpoint(reports::handle_callback)),
     )
-    .dependencies(dptree::deps![services, store])
+    .dependencies(dptree::deps![services, store.clone()])
     .enable_ctrlc_handler()
     .build()
     .dispatch()
     .await;
+    // Counts not yet saved would be lost on a restart.
+    if let Some(store) = &store {
+        stats.flush(store).await;
+    }
     Ok(())
 }
 

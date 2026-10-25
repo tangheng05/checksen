@@ -34,6 +34,8 @@ pub struct Reply {
 pub struct Summary {
     pub level: &'static str,
     pub subject: &'static str,
+    /// The kind of scam it looks like, or "" when nothing was flagged.
+    pub category: &'static str,
     pub signals: Vec<String>,
 }
 

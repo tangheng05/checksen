@@ -12,7 +12,7 @@ use super::intent::Intent;
 use super::{Check, Signal};
 use crate::verdict::{self, Level};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScamCategory {
     Loan,
@@ -56,6 +56,16 @@ impl ScamCategory {
         "other_scam",
         "none",
     ];
+
+    /// The name the model answers with, and the one stored in the weekly numbers.
+    pub fn name(self) -> &'static str {
+        Self::NAMES[self as usize]
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        use serde::de::IntoDeserializer;
+        Self::deserialize(IntoDeserializer::<serde::de::value::Error>::into_deserializer(name)).ok()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -398,6 +408,15 @@ fn backoff(attempt: u32) -> Duration {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn category_names_round_trip() {
+        for name in super::ScamCategory::NAMES {
+            let category = super::ScamCategory::from_name(name).unwrap();
+            assert_eq!(category.name(), name);
+        }
+        assert!(super::ScamCategory::from_name("nope").is_none());
+    }
+
     use super::*;
     use crate::analyzers::{Subject, text};
 

@@ -202,6 +202,17 @@ pub const EXPORT_CAPTION: Text = text(
     "សារទាំងនេះត្រូវបានលុបចេញពី CheckSen ហើយ។ សូមលុបព័ត៌មានផ្ទាល់ខ្លួនចេញ មុនដាក់វាក្នុង evals/data/v3.jsonl។",
     "These are now deleted from CheckSen. Remove personal details before adding them to evals/data/v3.jsonl.",
 );
+pub const POST_BUTTON: Text = text("📢 ផ្សាយក្នុង Channel", "📢 Post to the channel");
+pub const POSTED: Text = text("បានផ្សាយហើយ។", "Posted.");
+pub const POST_FAILED: Text = text(
+    "មិនអាចផ្សាយបានទេ។ សូមប្រាកដថា bot ជា admin របស់ Channel។",
+    "Couldn't post. Make sure the bot is an admin of the channel.",
+);
+pub const WEEKLY_DRAFT: Text = text(
+    "ចំនួនប្រចាំសប្តាហ៍រួចរាល់ហើយ។ ពិនិត្យមើល រួចចុចផ្សាយ៖",
+    "Last week's numbers are ready. Check them, then post:",
+);
+pub const STATS_FAILED: Text = text("មិនអាចទាញយកចំនួនបានទេ។", "Couldn't load the numbers.");
 pub const REVIEW_DELETE_BUTTON: Text = text("🗑 លុប", "🗑 Delete");
 pub const REVIEW_SAVED: Text = text("បានរក្សាទុក។", "Saved.");
 pub const REVIEW_SCAM_BUTTON: Text = text("✅ ជាការបោកប្រាស់", "✅ Scam");
@@ -381,6 +392,95 @@ pub struct About<'a> {
 
 /// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
 /// A file's name, type and scan results stay outside the fold.
+/// The kind of scam a flagged check looks like, for the weekly numbers. Rules win over the
+/// model, since they are reviewed.
+pub fn scam_category(check: &Check) -> Option<ScamCategory> {
+    if !matches!(decide(check), Level::HighRisk | Level::Suspicious) {
+        return None;
+    }
+    let rule = check
+        .signals
+        .iter()
+        .filter_map(|signal| Some((signal.weight(), rule_category(*signal)?)))
+        .max_by(|a, b| a.0.total_cmp(&b.0));
+    let model = check.signals.iter().find_map(|signal| match signal {
+        Signal::Model { category, .. } => Some(*category),
+        _ => None,
+    });
+    rule.map(|(_, category)| category)
+        .or(model)
+        .filter(|category| *category != ScamCategory::None)
+}
+
+fn rule_category(signal: Signal) -> Option<ScamCategory> {
+    Some(match signal {
+        Signal::OtpRequest => ScamCategory::Otp,
+        Signal::LoanBait => ScamCategory::Loan,
+        Signal::JobBait => ScamCategory::Job,
+        Signal::PrizeBait => ScamCategory::Prize,
+        Signal::AccountThreat => ScamCategory::Account,
+        Signal::AuthorityThreat => ScamCategory::Authority,
+        Signal::InvestmentBait => ScamCategory::Investment,
+        Signal::AccountRental | Signal::MoveMoneyOut => ScamCategory::Mule,
+        Signal::FamilyImpersonation => ScamCategory::Family,
+        Signal::TelegramTakeover => ScamCategory::Telegram,
+        Signal::MalwareFile => ScamCategory::Malware,
+        Signal::DonationRequest => ScamCategory::Charity,
+        Signal::GamblingBait => ScamCategory::Gambling,
+        Signal::Extortion => ScamCategory::Extortion,
+        Signal::RecruitmentBait => ScamCategory::Recruitment,
+        _ => return None,
+    })
+}
+
+/// A week (or any span) of checks, counted without any message.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Totals {
+    pub checks: i64,
+    pub high_risk: i64,
+    pub suspicious: i64,
+    /// The most common kinds of scam, most first.
+    pub top: Vec<(ScamCategory, i64)>,
+}
+
+/// The weekly numbers as plain text, for the alert channel and `/stats`.
+pub fn weekly_post(from: &str, to: &str, totals: &Totals, bot: &str, lang: Lang) -> String {
+    let n = |count: i64| match lang {
+        Lang::Km => khmer_digits(count),
+        Lang::En => count.to_string(),
+    };
+    let top: Vec<String> = totals
+        .top
+        .iter()
+        .map(|(category, count)| format!("{} ({})", category_name(*category, lang), n(*count)))
+        .collect();
+    let mut post = match lang {
+        Lang::Km => format!(
+            "📊 CheckSen ប្រចាំសប្តាហ៍ ({from} ដល់ {to})\n• បានពិនិត្យ {} ដង\n• 🔴 ហានិភ័យខ្ពស់ {} · 🟠 គួរឱ្យសង្ស័យ {}",
+            n(totals.checks),
+            n(totals.high_risk),
+            n(totals.suspicious)
+        ),
+        Lang::En => format!(
+            "📊 CheckSen this week ({from} to {to})\n• {} checks\n• 🔴 {} high risk · 🟠 {} suspicious",
+            n(totals.checks),
+            n(totals.high_risk),
+            n(totals.suspicious)
+        ),
+    };
+    if !top.is_empty() {
+        post.push_str(&match lang {
+            Lang::Km => format!("\n\nការបោកប្រាស់ដែលឃើញច្រើនជាងគេ៖ {}", top.join(" · ")),
+            Lang::En => format!("\n\nSeen most: {}", top.join(" · ")),
+        });
+    }
+    post.push_str(&match lang {
+        Lang::Km => format!("\n\n👉 មុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមក @{bot} ឆែកសិន។"),
+        Lang::En => format!("\n\n👉 Before you click or pay, send it to @{bot} to check first."),
+    });
+    post
+}
+
 /// The check a reply leads with: the most severe one.
 pub fn lead(checks: &[Check]) -> Option<&Check> {
     checks
@@ -1777,6 +1877,58 @@ mod tests {
             render(&[check], About::default(), Lang::En)
                 .contains("reviewers confirmed this website")
         );
+    }
+
+    #[test]
+    fn flagged_checks_are_counted_under_the_strongest_rule() {
+        let check = |signals| Check {
+            subject: Subject::Text,
+            signals,
+        };
+        let loan = check(vec![
+            Signal::Urgency,
+            Signal::LoanBait,
+            Signal::Model {
+                category: ScamCategory::Job,
+                cited: true,
+            },
+        ]);
+        assert_eq!(scam_category(&loan), Some(ScamCategory::Loan));
+        let model_only = check(vec![Signal::Model {
+            category: ScamCategory::Shop,
+            cited: true,
+        }]);
+        assert_eq!(scam_category(&model_only), Some(ScamCategory::Shop));
+        assert_eq!(scam_category(&check(vec![Signal::Urgency])), None);
+    }
+
+    #[test]
+    fn weekly_posts_name_the_numbers_and_the_bot() {
+        let totals = Totals {
+            checks: 120,
+            high_risk: 30,
+            suspicious: 12,
+            top: vec![(ScamCategory::Loan, 14), (ScamCategory::Job, 9)],
+        };
+        let en = weekly_post(
+            "2026-10-19",
+            "2026-10-25",
+            &totals,
+            "CheckSen_bot",
+            Lang::En,
+        );
+        assert!(en.contains("120 checks"), "{en}");
+        assert!(en.contains("a fake loan (14) · a fake job (9)"), "{en}");
+        assert!(en.ends_with("send it to @CheckSen_bot to check first."));
+        let km = weekly_post(
+            "2026-10-19",
+            "2026-10-25",
+            &totals,
+            "CheckSen_bot",
+            Lang::Km,
+        );
+        assert!(km.contains("បានពិនិត្យ ១២០ ដង"), "{km}");
+        assert!(!km.contains("safe") && !km.contains("សុវត្ថិភាព"));
     }
 
     #[test]

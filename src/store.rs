@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
 use anyhow::ensure;
 use checksen::analyzers::indicators::{Indicator, IndicatorKind};
+use checksen::analyzers::llm::ScamCategory;
 use checksen::analyzers::text::RULES_VERSION;
+use checksen::verdict::Totals;
+use chrono::NaiveDate;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
@@ -88,6 +93,14 @@ fn decode<T: Copy>(table: &[(T, char)], code: &str) -> Option<T> {
         .iter()
         .find(|(_, entry)| *entry == first)
         .map(|(value, _)| *value)
+}
+
+/// What a check is counted under in the daily numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Counted {
+    pub subject: &'static str,
+    pub level: &'static str,
+    pub category: &'static str,
 }
 
 /// A labelled shared text, ready to become an eval row.
@@ -249,6 +262,16 @@ impl Store {
             .next()
             .is_none()
             .then_some((queue, decision, id, skipped))
+    }
+
+    /// The weekly post's button carries the week it is for.
+    pub fn post_callback(&self, week: NaiveDate) -> String {
+        self.signed(b"post", &format!("p:{week}"))
+    }
+
+    pub fn verify_post_callback(&self, data: &str) -> Option<NaiveDate> {
+        let week = self.verified(b"post", data)?.strip_prefix("p:")?;
+        week.parse().ok()
     }
 
     /// 👍/👎 carry the id of the verdict summary waiting in memory.
@@ -531,6 +554,88 @@ impl Store {
         Ok(())
     }
 
+    /// Adds checks counted in memory to today's numbers, in one query.
+    pub async fn add_checks(&self, counts: &[(Counted, i64)]) -> anyhow::Result<()> {
+        let subjects: Vec<&str> = counts.iter().map(|(key, _)| key.subject).collect();
+        let levels: Vec<&str> = counts.iter().map(|(key, _)| key.level).collect();
+        let categories: Vec<&str> = counts.iter().map(|(key, _)| key.category).collect();
+        let checks: Vec<i64> = counts.iter().map(|(_, checks)| *checks).collect();
+        sqlx::query(
+            "INSERT INTO daily_checks (day, subject, level, category, checks)
+             SELECT (now() AT TIME ZONE 'Asia/Phnom_Penh')::date, subject, level, category, checks
+             FROM unnest($1::text[], $2::text[], $3::text[], $4::int8[])
+                  AS counted (subject, level, category, checks)
+             ON CONFLICT (day, subject, level, category)
+             DO UPDATE SET checks = daily_checks.checks + EXCLUDED.checks",
+        )
+        .bind(&subjects)
+        .bind(&levels)
+        .bind(&categories)
+        .bind(&checks)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Checks from `from` up to, not including, `to`, with the three most common scams.
+    pub async fn totals(&self, from: NaiveDate, to: NaiveDate) -> anyhow::Result<Totals> {
+        let rows: Vec<(String, String, i64)> = sqlx::query_as(
+            "SELECT level, category, sum(checks)::int8 FROM daily_checks
+             WHERE day >= $1 AND day < $2 GROUP BY level, category",
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut totals = Totals::default();
+        let mut top: HashMap<ScamCategory, i64> = HashMap::new();
+        for (level, category, checks) in rows {
+            totals.checks += checks;
+            match level.as_str() {
+                "high_risk" => totals.high_risk += checks,
+                "suspicious" => totals.suspicious += checks,
+                _ => continue,
+            }
+            if let Some(category) = ScamCategory::from_name(&category) {
+                *top.entry(category).or_default() += checks;
+            }
+        }
+        totals.top = top.into_iter().collect();
+        totals
+            .top
+            .sort_by(|a, b| b.1.cmp(&a.1).then(a.0.name().cmp(b.0.name())));
+        totals.top.truncate(3);
+        Ok(totals)
+    }
+
+    /// True the first time a week is claimed, so its draft is sent once across restarts.
+    pub async fn claim_week(&self, week: NaiveDate) -> anyhow::Result<bool> {
+        Ok(
+            sqlx::query("INSERT INTO weekly_posts (week) VALUES ($1) ON CONFLICT DO NOTHING")
+                .bind(week)
+                .execute(&self.pool)
+                .await?
+                .rows_affected()
+                == 1,
+        )
+    }
+
+    /// Marks a week posted, or not again after a failed post. True when it changed, so a
+    /// second tap doesn't post twice.
+    pub async fn mark_posted(&self, week: NaiveDate, posted: bool) -> anyhow::Result<bool> {
+        let query = if posted {
+            "UPDATE weekly_posts SET posted_at = now() WHERE week = $1 AND posted_at IS NULL"
+        } else {
+            "UPDATE weekly_posts SET posted_at = NULL WHERE week = $1"
+        };
+        Ok(sqlx::query(query)
+            .bind(week)
+            .execute(&self.pool)
+            .await?
+            .rows_affected()
+            == 1)
+    }
+
     /// Shared messages are kept for 30 days at most, labelled or not.
     pub async fn purge_shared(&self) -> anyhow::Result<u64> {
         Ok(
@@ -763,6 +868,7 @@ mod tests {
         Summary {
             level: "suspicious",
             subject: "text",
+            category: "loan",
             signals: vec!["UpfrontFee".to_owned()],
         }
     }
@@ -824,6 +930,88 @@ mod tests {
         );
         store.forget(user).await.unwrap();
         assert!(shared_rows(&store, feedback).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn counted_checks_add_up_by_week() {
+        let Some(store) = database().await else {
+            return;
+        };
+        // A subject no real check uses, so other tests and old rows don't change the totals.
+        let subject: &'static str = Box::leak(format!("test{}", unique_user()).into_boxed_str());
+        let counted = |level, category| Counted {
+            subject,
+            level,
+            category,
+        };
+        store
+            .add_checks(&[
+                (counted("high_risk", "loan"), 3),
+                (counted("suspicious", "job"), 1),
+                (counted("no_known_signals", ""), 5),
+            ])
+            .await
+            .unwrap();
+        store
+            .add_checks(&[(counted("high_risk", "loan"), 2)])
+            .await
+            .unwrap();
+        let mine: i64 = sqlx::query_scalar(
+            "SELECT sum(checks)::int8 FROM daily_checks WHERE subject = $1 AND level = 'high_risk'",
+        )
+        .bind(subject)
+        .fetch_one(&store.pool)
+        .await
+        .unwrap();
+        assert_eq!(mine, 5);
+        let day: NaiveDate =
+            sqlx::query_scalar("SELECT day FROM daily_checks WHERE subject = $1 LIMIT 1")
+                .bind(subject)
+                .fetch_one(&store.pool)
+                .await
+                .unwrap();
+        let totals = store.totals(day, day + chrono::Days::new(1)).await.unwrap();
+        assert!(totals.checks >= 11 && totals.high_risk >= 5 && totals.suspicious >= 1);
+        assert!(
+            totals
+                .top
+                .iter()
+                .any(|(category, _)| *category == ScamCategory::Loan)
+        );
+        sqlx::query("DELETE FROM daily_checks WHERE subject = $1")
+            .bind(subject)
+            .execute(&store.pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_week_is_drafted_and_posted_once() {
+        let Some(store) = database().await else {
+            return;
+        };
+        let week = NaiveDate::from_ymd_opt(1990, 1, 1).unwrap()
+            + chrono::Days::new(7 * (unique_user() % 100_000));
+        assert!(store.claim_week(week).await.unwrap());
+        assert!(!store.claim_week(week).await.unwrap());
+        assert!(store.mark_posted(week, true).await.unwrap());
+        assert!(!store.mark_posted(week, true).await.unwrap());
+        store.mark_posted(week, false).await.unwrap();
+        assert!(store.mark_posted(week, true).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn post_callbacks_round_trip() {
+        let store = offline();
+        let week = NaiveDate::from_ymd_opt(2026, 10, 19).unwrap();
+        let data = store.post_callback(week);
+        assert!(data.len() <= 64);
+        assert_eq!(store.verify_post_callback(&data), Some(week));
+        assert!(
+            store
+                .verify_post_callback(&data.replacen("10-19", "10-12", 1))
+                .is_none()
+        );
     }
 
     #[tokio::test]

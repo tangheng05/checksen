@@ -33,6 +33,10 @@ impl Admins {
             .map(Self)
     }
 
+    pub fn ids(&self) -> &[UserId] {
+        &self.0
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }

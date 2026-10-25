@@ -7,7 +7,7 @@ use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::types::{
     ChatAction, Document, FileId, InlineKeyboardMarkup, Me, MessageEntityKind, MessageId,
-    MessageOrigin, ParseMode, PhotoSize, ReplyParameters,
+    MessageOrigin, ParseMode, PhotoSize, Recipient, ReplyParameters,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -17,7 +17,7 @@ use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::indicators::{self, Indicator};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
-use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, Transcriber};
+use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, ScamCategory, Transcriber};
 use checksen::analyzers::scan::{self, ClamAv, VirusTotalClient};
 use checksen::analyzers::senders::{self, Sender};
 use checksen::analyzers::text::RULES_VERSION;
@@ -27,6 +27,7 @@ use checksen::verdict::{self, Lang, Level, Step, Text};
 use crate::admin::{self, Admins};
 use crate::guard::{Admission, Guard, ModelCall, Reply, Summary};
 use crate::reports;
+use crate::stats::{self, Stats};
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
@@ -58,6 +59,8 @@ pub struct Services {
     pub big_files: tokio::sync::Semaphore,
     pub albums: Albums,
     pub admins: Admins,
+    pub stats: Arc<Stats>,
+    pub alert_channel: Option<Recipient>,
 }
 
 enum Body {
@@ -122,6 +125,7 @@ impl Outcome {
                 let summary = verdict::lead(&checks).map(|lead| Summary {
                     level: verdict::decide(lead).name(),
                     subject: lead.subject.name(),
+                    category: verdict::scam_category(lead).map_or("", ScamCategory::name),
                     signals: checks
                         .iter()
                         .flat_map(|check| &check.signals)
@@ -172,15 +176,16 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
             answer(&bot, target, reply).await?;
             return Ok(());
         }
-        Some("review") if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) => {
+        Some(name @ ("review" | "export" | "stats"))
+            if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) =>
+        {
             if let Some(store) = services.store.as_deref() {
-                admin::show_next(&bot, msg.chat.id, store, 0, lang).await?;
-            }
-            return Ok(());
-        }
-        Some("export") if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) => {
-            if let Some(store) = services.store.as_deref() {
-                admin::export(&bot, msg.chat.id, store, lang).await?;
+                let chat = msg.chat.id;
+                match name {
+                    "review" => admin::show_next(&bot, chat, store, 0, lang).await?,
+                    "export" => admin::export(&bot, chat, store, lang).await?,
+                    _ => stats::show(&bot, chat, &services, store, &me, lang).await?,
+                }
             }
             return Ok(());
         }
@@ -265,6 +270,9 @@ async fn respond(
         }
     };
 
+    if let Some(summary) = &reply.summary {
+        services.stats.count(summary);
+    }
     let keyboard = reports::keyboard(services.store.as_deref(), &services.guard, &reply, lang);
     progress.finish(&reply, keyboard).await
 }
