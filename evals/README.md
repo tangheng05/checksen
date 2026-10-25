@@ -22,3 +22,5 @@ Each line of `data/v0.jsonl` is one message:
 | `verbatim`, `source_date` | v1 only |
 
 v0 was written by the same author as the rules, from the same research, so its scores are optimistic. Replace synthetic rows with real, consented messages as they come in.
+
+**v3** (not scored yet) will hold messages people chose to share after tapping 👎. A reviewer labels them with `/review`, and `/export` sends them as rows in this format (ids `v3-shared-<n>`, every fifth row `test`) and deletes them from the bot. Remove names, account numbers and phone numbers of real people before adding rows to `data/v3.jsonl`, and add v3 to `DATASETS` in `src/bin/eval.rs` and to `baseline.json` once it has enough rows to mean something.

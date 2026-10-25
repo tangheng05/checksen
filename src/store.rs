@@ -90,6 +90,15 @@ fn decode<T: Copy>(table: &[(T, char)], code: &str) -> Option<T> {
         .map(|(value, _)| *value)
 }
 
+/// A labelled shared text, ready to become an eval row.
+#[derive(sqlx::FromRow)]
+pub struct Labelled {
+    pub id: i64,
+    pub text: String,
+    pub label: String,
+    pub day: String,
+}
+
 #[derive(sqlx::FromRow)]
 pub struct SharedMessage {
     pub id: i64,
@@ -504,6 +513,24 @@ impl Store {
         Ok(())
     }
 
+    /// Labelled shared texts, oldest first; photos without a caption have no text to export.
+    pub async fn labelled(&self) -> anyhow::Result<Vec<Labelled>> {
+        Ok(sqlx::query_as(
+            "SELECT id, text, label, to_char(created_at, 'YYYY-MM-DD') AS day FROM shared
+             WHERE label IS NOT NULL AND text IS NOT NULL ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    pub async fn delete_shared(&self, ids: &[i64]) -> anyhow::Result<()> {
+        sqlx::query("DELETE FROM shared WHERE id = ANY($1)")
+            .bind(ids)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Shared messages are kept for 30 days at most, labelled or not.
     pub async fn purge_shared(&self) -> anyhow::Result<u64> {
         Ok(
@@ -789,7 +816,34 @@ mod tests {
                 Some("scam".to_owned())
             )]
         );
+        let labelled = store.labelled().await.unwrap();
+        assert!(
+            labelled
+                .iter()
+                .any(|row| row.id == id && row.text == "pay the fee first" && row.label == "scam")
+        );
         store.forget(user).await.unwrap();
+        assert!(shared_rows(&store, feedback).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn exported_messages_are_deleted() {
+        let Some(store) = database().await else {
+            return;
+        };
+        let user = unique_user();
+        let feedback = store
+            .record_feedback(user, false, &summary())
+            .await
+            .unwrap()
+            .unwrap();
+        store.share(feedback, user, Some("hi"), None).await.unwrap();
+        let id: i64 = sqlx::query_scalar("SELECT id FROM shared WHERE feedback_id = $1")
+            .bind(feedback)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        store.delete_shared(&[id]).await.unwrap();
         assert!(shared_rows(&store, feedback).await.is_empty());
     }
 

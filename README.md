@@ -94,7 +94,7 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for reports (KHQR accounts, phone numbers, usernames, websites); migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
-| `ADMIN_IDS` | no | Comma-separated Telegram user IDs who can `/review` reported contacts and are told when one reaches 3 reports. Needs `DATABASE_URL` |
+| `ADMIN_IDS` | no | Comma-separated Telegram user IDs who can `/review` reported contacts and shared messages, `/export` labelled ones as eval rows, and are told when a contact reaches 3 reports. Needs `DATABASE_URL` |
 | `ABUSECH_AUTH_KEY` | no | Free key from [auth.abuse.ch](https://auth.abuse.ch/) for URLhaus (links that spread malware) and MalwareBazaar (known malware files, by fingerprint). Free under fair use; the bot makes at most 5,000 lookups a day |
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |

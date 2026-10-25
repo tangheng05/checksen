@@ -11,7 +11,7 @@ use checksen::verdict::{self, Lang};
 
 use crate::bot::Services;
 use crate::guard::Guard;
-use crate::store::{Decision, Queue, Review, Store};
+use crate::store::{Decision, Labelled, Queue, Review, Store};
 
 /// The people in `ADMIN_IDS`, who review reported contacts.
 #[derive(Default)]
@@ -52,6 +52,61 @@ impl Admins {
             }
         }
     }
+}
+
+/// Sends labelled shared texts as eval rows, then deletes them, so they're kept in one place.
+pub async fn export(bot: &Bot, chat: ChatId, store: &Store, lang: Lang) -> ResponseResult<()> {
+    let labelled = match store.labelled().await {
+        Ok(labelled) => labelled,
+        Err(error) => {
+            tracing::warn!(%error, "could not load labelled messages");
+            bot.send_message(chat, verdict::REVIEW_FAILED.get(lang))
+                .await?;
+            return Ok(());
+        }
+    };
+    if labelled.is_empty() {
+        bot.send_message(chat, verdict::EXPORT_EMPTY.get(lang))
+            .await?;
+        return Ok(());
+    }
+    let rows: String = labelled
+        .iter()
+        .map(|labelled| format!("{}\n", eval_row(labelled)))
+        .collect();
+    let name = format!("shared-{}.jsonl", labelled[labelled.len() - 1].day);
+    bot.send_document(chat, InputFile::memory(rows.into_bytes()).file_name(name))
+        .caption(verdict::EXPORT_CAPTION.get(lang))
+        .await?;
+    let ids: Vec<i64> = labelled.iter().map(|labelled| labelled.id).collect();
+    if let Err(error) = store.delete_shared(&ids).await {
+        tracing::warn!(%error, "could not delete exported messages");
+    }
+    Ok(())
+}
+
+/// One line of an eval dataset (see evals/README.md); every fifth row is held out for testing.
+fn eval_row(labelled: &Labelled) -> serde_json::Value {
+    let khmer = labelled
+        .text
+        .chars()
+        .any(|c| ('\u{1780}'..='\u{17FF}').contains(&c));
+    let latin = labelled.text.chars().any(|c| c.is_ascii_alphabetic());
+    let lang = match (khmer, latin) {
+        (true, true) => "mixed",
+        (true, false) => "km",
+        _ => "en",
+    };
+    let scam = labelled.label == "scam";
+    serde_json::json!({
+        "id": format!("v3-shared-{}", labelled.id),
+        "text": labelled.text,
+        "lang": lang,
+        "category": if scam { "shared" } else { "legit-shared" },
+        "label": if scam { "scam" } else { "legit" },
+        "split": if labelled.id % 5 == 0 { "test" } else { "dev" },
+        "source": format!("shared: {}", labelled.day),
+    })
 }
 
 pub fn is_review(query: CallbackQuery) -> bool {
@@ -229,5 +284,34 @@ pub async fn handle_callback(
     match queue {
         Queue::Contacts => show_next(&bot, chat, store, skipped, lang).await,
         Queue::Shared => show_next_shared(&bot, chat, store, skipped, lang).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eval_rows_follow_the_dataset_format() {
+        let row = eval_row(&Labelled {
+            id: 10,
+            text: "ផ្ញើលេខ OTP មក".to_owned(),
+            label: "scam".to_owned(),
+            day: "2026-10-25".to_owned(),
+        });
+        assert_eq!(row["id"], "v3-shared-10");
+        assert_eq!(row["lang"], "mixed");
+        assert_eq!(row["label"], "scam");
+        assert_eq!(row["split"], "test");
+        assert_eq!(row["source"], "shared: 2026-10-25");
+        let legit = eval_row(&Labelled {
+            id: 11,
+            text: "Your parcel has arrived".to_owned(),
+            label: "legit".to_owned(),
+            day: "2026-10-25".to_owned(),
+        });
+        assert_eq!(legit["category"], "legit-shared");
+        assert_eq!(legit["split"], "dev");
+        assert_eq!(legit["lang"], "en");
     }
 }

@@ -178,6 +178,12 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
             }
             return Ok(());
         }
+        Some("export") if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) => {
+            if let Some(store) = services.store.as_deref() {
+                admin::export(&bot, msg.chat.id, store, lang).await?;
+            }
+            return Ok(());
+        }
         Some("start") => Some(&verdict::WELCOME),
         Some("help") => Some(&verdict::HELP),
         _ => fixed_reply(target),

@@ -194,6 +194,14 @@ pub const SHARE_FAILED: Text = text(
     "មិនអាចរក្សាទុកសារនេះបានទេ។ សូមសាកម្តងទៀតពេលក្រោយ។",
     "Couldn't save this message. Please try again later.",
 );
+pub const EXPORT_EMPTY: Text = text(
+    "គ្មានសារដែលបានសម្គាល់សម្រាប់នាំចេញទេ។",
+    "No labelled messages to export.",
+);
+pub const EXPORT_CAPTION: Text = text(
+    "សារទាំងនេះត្រូវបានលុបចេញពី CheckSen ហើយ។ សូមលុបព័ត៌មានផ្ទាល់ខ្លួនចេញ មុនដាក់វាក្នុង evals/data/v3.jsonl។",
+    "These are now deleted from CheckSen. Remove personal details before adding them to evals/data/v3.jsonl.",
+);
 pub const REVIEW_DELETE_BUTTON: Text = text("🗑 លុប", "🗑 Delete");
 pub const REVIEW_SAVED: Text = text("បានរក្សាទុក។", "Saved.");
 pub const REVIEW_SCAM_BUTTON: Text = text("✅ ជាការបោកប្រាស់", "✅ Scam");
