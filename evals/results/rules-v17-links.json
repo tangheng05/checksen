@@ -1,0 +1,71 @@
+{
+  "all": {
+    "caught": 74,
+    "false_alarms": 0,
+    "false_positive_rate": 0.0,
+    "legit": 44,
+    "recall": 0.961038961038961,
+    "scams": 77
+  },
+  "dataset": "evals/data/links.jsonl",
+  "examples": 121,
+  "false_alarms": [],
+  "missed": [
+    "links-lookalike-16",
+    "links-lookalike-24",
+    "links-lookalike-59"
+  ],
+  "rules_version": 17,
+  "splits": {
+    "dev": {
+      "caught": 57,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 33,
+      "recall": 0.9827586206896551,
+      "scams": 58
+    },
+    "test": {
+      "caught": 17,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 11,
+      "recall": 0.8947368421052632,
+      "scams": 19
+    }
+  },
+  "tiers": {
+    "A": {
+      "caught": 11,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 1.0,
+      "scams": 11
+    },
+    "B": {
+      "caught": 4,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 0.8,
+      "scams": 5
+    },
+    "official": {
+      "caught": 0,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 44,
+      "recall": 0.0,
+      "scams": 0
+    },
+    "unconfirmed": {
+      "caught": 59,
+      "false_alarms": 0,
+      "false_positive_rate": 0.0,
+      "legit": 0,
+      "recall": 0.9672131147540983,
+      "scams": 61
+    }
+  }
+}

@@ -600,8 +600,17 @@ fn label_imitates(brand: &Brand, label: &str) -> bool {
             .is_some_and(|rest| BANKING_WORDS.iter().any(|word| rest.contains(word)))
     };
 
+    // Plural squats (canadias.com); short names are left out, since wings.com is a word.
+    let plural = |token: &&str| {
+        token.len() >= 6
+            && label
+                .strip_suffix('s')
+                .is_some_and(|singular| singular == *token)
+    };
+
     brand.stems.iter().any(|stem| label.contains(stem))
         || brand.tokens.iter().any(brand_then_banking_word)
+        || brand.tokens.iter().any(plural)
         || brand
             .misspelled
             .iter()
@@ -936,6 +945,17 @@ mod tests {
         assert!(!is_new_domain(None));
         assert!(is_new_domain(Some(3)));
         assert!(!is_new_domain(Some(400)));
+    }
+
+    #[test]
+    fn plural_squats_of_long_brand_names_are_lookalikes() {
+        assert_eq!(
+            lookalike_signals("canadias.com"),
+            [Signal::Lookalike("Canadia")]
+        );
+        assert!(lookalike_signals("wings.com").is_empty());
+        assert!(lookalike_signals("canada.ca").is_empty());
+        assert!(lookalike_signals("canadiabank.com.kh").is_empty());
     }
 
     #[test]

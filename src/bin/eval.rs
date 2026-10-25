@@ -5,16 +5,18 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use anyhow::{Context, bail};
-use checksen::analyzers::Signal;
 use checksen::analyzers::llm::{
     self, Classifier, anthropic::AnthropicClassifier, gemini::GeminiClassifier,
 };
 use checksen::analyzers::text::{self, RULES_VERSION};
+use checksen::analyzers::{Signal, link};
 use checksen::verdict::{Level, decide};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 const DATASETS: [&str; 3] = ["v0", "v1", "v2"];
+const LINKS: &str = "links";
 const BASELINE: &str = "evals/baseline.json";
 
 #[derive(Deserialize)]
@@ -26,6 +28,16 @@ struct Example {
     split: String,
     #[serde(default)]
     verbatim: Option<bool>,
+}
+
+/// A domain from a bank or government warning, a threat feed, or an official site.
+#[derive(Deserialize)]
+struct LinkExample {
+    id: String,
+    host: String,
+    label: String,
+    tier: String,
+    split: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -97,6 +109,7 @@ async fn main() -> anyhow::Result<ExitCode> {
     for name in DATASETS {
         current.insert(name.to_owned(), evaluate(root, name, None).await?);
     }
+    current.insert(LINKS.to_owned(), evaluate_links(root)?);
     if args.iter().any(|arg| arg == "--update-baseline") {
         fs::write(
             root.join(BASELINE),
@@ -168,16 +181,7 @@ async fn evaluate(
         None => format!("rules-v{RULES_VERSION}"),
     };
     let path = format!("evals/data/{name}.jsonl");
-    let dataset =
-        fs::read_to_string(root.join(&path)).with_context(|| format!("reading {path}"))?;
-    let examples: Vec<Example> = dataset
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .enumerate()
-        .map(|(index, line)| {
-            serde_json::from_str(line).with_context(|| format!("{path} line {}", index + 1))
-        })
-        .collect::<anyhow::Result<_>>()?;
+    let examples: Vec<Example> = read_jsonl(root, &path)?;
 
     let mut splits: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut strata: BTreeMap<&str, Tally> = BTreeMap::new();
@@ -250,31 +254,7 @@ async fn evaluate(
     if model.is_some() {
         println!("  model errors (fell back to rules): {model_errors}");
     }
-    for (group, tally) in splits
-        .iter()
-        .chain(&strata)
-        .map(|(group, tally)| (*group, tally))
-        .chain([("all", &total)])
-    {
-        println!(
-            "  {group:<13} recall {:>5.1}% ({}/{})   false positives {:>5.1}% ({}/{})",
-            tally.recall() * 100.0,
-            tally.caught,
-            tally.scams,
-            tally.false_positive_rate() * 100.0,
-            tally.false_alarms,
-            tally.legit,
-        );
-    }
-    println!("  missed: {}", missed.join(", "));
-    println!("  false alarms: {}", false_alarms.join(", "));
-
-    let to_json = |tallies: &BTreeMap<&str, Tally>| {
-        tallies
-            .iter()
-            .map(|(group, tally)| (group.to_string(), tally.to_json()))
-            .collect::<BTreeMap<_, _>>()
-    };
+    print_tallies(&[&splits, &strata], &total, &missed, &false_alarms);
     let report = json!({
         "rules_version": RULES_VERSION,
         "variant": variant,
@@ -296,4 +276,102 @@ async fn evaluate(
         recall: total.recall(),
         false_positive_rate: total.false_positive_rate(),
     })
+}
+
+/// Name-based lookalike detection, offline: the same check the bot runs before it visits a
+/// link, scored per confidence tier of the domain list.
+fn evaluate_links(root: &Path) -> anyhow::Result<Baseline> {
+    let path = format!("evals/data/{LINKS}.jsonl");
+    let examples: Vec<LinkExample> = read_jsonl(root, &path)?;
+    let mut splits: BTreeMap<&str, Tally> = BTreeMap::new();
+    let mut tiers: BTreeMap<&str, Tally> = BTreeMap::new();
+    let mut total = Tally::default();
+    let mut missed = Vec::new();
+    let mut false_alarms = Vec::new();
+    for example in &examples {
+        let lookalike = example.label == "lookalike";
+        let flagged = !link::lookalike_signals(&example.host).is_empty();
+        total.add(lookalike, flagged);
+        splits
+            .entry(&example.split)
+            .or_default()
+            .add(lookalike, flagged);
+        tiers
+            .entry(&example.tier)
+            .or_default()
+            .add(lookalike, flagged);
+        match (lookalike, flagged) {
+            (true, false) => missed.push(example.id.as_str()),
+            (false, true) => false_alarms.push(example.id.as_str()),
+            _ => {}
+        }
+    }
+    println!(
+        "{LINKS}: rules-v{RULES_VERSION} on {} domains",
+        examples.len()
+    );
+    print_tallies(&[&splits, &tiers], &total, &missed, &false_alarms);
+    let report = json!({
+        "rules_version": RULES_VERSION,
+        "dataset": path,
+        "examples": examples.len(),
+        "all": total.to_json(),
+        "splits": to_json(&splits),
+        "tiers": to_json(&tiers),
+        "missed": missed,
+        "false_alarms": false_alarms,
+    });
+    fs::write(
+        root.join(format!("evals/results/rules-v{RULES_VERSION}-{LINKS}.json")),
+        serde_json::to_string_pretty(&report)? + "\n",
+    )?;
+    Ok(Baseline {
+        recall: total.recall(),
+        false_positive_rate: total.false_positive_rate(),
+    })
+}
+
+fn read_jsonl<T: DeserializeOwned>(root: &Path, path: &str) -> anyhow::Result<Vec<T>> {
+    fs::read_to_string(root.join(path))
+        .with_context(|| format!("reading {path}"))?
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .enumerate()
+        .map(|(index, line)| {
+            serde_json::from_str(line).with_context(|| format!("{path} line {}", index + 1))
+        })
+        .collect()
+}
+
+fn print_tallies(
+    groups: &[&BTreeMap<&str, Tally>],
+    total: &Tally,
+    missed: &[&str],
+    false_alarms: &[&str],
+) {
+    for (group, tally) in groups
+        .iter()
+        .flat_map(|groups| groups.iter())
+        .map(|(group, tally)| (*group, tally))
+        .chain([("all", total)])
+    {
+        println!(
+            "  {group:<13} recall {:>5.1}% ({}/{})   false positives {:>5.1}% ({}/{})",
+            tally.recall() * 100.0,
+            tally.caught,
+            tally.scams,
+            tally.false_positive_rate() * 100.0,
+            tally.false_alarms,
+            tally.legit,
+        );
+    }
+    println!("  missed: {}", missed.join(", "));
+    println!("  false alarms: {}", false_alarms.join(", "));
+}
+
+fn to_json(tallies: &BTreeMap<&str, Tally>) -> BTreeMap<String, serde_json::Value> {
+    tallies
+        .iter()
+        .map(|(group, tally)| (group.to_string(), tally.to_json()))
+        .collect()
 }

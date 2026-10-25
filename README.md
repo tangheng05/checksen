@@ -55,6 +55,7 @@ Every change is scored against labelled real-world messages in CI. Recall is the
 | --- | --- | --- |
 | v1: 87 real messages, mostly English | 82.6% recall, 0% false positives | 97.8% recall, 7.3% false positives |
 | v2: 162 real Khmer messages | 82.4% recall, 3.1% false positives | 97.1% recall, 3.9% false positives |
+| links: 77 lookalike and 44 official Cambodian bank, wallet and government domains | 96.1% caught (all 11 named in official warnings), 0% false positives | (no AI involved) |
 
 The data, labels and how they were collected are in [`evals/`](evals/README.md). A pull request that lowers recall or raises false positives on the rules-only benchmark fails CI.
 
