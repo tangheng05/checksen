@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 16;
+pub const RULES_VERSION: u32 = 17;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -60,7 +60,12 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         Rule::new(
             Signal::UpfrontFee,
             &[
-                r"កម្ចី|ការងារ|រង្វាន់|កញ្ចប់|ឥវ៉ាន់|ភារកិច្ច|\b(?:loan|job|hiring|prize|reward|parcel|package|task|won|winner|winnings|claim)\b",
+                concat!(
+                    r"កម្ចី|ការងារ|រង្វាន់|កញ្ចប់|ឥវ៉ាន់|ភារកិច្ច|ប្រាក់ចំណូល|រកលុយ|ធ្វើការនៅផ្ទះ",
+                    r"|\b(?:loan|job|hiring|prize|reward|parcel|package|task|won|winner|winnings|claim)\b",
+                    // Job scams often promise earnings without saying "job".
+                    r"|\bearn(?:ing)?\b.{0,20}(?:\$|usd|៛|\d)|\b(?:work|working) from home\b|\bpart[- ]time\b",
+                ),
                 concat!(
                     r"បង់.{0,30}មុន(?:សិន|ពេល(?:បើក|ទទួល))|ជាមុន|ថ្លៃសេវា|ថ្លៃរដ្ឋបាល|ថ្លៃពិនិត្យ|ថ្លៃដំណើរការ|ថ្លៃឯកសណ្ឋាន|ថ្លៃបណ្តុះបណ្តាល",
                     r"|ថ្លៃដឹកជញ្ជូន|បង់ពន្ធ|ប្រាក់កក់|ប្រាក់ធានា|ដាក់ប្រាក់|ចំណាយ(?:ប្រាក់)?.{0,20}ដើម្បី(?:ទទួល|បើក)",
@@ -408,6 +413,24 @@ mod tests {
             "Bro ខ្ញុំផ្ញើ code WiFi ឱ្យហើយ។ ប្រាប់ខ្ញុំបើភ្ជាប់មិនបាន។",
         ] {
             assert!(!signals(text).contains(&Signal::OtpRequest), "{text}");
+        }
+    }
+
+    #[test]
+    fn earning_promises_with_a_fee_are_upfront_fee_scams() {
+        for text in [
+            "Earn $50 a day from home! Pay a $10 registration fee first, contact t.me/fastjob_kh",
+            "Part-time work, earn 30 USD daily. Registration fee $5 to start.",
+            "រកលុយពីផ្ទះ ៥០ដុល្លារក្នុងមួយថ្ងៃ គ្រាន់តែបង់ថ្លៃសេវា ៥ដុល្លារ",
+        ] {
+            assert!(signals(text).contains(&Signal::UpfrontFee), "{text}");
+        }
+        for text in [
+            "Course registration fee is $20. Classes start on Monday.",
+            "We are hiring: part-time cashier, salary $250, apply at our store.",
+            "Earn 5% interest a year on your savings with our fixed deposit.",
+        ] {
+            assert!(!signals(text).contains(&Signal::UpfrontFee), "{text}");
         }
     }
 
