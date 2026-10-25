@@ -15,6 +15,7 @@ const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
 const MODEL_CALLS_PER_DAY: u32 = 5_000;
 const SCREENSHOT_CALLS_PER_DAY: u32 = 1_000;
+const VOICE_CALLS_PER_DAY: u32 = 500;
 // VirusTotal's free key allows 500 lookups a day.
 const FILE_LOOKUPS_PER_DAY: u32 = 450;
 const LANGUAGE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
@@ -45,6 +46,7 @@ pub struct Summary {
 pub enum ModelCall {
     Text,
     Screenshot,
+    Voice,
     FileLookup,
 }
 
@@ -53,6 +55,7 @@ impl ModelCall {
         match self {
             Self::Text => MODEL_CALLS_PER_DAY,
             Self::Screenshot => SCREENSHOT_CALLS_PER_DAY,
+            Self::Voice => VOICE_CALLS_PER_DAY,
             Self::FileLookup => FILE_LOOKUPS_PER_DAY,
         }
     }
@@ -89,7 +92,7 @@ impl Guard {
                 .time_to_live(REPLY_TTL)
                 .build(),
             model_calls: Cache::builder()
-                .max_capacity(8)
+                .max_capacity(16)
                 .time_to_live(Duration::from_secs(25 * 60 * 60))
                 .build(),
             languages: Cache::builder()

@@ -8,7 +8,7 @@ use teloxide::prelude::*;
 use teloxide::types::{
     ChatAction, Document, FileId, InlineKeyboardButton, InlineKeyboardButtonKind,
     InlineKeyboardMarkup, Me, MessageEntityKind, MessageId, MessageOrigin, ParseMode, PhotoSize,
-    Recipient, ReplyParameters,
+    Recipient, ReplyParameters, Voice,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -19,7 +19,9 @@ use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::indicators::{self, Indicator};
 use checksen::analyzers::intent::{self, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
-use checksen::analyzers::llm::{self, Classifier, MessageKind, Reading, ScamCategory, Transcriber};
+use checksen::analyzers::llm::{
+    self, Classifier, Media, MessageKind, Reading, ScamCategory, Transcriber,
+};
 use checksen::analyzers::scan::{self, ClamAv, VirusTotalClient};
 use checksen::analyzers::senders::{self, Sender};
 use checksen::analyzers::text::RULES_VERSION;
@@ -34,6 +36,9 @@ use crate::stats::{self, Stats};
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
+/// Long enough for any scam call script; longer ones are music or lectures.
+const MAX_VOICE_SECONDS: u32 = 120;
+const MAX_VOICE_BYTES: u32 = 5 * 1024 * 1024;
 /// Groups share films and music; quiet checks leave big files to people who ask.
 const QUIET_MAX_FILE_BYTES: u32 = 20 * 1024 * 1024;
 /// Files over this wait their turn, so a few people sending 100 MB files can't run the server out of memory.
@@ -81,6 +86,8 @@ struct Outcome {
     preface: Option<&'static str>,
     cacheable: bool,
     reportable: Vec<Indicator>,
+    /// What a voice message said, shown with the verdict.
+    heard: Option<String>,
 }
 
 impl Outcome {
@@ -94,6 +101,7 @@ impl Outcome {
             preface: None,
             cacheable,
             reportable: Vec::new(),
+            heard: None,
         }
     }
 
@@ -108,10 +116,15 @@ impl Outcome {
             preface: None,
             cacheable,
             reportable: Vec::new(),
+            heard: None,
         }
     }
 
     fn finish(self, about: verdict::About, lang: Lang) -> (Reply, bool) {
+        let about = verdict::About {
+            heard: self.heard.as_deref(),
+            ..about
+        };
         let reply = match self.body {
             Body::Text(text) => Reply {
                 text,
@@ -616,11 +629,7 @@ fn mentions(msg: &Message, me: &Me) -> bool {
 }
 
 fn fixed_reply(msg: &Message) -> Option<&'static Text> {
-    if msg.voice().is_some()
-        || msg.audio().is_some()
-        || msg.video().is_some()
-        || msg.video_note().is_some()
-    {
+    if msg.audio().is_some() || msg.video().is_some() || msg.video_note().is_some() {
         Some(&verdict::CANT_LISTEN)
     } else if msg.sticker().is_some() || msg.animation().is_some() {
         Some(&verdict::GREETING)
@@ -662,6 +671,16 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
             lang,
             "photo",
             &photo.file.unique_id.0,
+            caption,
+            urls,
+        )));
+    }
+    if let Some(voice) = msg.voice() {
+        return Some(guard.key((
+            RULES_VERSION,
+            lang,
+            "voice",
+            &voice.file.unique_id.0,
             caption,
             urls,
         )));
@@ -711,6 +730,8 @@ async fn check(
         check_album(bot, msg, album, lang, services, progress).await
     } else if let Some(photo) = largest_photo(msg) {
         check_photo(bot, msg, photo, lang, services, progress).await
+    } else if let Some(voice) = msg.voice() {
+        check_voice(bot, msg, voice, lang, services, progress).await
     } else if let Some(payload) = msg.text().filter(|text| khqr::looks_like_khqr(text)) {
         let checks = vec![khqr::check(payload)];
         let checks = reports::with_reports(checks, services.store.as_deref()).await;
@@ -738,6 +759,7 @@ async fn check(
         number_of: indicators::in_text(text)
             .iter()
             .find_map(|found| contacts::owner_of(&found.value)),
+        heard: None,
     };
     outcome.finish(about, lang)
 }
@@ -1182,7 +1204,7 @@ async fn check_image(
         return caption_or(msg, services, progress, unread()).await;
     }
     progress.step(Step::ReadText).await;
-    match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
+    match llm::transcribe(&image, Media::Image, transcriber, TRANSCRIBE_BUDGET).await {
         Ok(Some(transcript)) => {
             let message = match caption {
                 Some(caption) => format!("{caption}\n\n{transcript}"),
@@ -1272,7 +1294,7 @@ async fn check_album(
                 tracing::warn!("daily screenshot budget used up");
                 return Err(());
             }
-            llm::transcribe(image, transcriber, TRANSCRIBE_BUDGET)
+            llm::transcribe(image, Media::Image, transcriber, TRANSCRIBE_BUDGET)
                 .await
                 .map_err(|error| tracing::warn!(%error, "screenshot transcription failed"))
         }))
@@ -1326,6 +1348,58 @@ async fn check_album(
         },
         kind,
     )
+}
+
+/// A voice message is written down, then checked like a typed one with its caption. Groups and
+/// deployments without AI don't listen.
+async fn check_voice(
+    bot: &Bot,
+    msg: &Message,
+    voice: &Voice,
+    lang: Lang,
+    services: &Services,
+    progress: &Progress<'_>,
+) -> (Outcome, Option<MessageKind>) {
+    let Some(transcriber) = progress.transcriber(services) else {
+        return (Outcome::text(verdict::CANT_LISTEN.get(lang), true), None);
+    };
+    if too_long(voice) {
+        return (Outcome::text(verdict::VOICE_TOO_LONG.get(lang), true), None);
+    }
+    let unheard = |cacheable| Outcome::text(verdict::VOICE_UNHEARD.get(lang), cacheable);
+    if !services.guard.allow_model_call(ModelCall::Voice) {
+        tracing::warn!("daily voice budget used up");
+        return (unheard(false), None);
+    }
+    progress.step(Step::Listen).await;
+    let heard = match download(bot, &voice.file.id).await {
+        Ok(audio) => llm::transcribe(&audio, Media::Voice, transcriber, TRANSCRIBE_BUDGET).await,
+        Err(error) => Err(error),
+    };
+    let transcript = match heard {
+        Ok(Some(transcript)) => transcript,
+        Ok(None) => return (unheard(true), None),
+        Err(error) => {
+            tracing::warn!(%error, "voice transcription failed");
+            return (unheard(false), None);
+        }
+    };
+    let message = match msg.caption() {
+        Some(caption) => format!("{caption}\n\n{transcript}"),
+        None => transcript.clone(),
+    };
+    let budget = progress.model(SCREENSHOT_CLASSIFIER_BUDGET);
+    let (checks, reading, reportable) =
+        text_checks(&message, urls_in(msg), true, services, budget).await;
+    let outcome = Outcome {
+        heard: Some(transcript),
+        ..Outcome::of(checks).reporting(reportable)
+    };
+    (outcome, reading.kind)
+}
+
+fn too_long(voice: &Voice) -> bool {
+    voice.duration.seconds() > MAX_VOICE_SECONDS || voice.file.size > MAX_VOICE_BYTES
 }
 
 /// Checks the caption when the image itself gave nothing, otherwise replies with `fallback`.
@@ -1461,6 +1535,30 @@ mod tests {
             "from": {"id": if from_bot { 99 } else { 8 }, "is_bot": from_bot, "first_name": "Dara"},
             "text": "Send me the OTP code now",
         })
+    }
+
+    fn voice_message(unique_id: &str, seconds: u32) -> Message {
+        serde_json::from_value(serde_json::json!({
+            "message_id": 3, "date": 0,
+            "chat": {"id": 7, "type": "private", "first_name": "Sok"},
+            "from": {"id": 7, "is_bot": false, "first_name": "Sok"},
+            "voice": {"file_id": "f", "file_unique_id": unique_id, "duration": seconds,
+                      "mime_type": "audio/ogg", "file_size": 12_000},
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn voice_messages_are_checked_and_keyed_by_their_file() {
+        let guard = Guard::new();
+        let short = voice_message("a", 30);
+        assert!(fixed_reply(&short).is_none());
+        let key = |msg: &Message| cache_key(&guard, msg, Lang::Km);
+        assert_eq!(key(&short), key(&voice_message("a", 30)));
+        assert_ne!(key(&short), key(&voice_message("b", 30)));
+        assert!(key(&short).is_some());
+        assert!(!too_long(short.voice().unwrap()));
+        assert!(too_long(voice_message("c", 121).voice().unwrap()));
     }
 
     #[test]

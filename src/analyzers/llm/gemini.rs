@@ -9,8 +9,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{
-    Classification, Classifier, OUTPUT_FIELDS, SYSTEM_PROMPT, TRANSCRIBE_PROMPT, Transcriber,
-    output_schema, parse_classification, send_with_retry, user_prompt,
+    Classification, Classifier, LISTEN_PROMPT, Media, OUTPUT_FIELDS, SYSTEM_PROMPT,
+    TRANSCRIBE_PROMPT, Transcriber, output_schema, parse_classification, send_with_retry,
+    user_prompt,
 };
 use crate::analyzers::Signal;
 use crate::env_var;
@@ -108,11 +109,24 @@ impl Classifier for GeminiClassifier {
 }
 
 impl Transcriber for GeminiClassifier {
-    fn transcribe<'a>(&'a self, jpeg: &'a [u8]) -> BoxFuture<'a, anyhow::Result<Option<String>>> {
-        let body = json!({
-            "systemInstruction": {"parts": [{"text": TRANSCRIBE_PROMPT}]},
+    fn transcribe<'a>(
+        &'a self,
+        media: &'a [u8],
+        kind: Media,
+    ) -> BoxFuture<'a, anyhow::Result<Option<String>>> {
+        Box::pin(self.generate(transcribe_body(media, kind), parse_transcript))
+    }
+}
+
+fn transcribe_body(media: &[u8], kind: Media) -> Value {
+    let (mime, prompt) = match kind {
+        Media::Image => ("image/jpeg", TRANSCRIBE_PROMPT),
+        Media::Voice => ("audio/ogg", LISTEN_PROMPT),
+    };
+    json!({
+            "systemInstruction": {"parts": [{"text": prompt}]},
             "contents": [{"role": "user", "parts": [
-                {"inlineData": {"mimeType": "image/jpeg", "data": STANDARD.encode(jpeg)}},
+                {"inlineData": {"mimeType": mime, "data": STANDARD.encode(media)}},
             ]}],
             "generationConfig": {
                 "responseMimeType": "application/json",
@@ -129,9 +143,7 @@ impl Transcriber for GeminiClassifier {
                 "maxOutputTokens": 4096,
                 "thinkingConfig": {"thinkingLevel": "low"},
             },
-        });
-        Box::pin(self.generate(body, parse_transcript))
-    }
+    })
 }
 
 fn schema() -> Value {
@@ -177,6 +189,24 @@ fn response_text(body: &[u8]) -> anyhow::Result<String> {
 mod tests {
     use super::*;
     use crate::analyzers::llm::ScamCategory;
+
+    #[test]
+    fn voice_is_sent_as_audio_with_the_listening_prompt() {
+        let voice = transcribe_body(b"ogg", Media::Voice);
+        assert_eq!(
+            voice["contents"][0]["parts"][0]["inlineData"]["mimeType"],
+            "audio/ogg"
+        );
+        assert_eq!(
+            voice["systemInstruction"]["parts"][0]["text"],
+            LISTEN_PROMPT
+        );
+        let image = transcribe_body(b"jpeg", Media::Image);
+        assert_eq!(
+            image["contents"][0]["parts"][0]["inlineData"]["mimeType"],
+            "image/jpeg"
+        );
+    }
 
     async fn respond(socket: tokio::net::TcpStream) -> std::io::Result<()> {
         let mut request = Vec::new();

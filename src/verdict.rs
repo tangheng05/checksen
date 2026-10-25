@@ -68,8 +68,16 @@ pub const GREETING: Text = text(
     "Hi! 👋 Send me a message, link, QR code or screenshot you're unsure about, and I'll check it.",
 );
 pub const CANT_LISTEN: Text = text(
-    "ខ្ញុំមិនទាន់អាចស្តាប់សារសំឡេង ឬមើលវីដេអូបានទេ។ សូមវាយអក្សរនូវអ្វីដែលគេនិយាយ ឬផ្ញើរូបថតអេក្រង់មកវិញ។",
-    "I can't listen to voice messages or watch videos yet. Type what they said, or send me a screenshot instead.",
+    "ខ្ញុំមិនទាន់អាចស្តាប់ ឬមើលវាបានទេ។ សូមវាយអក្សរនូវអ្វីដែលគេនិយាយ ឬផ្ញើរូបថតអេក្រង់មកវិញ។",
+    "I can't listen to or watch this yet. Type what they said, or send me a screenshot instead.",
+);
+pub const VOICE_TOO_LONG: Text = text(
+    "សារសំឡេងនេះវែងពេក (លើស ២ នាទី)។ សូមវាយអក្សរនូវផ្នែកសំខាន់ ឬផ្ញើរូបថតអេក្រង់មកវិញ។",
+    "This voice message is too long for me (over 2 minutes). Type the important part, or send a screenshot instead.",
+);
+pub const VOICE_UNHEARD: Text = text(
+    "ខ្ញុំស្តាប់មិនបានច្បាស់ពាក្យក្នុងសារសំឡេងនេះទេ។ សូមវាយអក្សរនូវអ្វីដែលគេនិយាយ។",
+    "I couldn't make out the words in this voice message. Please type what they said.",
 );
 pub const ABOUT_CONTACT: Text = text(
     "CheckSen មិនទាន់អាចពិនិត្យលេខទូរស័ព្ទ ឬឈ្មោះមនុស្សបានទេ។\n• បើគេអះអាងថាមកពីធនាគារ ឬក្រុមហ៊ុន សូមតេទៅលេខដែលមានក្នុងកម្មវិធី ឬគេហទំព័រផ្លូវការរបស់គេ មិនមែនលេខដែលគេឱ្យអ្នកទេ។\n• បើគេឱ្យបង់ប្រាក់ សូមផ្ញើ QR ឬសារដែលគេផ្ញើមក ឱ្យខ្ញុំពិនិត្យ។",
@@ -114,16 +122,16 @@ const PRIVACY_REST: Text = text(
     "Links are checked against Google's and URLhaus's lists of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal and MalwareBazaar, never the file itself. If you report a scam, CheckSen stores only that phone number, username, website or QR account, with your Telegram ID hashed. Tap /forget to delete your reports and anything you shared.",
 );
 const KEEPS: Text = text(
-    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។",
-    "CheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎.",
+    "CheckSen មិនរក្សាទុកសារ រូបភាព ឬសារសំឡេងរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។",
+    "CheckSen doesn't keep your messages, images or voice messages, unless you choose to share one after tapping 👎.",
 );
 const AI_SHARED: Text = text(
-    "ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+    "ដើម្បីពិនិត្យ អត្ថបទ រូបភាព និងសារសំឡេង អាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "To check them, text, images and voice messages may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
 const AI_PRIVATE: Text = text(
-    "ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលមិនយកវាទៅបង្វឹក AI របស់គេទេ។ ទោះយ៉ាងណា សូមបិទលេខគណនីសិន មុនផ្ញើ។",
-    "To check them, text and images may be sent to an outside company's AI service, which doesn't use them to train its AI. Please still hide account numbers before sending.",
+    "ដើម្បីពិនិត្យ អត្ថបទ រូបភាព និងសារសំឡេង អាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលមិនយកវាទៅបង្វឹក AI របស់គេទេ។ ទោះយ៉ាងណា សូមបិទលេខគណនីសិន មុនផ្ញើ។",
+    "To check them, text, images and voice messages may be sent to an outside company's AI service, which doesn't use them to train its AI. Please still hide account numbers before sending.",
 );
 const AI_OFF: Text = text(
     "សារត្រូវបានពិនិត្យតែដោយច្បាប់ផ្ទាល់របស់ CheckSen នៅលើម៉ាស៊ីនមេរបស់ខ្លួនប៉ុណ្ណោះ គ្មានសេវា AI ណាមើលឃើញវាទេ។",
@@ -475,6 +483,7 @@ pub enum Step {
     Scan,
     FindQr,
     ReadText,
+    Listen,
     CheckLinks,
 }
 
@@ -485,6 +494,7 @@ impl Step {
             Self::Scan => lang.pick("ស្កេនរកមេរោគ", "Scan for viruses"),
             Self::FindQr => lang.pick("រក QR ក្នុងរូប", "Look for a QR code"),
             Self::ReadText => lang.pick("អានអក្សរក្នុងរូប", "Read the text in the image"),
+            Self::Listen => lang.pick("ស្តាប់សារសំឡេង", "Listen to the voice message"),
             Self::CheckLinks => lang.pick("ពិនិត្យតំណក្នុងឯកសារ", "Check the links inside"),
         }
     }
@@ -512,6 +522,8 @@ pub struct About<'a> {
     pub names: Option<&'static Official>,
     /// The institution whose official number the message gives.
     pub number_of: Option<&'static Official>,
+    /// What a voice message said, so a mishearing can be spotted.
+    pub heard: Option<&'a str>,
 }
 
 /// The kind of scam a flagged check looks like, for the weekly numbers. Rules win over the
@@ -610,6 +622,8 @@ pub fn lead(checks: &[Check]) -> Option<&Check> {
         .min_by_key(|check| std::cmp::Reverse(severity(decide(check))))
 }
 
+const HEARD_CHARS: usize = 300;
+
 /// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
 /// A file's name, type and scan results stay outside the fold.
 pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
@@ -625,6 +639,7 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
             .is_some_and(|summary| summary.contains(action.as_str()))
     });
     let contact = contact_line(about, level, lang);
+    let heard = about.heard;
     let about = about_line(about, lang);
 
     let mut lines = vec![format!(
@@ -716,6 +731,16 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
         } else {
             details.push(reminder.to_owned());
         }
+    }
+    if let Some(heard) = heard {
+        let excerpt: String = heard.chars().take(HEARD_CHARS).collect();
+        let more = if heard.chars().count() > HEARD_CHARS {
+            "…"
+        } else {
+            ""
+        };
+        let heading = lang.pick("🎙 ខ្ញុំបានឮ៖", "🎙 What I heard:");
+        details.insert(0, format!("{heading}\n{}{more}", inert(&excerpt)));
     }
     let mut fold = Vec::new();
     if !details.is_empty() {
@@ -2040,6 +2065,23 @@ mod tests {
             "{reply}"
         );
         assert!(!reply.to_lowercase().contains("unofficial"));
+    }
+
+    #[test]
+    fn what_a_voice_message_said_is_folded_and_cannot_render_as_a_link() {
+        let check = Check {
+            subject: Subject::Text,
+            signals: vec![Signal::OtpRequest],
+        };
+        let long = format!("Send the OTP to <b>evil.example</b> {}", "x".repeat(400));
+        let about = About {
+            heard: Some(&long),
+            ..About::default()
+        };
+        let reply = render(&[check], about, Lang::En);
+        let fold = reply.split("<blockquote expandable>").nth(1).unwrap();
+        assert!(fold.starts_with("ℹ️ Details\n🎙 What I heard:"), "{reply}");
+        assert!(fold.contains("&lt;b&gt;evil[.]example&lt;/b&gt;") && fold.contains("…"));
     }
 
     #[test]
