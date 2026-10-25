@@ -255,6 +255,8 @@ svg { display: block; }
 .quote { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; padding: 4px 8px; border-radius: 4px; border-left: 3px solid #6AB2F2; background: rgba(106, 178, 242, .1); font-size: 13.5px; }
 .quote svg { width: 12px; height: 12px; color: #6AB2F2; }
 .kb { padding: 9px 12px; border-radius: 8px; background: rgba(24, 37, 51, .95); text-align: center; font: 500 14px/1.4 "Kantumruy Pro", "Mona Sans"; }
+/* Khmer compounds the browser would otherwise split across lines. */
+.nw { white-space: nowrap; }
 .kbs { display: grid; gap: 4px; }
 .kb2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .kb2 span { padding: 9px 12px; border-radius: 8px; background: rgba(24, 37, 51, .95); text-align: center; font: 500 14px/1.4 "Kantumruy Pro", "Mona Sans"; }
