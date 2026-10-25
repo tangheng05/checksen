@@ -264,7 +264,7 @@ pub const RATE_LIMITED: Text = text(
     "You've sent a lot in a short time. Please wait a little and try again.",
 );
 const BANK_APP_ADVICE: Text = text(
-    "⚠️ មុនពេលបង់ប្រាក់៖ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។",
+    "⚠️ មុនបង់ប្រាក់ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនលុយ ក្នុងកម្មវិធីធនាគាររបស់អ្នក។",
     "⚠️ Before paying, always check the recipient's name and the amount in your bank app.",
 );
 /// High risk replies say "don't send money", so their reminder is for people who already did.
