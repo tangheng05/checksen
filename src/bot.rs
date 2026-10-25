@@ -67,6 +67,7 @@ pub struct Services {
     pub stats: Arc<Stats>,
     pub alert_channel: Option<Recipient>,
     pub protected: Protected,
+    pub ai: verdict::Ai,
 }
 
 enum Body {
@@ -205,16 +206,16 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
             }
             return Ok(());
         }
-        Some("start") => Some(&verdict::WELCOME),
-        Some("help") => Some(&verdict::HELP),
-        _ => fixed_reply(target),
+        Some("start") => Some(verdict::WELCOME.get(lang)),
+        Some("help") => Some(verdict::help(services.ai, lang)),
+        _ => fixed_reply(target).map(|text| text.get(lang)),
     };
     if let Some(text) = fixed {
-        answer(&bot, target, text.get(lang)).await?;
+        answer(&bot, target, text).await?;
         return Ok(());
     }
     let Some(key) = cache_key(guard, target, lang) else {
-        answer(&bot, target, verdict::HELP.get(lang)).await?;
+        answer(&bot, target, verdict::help(services.ai, lang)).await?;
         return Ok(());
     };
     respond(&bot, target, &[], key, sender, lang, &services).await
@@ -804,12 +805,12 @@ async fn check_text(
     let rules = intent::detect(message);
     if urls.is_empty() {
         if let Some(intent @ (Intent::Greeting | Intent::Thanks)) = rules
-            && let Some(answer) = verdict::answer(intent, lang)
+            && let Some(answer) = verdict::answer(intent, lang, services.ai)
         {
             return (Outcome::text(answer, true), None);
         }
         if too_short(message) && text::check(message).signals.is_empty() {
-            let answer = rules.and_then(|intent| verdict::answer(intent, lang));
+            let answer = rules.and_then(|intent| verdict::answer(intent, lang, services.ai));
             return (
                 Outcome::text(answer.unwrap_or(verdict::TOO_SHORT.get(lang)), true),
                 None,
@@ -832,7 +833,7 @@ async fn check_text(
             .iter()
             .any(|check| verdict::decide(check) != Level::NoKnownSignals);
     let verdict = Outcome::of(checks).reporting(reportable);
-    let outcome = match verdict::answer(intent, lang) {
+    let outcome = match verdict::answer(intent, lang, services.ai) {
         Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
             preface: Some(answer),
             ..verdict

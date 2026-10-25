@@ -20,6 +20,7 @@ use checksen::analyzers::llm::{Classifier, Transcriber};
 use checksen::analyzers::reputation::SafeBrowsing;
 use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::env_var;
+use checksen::verdict;
 use teloxide::prelude::*;
 use teloxide::types::{BotCommand, BotCommandScope, Recipient};
 
@@ -46,12 +47,26 @@ async fn main() -> anyhow::Result<()> {
             .with_safe_browsing(safe_browsing)
             .with_abusech(abusech.clone()),
     );
-    let classifier = classifier()?;
-    let transcriber = GeminiClassifier::from_env(Duration::from_secs(8), 3)?
-        .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>);
+    // A deployment that must keep messages away from any AI service sets AI_MODE=off.
+    let ai_off = env_var("AI_MODE").is_some_and(|mode| mode.eq_ignore_ascii_case("off"));
+    let (classifier, classifier_is_gemini) = if ai_off { (None, false) } else { classifier()? };
+    let transcriber = match ai_off {
+        true => None,
+        false => GeminiClassifier::from_env(Duration::from_secs(8), 3)?
+            .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>),
+    };
     if transcriber.is_none() {
-        tracing::warn!("GEMINI_API_KEY is not set; photos are checked for QR codes only");
+        tracing::warn!("no transcriber; photos are checked for QR codes only");
     }
+    let gemini_paid = env_var("GEMINI_PAID").is_some_and(|paid| paid == "true");
+    let ai = if classifier.is_none() && transcriber.is_none() {
+        verdict::Ai::Off
+    } else if (transcriber.is_some() || classifier_is_gemini) && !gemini_paid {
+        verdict::Ai::Shared
+    } else {
+        verdict::Ai::Private
+    };
+    tracing::info!(?ai, "AI mode; /help and the privacy answer say the same");
     let store = match env_var("DATABASE_URL") {
         Some(url) => {
             let secret = env_var("HASH_SECRET").context(
@@ -118,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         stats: stats.clone(),
         alert_channel,
         protected: protect::Protected::load(store.as_deref()).await?,
+        ai,
     });
     tokio::spawn(stats::send_weekly_drafts(bot.clone(), services.clone()));
 
@@ -243,20 +259,21 @@ async fn register_commands(bot: &Bot, admins: &admin::Admins) {
     }
 }
 
-fn classifier() -> anyhow::Result<Option<Arc<dyn Classifier>>> {
+/// The text classifier, and whether it is Gemini, whose free tier may train on what it's sent.
+fn classifier() -> anyhow::Result<(Option<Arc<dyn Classifier>>, bool)> {
     let timeout = Duration::from_secs(10);
     if let Some(classifier) = AnthropicClassifier::from_env(timeout, 2)? {
         tracing::info!("text checks use Anthropic");
-        return Ok(Some(Arc::new(classifier)));
+        return Ok((Some(Arc::new(classifier)), false));
     }
     if let Some(classifier) = GeminiClassifier::from_env(timeout, 2)? {
         tracing::info!("text checks use Gemini");
-        return Ok(Some(Arc::new(classifier)));
+        return Ok((Some(Arc::new(classifier)), true));
     }
     tracing::warn!(
         "neither ANTHROPIC_API_KEY nor GEMINI_API_KEY is set; text checks use rules only"
     );
-    Ok(None)
+    Ok((None, false))
 }
 
 /// Shared messages are deleted after 30 days, so check every hour.

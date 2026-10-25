@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::contacts::Official;
@@ -52,9 +54,10 @@ const fn text(km: &'static str, en: &'static str) -> Text {
     Text { km, en }
 }
 
-pub const HELP: Text = text(
-    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។ បើខ្ញុំឆ្លើយខុស សូមចុច 👎។\n\nក្នុងក្រុម admin អាចផ្ញើ /protect ហើយខ្ញុំនឹងព្រមានក្រុមដោយស្ងាត់ៗ ពេលឃើញសារបោកប្រាស់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it. If I got something wrong, tap 👎.\n\nIn a group, an admin can send /protect and I'll quietly warn the group about scams.\n\nCheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+/// What CheckSen does; `help` adds what it keeps and which AI sees messages.
+const HELP_BODY: Text = text(
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។ បើខ្ញុំឆ្លើយខុស សូមចុច 👎។\n\nក្នុងក្រុម admin អាចផ្ញើ /protect ហើយខ្ញុំនឹងព្រមានក្រុមដោយស្ងាត់ៗ ពេលឃើញសារបោកប្រាស់។",
+    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it. If I got something wrong, tap 👎.\n\nIn a group, an admin can send /protect and I'll quietly warn the group about scams.",
 );
 pub const WELCOME: Text = text(
     "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
@@ -105,17 +108,100 @@ const HOW_TO_REPORT: Text = text(
     "ដើម្បីរាយការណ៍៖\n• បើអ្នកបានបាត់លុយ ឬប្រាប់លេខកូដ សូមតេទៅធនាគាររបស់អ្នកមុនគេ តាមលេខក្នុងកម្មវិធី។\n• ក្នុង Telegram សូមបើកគណនី ឬឆានែលនោះ ចុច ⋮ ហើយជ្រើស Report។\n• ចុច 🚩 នៅក្រោមចម្លើយរបស់ CheckSen ដើម្បីឱ្យវាព្រមានអ្នកដទៃអំពីលេខ គណនី ឬគេហទំព័រនោះ។\n• អ្នកក៏អាចរាយការណ៍ទៅប៉ូលិសផងដែរ។",
     "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• Tap 🚩 under a CheckSen reply so it warns others about that number, account or site.\n• You can also report it to the police.",
 );
-const PRIVACY: Text = text(
-    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។ តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal និង MalwareBazaar មិនមែនឯកសារខ្លួនឯងទេ។ បើអ្នករាយការណ៍ការបោកប្រាស់ CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះគណនី គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ ចុច /forget ដើម្បីលុបការរាយការណ៍ និងសារដែលអ្នកបានចែករំលែក។",
-    "CheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending. Links are checked against Google's and URLhaus's lists of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal and MalwareBazaar, never the file itself. If you report a scam, CheckSen stores only that phone number, username, website or QR account, with your Telegram ID hashed. Tap /forget to delete your reports and anything you shared.",
+/// The rest of the privacy answer, after what CheckSen keeps and which AI sees messages.
+const PRIVACY_REST: Text = text(
+    "តំណភ្ជាប់ត្រូវបានពិនិត្យជាមួយបញ្ជីគេហទំព័រគ្រោះថ្នាក់របស់ Google និង URLhaus។ ឯកសារត្រូវបានពិនិត្យក្នុងអង្គចងចាំ ហើយលុបចោលភ្លាម។ មានតែលេខសម្គាល់ឯកសារ (hash) ប៉ុណ្ណោះ ដែលត្រូវផ្ញើទៅ VirusTotal និង MalwareBazaar មិនមែនឯកសារខ្លួនឯងទេ។ បើអ្នករាយការណ៍ការបោកប្រាស់ CheckSen រក្សាទុកតែលេខទូរស័ព្ទ ឈ្មោះគណនី គេហទំព័រ ឬគណនី QR នោះ ជាមួយលេខ Telegram របស់អ្នកដែលបានបំប្លែងជាកូដ (hash)។ ចុច /forget ដើម្បីលុបការរាយការណ៍ និងសារដែលអ្នកបានចែករំលែក។",
+    "Links are checked against Google's and URLhaus's lists of dangerous sites. Files are checked in memory and deleted; only a file's fingerprint (hash) is sent to VirusTotal and MalwareBazaar, never the file itself. If you report a scam, CheckSen stores only that phone number, username, website or QR account, with your Telegram ID hashed. Tap /forget to delete your reports and anything you shared.",
 );
+const KEEPS: Text = text(
+    "CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។",
+    "CheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎.",
+);
+const AI_SHARED: Text = text(
+    "ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+);
+const AI_PRIVATE: Text = text(
+    "ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលមិនយកវាទៅបង្វឹក AI របស់គេទេ។ ទោះយ៉ាងណា សូមបិទលេខគណនីសិន មុនផ្ញើ។",
+    "To check them, text and images may be sent to an outside company's AI service, which doesn't use them to train its AI. Please still hide account numbers before sending.",
+);
+const AI_OFF: Text = text(
+    "សារត្រូវបានពិនិត្យតែដោយច្បាប់ផ្ទាល់របស់ CheckSen នៅលើម៉ាស៊ីនមេរបស់ខ្លួនប៉ុណ្ណោះ គ្មានសេវា AI ណាមើលឃើញវាទេ។",
+    "Messages are checked only by CheckSen's own rules on its server; no AI service sees them.",
+);
+
+/// Which AI service, if any, sees messages. What the bot says about privacy follows it.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Ai {
+    /// A free tier that may use what it's sent to improve its service and have people read it.
+    #[default]
+    Shared,
+    /// A paid service that doesn't train on what it's sent.
+    Private,
+    /// Rules only.
+    Off,
+}
+
+impl Ai {
+    const ALL: [Self; 3] = [Self::Shared, Self::Private, Self::Off];
+
+    fn notice(self) -> &'static Text {
+        match self {
+            Self::Shared => &AI_SHARED,
+            Self::Private => &AI_PRIVATE,
+            Self::Off => &AI_OFF,
+        }
+    }
+}
+
+/// Each text built once for every AI mode and language, so callers still get `&'static str`.
+struct PerAi([String; 6]);
+
+impl PerAi {
+    fn new(build: impl Fn(Ai, Lang) -> String) -> Self {
+        Self(std::array::from_fn(|index| {
+            let lang = if index % 2 == 0 { Lang::Km } else { Lang::En };
+            build(Ai::ALL[index / 2], lang)
+        }))
+    }
+
+    fn get(&self, ai: Ai, lang: Lang) -> &str {
+        let row = Ai::ALL.iter().position(|mode| *mode == ai).unwrap_or(0);
+        &self.0[row * 2 + usize::from(lang == Lang::En)]
+    }
+}
+
+static HELP: LazyLock<PerAi> = LazyLock::new(|| {
+    PerAi::new(|ai, lang| {
+        format!(
+            "{}\n\n{} {}",
+            HELP_BODY.get(lang),
+            KEEPS.get(lang),
+            ai.notice().get(lang)
+        )
+    })
+});
+static PRIVACY: LazyLock<PerAi> = LazyLock::new(|| {
+    PerAi::new(|ai, lang| {
+        format!(
+            "{} {} {}",
+            KEEPS.get(lang),
+            ai.notice().get(lang),
+            PRIVACY_REST.get(lang)
+        )
+    })
+});
+
+pub fn help(ai: Ai, lang: Lang) -> &'static str {
+    HELP.get(ai, lang)
+}
 const OTHER_QUESTION: Text = text(
     "ខ្ញុំអាចជួយពិនិត្យតែសារ តំណ កូដ QR រូបថតអេក្រង់ និងឯកសារ ដែលអ្នកសង្ស័យប៉ុណ្ណោះ។ សូម forward ឬចម្លងសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាមានសញ្ញាបោកប្រាស់ឬអត់។",
     "I can only check messages, links, QR codes, screenshots and files you're unsure about. Forward or paste the message to me and I'll tell you whether it has scam signs.",
 );
 
 /// The fixed answer for anything other than a message to check.
-pub fn answer(intent: Intent, lang: Lang) -> Option<&'static str> {
+pub fn answer(intent: Intent, lang: Lang, ai: Ai) -> Option<&'static str> {
     let text = match intent {
         Intent::Check => return None,
         Intent::Greeting => &GREETING,
@@ -125,7 +211,7 @@ pub fn answer(intent: Intent, lang: Lang) -> Option<&'static str> {
         Intent::AsksAboutCodes => &ABOUT_CODES,
         Intent::AsksHowToReport => &HOW_TO_REPORT,
         Intent::AsksWhatBotDoes => &WELCOME,
-        Intent::AsksPrivacy => &PRIVACY,
+        Intent::AsksPrivacy => return Some(PRIVACY.get(ai, lang)),
         Intent::OtherQuestion => &OTHER_QUESTION,
     };
     Some(text.get(lang))
@@ -1965,9 +2051,12 @@ mod tests {
     #[test]
     fn fixed_answers_never_say_safe() {
         for lang in [Lang::Km, Lang::En] {
-            for name in Intent::NAMES {
+            for (name, ai) in Intent::NAMES
+                .iter()
+                .flat_map(|name| Ai::ALL.map(|ai| (name, ai)))
+            {
                 let intent: Intent = serde_json::from_value(serde_json::json!(name)).unwrap();
-                let Some(answer) = answer(intent, lang) else {
+                let Some(answer) = answer(intent, lang, ai) else {
                     continue;
                 };
                 assert!(!answer.contains("សុវត្ថិភាព") && !answer.to_lowercase().contains("safe"));
@@ -1983,7 +2072,31 @@ mod tests {
             for shared in [REPORT_LIMIT, REPORT_FAILED, FORGET_FAILED] {
                 assert!(!shared.get(lang).contains("QR"));
             }
-            assert!(HELP.get(lang).contains("🚩") && HOW_TO_REPORT.get(lang).contains("🚩"));
+            assert!(
+                help(Ai::Shared, lang).contains("🚩") && HOW_TO_REPORT.get(lang).contains("🚩")
+            );
+        }
+    }
+
+    #[test]
+    fn help_and_privacy_say_which_ai_sees_messages() {
+        let privacy = |ai| answer(Intent::AsksPrivacy, Lang::En, ai).unwrap();
+        assert!(help(Ai::Shared, Lang::En).contains("may use them to improve its service"));
+        assert!(privacy(Ai::Shared).contains("may use them to improve its service"));
+        assert!(help(Ai::Private, Lang::En).contains("doesn't use them to train its AI"));
+        assert!(!privacy(Ai::Private).contains("improve its service"));
+        for lang in [Lang::Km, Lang::En] {
+            let off = [
+                help(Ai::Off, lang),
+                answer(Intent::AsksPrivacy, lang, Ai::Off).unwrap(),
+            ];
+            for text in off {
+                assert!(text.contains(AI_OFF.get(lang)), "{text}");
+                assert!(
+                    !text.contains(AI_SHARED.get(lang)) && !text.contains(AI_PRIVATE.get(lang))
+                );
+            }
+            assert!(help(Ai::Off, lang).starts_with(HELP_BODY.get(lang)));
         }
     }
 
