@@ -23,7 +23,12 @@
       out: { fwd: "Lucky Job Center", text: { km: "ជ្រើសរើសបុគ្គលិកវាយអក្សរ និងឆាត ប្រាក់ខែ $1000 នៅប៉ោយប៉ែត។ មិនត្រូវការបទពិសោធន៍។ ទាក់ទង 097 555 1234", en: "Hiring typing and chat staff, salary $1000, in Poipet. No experience needed. Call 097 555 1234" } },
       reply: { km: ["<strong>🟠 គួរឱ្យសង្ស័យ</strong>", "សារនេះសន្យាការងារស្រួលៗ តែបានលុយច្រើនពេក ដូចជាចុចឡាយ ឬវាយអក្សរ។", "👉 សូមផ្ទៀងផ្ទាត់តាមលេខ ឬកម្មវិធីផ្លូវការសិន មុនពេលធ្វើតាមសារនេះ។"], en: ["<strong>🟠 Suspicious</strong>", "This message promises easy work for too much money, like clicking likes or typing.", "👉 Check through an official number or app before you do what it asks."] },
     },
+    {
+      out: { voice: "0:12" },
+      reply: { km: ["<strong>🔴 ហានិភ័យខ្ពស់</strong>", "សារនេះមានការទាមទារលេខកូដ OTP ឬលេខសម្ងាត់។ ធនាគារ និងក្រុមហ៊ុនផ្លូវការ ដាច់ខាតមិនដែលសុំលេខទាំងនេះឡើយ។", "👉 កុំឆ្លើយតប កុំប្រាប់លេខកូដ ហើយកុំផ្ទេរលុយ។", "📞 ចង់ផ្ទៀងផ្ទាត់ សូមទាក់ទង Wing៖ ហតឡាញ 023 999 989 (ពីគេហទំព័រផ្លូវការរបស់ Wing)។"], en: ["<strong>🔴 High risk</strong>", "This message asks for an OTP code or password. Real banks and companies never ask for these.", "👉 Don't reply, don't share any code, and don't send money.", "📞 To check, contact Wing: hotline 023 999 989 (from Wing's own website)."] },
+    },
   ];
+  const WAVE = [8, 14, 20, 12, 24, 16, 9, 18, 26, 14, 10, 22, 17, 8, 13, 21, 11, 7].map((h) => `<b style="height:${h}px"></b>`).join("");
 
   // ---------- Giant title fitted to its real ink, so Khmer vowels never clip ----------
 
@@ -144,6 +149,7 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
   const out = (o) => {
     if (o.file) return `<div class="bub out pop"><div class="filebub"><i><svg><use href="#doc"/></svg></i><div><b>${o.file}</b><small>${o.size}</small></div></div><span class="time">10:09 ✓✓</span></div>`;
+    if (o.voice) return `<div class="bub out pop"><div class="vn"><i class="play"></i><span class="wave">${WAVE}</span><small>${o.voice}</small></div><span class="time">10:09 ✓✓</span></div>`;
     if (o.link) return `<div class="bub out pop"><span class="link">${o.link}</span><span class="time">10:09 ✓✓</span></div>`;
     return `<div class="bub out pop"><span class="fwd">${km() ? "បញ្ជូនបន្តពី" : "Forwarded from"} ${o.fwd}</span>${t(o.text)}<span class="time">10:09 ✓✓</span></div>`;
   };
@@ -154,7 +160,10 @@
         <div class="quote"><span>ℹ️ ${km() ? "ព័ត៌មានលម្អិត" : "Details"}</span><svg><use href="#down"/></svg></div>
         <span class="time">10:09</span>
       </div>
-      <div class="kb pop">🚩 ${km() ? "រាយការណ៍ថាជាការបោកប្រាស់" : "Report as a scam"}</div>
+      <div class="kbs pop">
+        <div class="kb">🚩 ${km() ? "រាយការណ៍ថាជាការបោកប្រាស់" : "Report as a scam"}</div>
+        <div class="kb2"><span>👍 ${km() ? "ត្រូវ" : "Right"}</span><span>👎 ${km() ? "ខុស" : "Wrong"}</span></div>
+      </div>
     </div>`;
   const DUR = 8200;
   const play = async (i) => {
