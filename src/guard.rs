@@ -73,6 +73,7 @@ pub struct Guard {
     languages: Cache<u64, Lang>,
     report_buttons: Cache<u64, Arc<Vec<Indicator>>>,
     feedback_buttons: Cache<u64, Arc<Summary>>,
+    warned: Cache<(i64, i32), ()>,
 }
 
 impl Guard {
@@ -100,6 +101,10 @@ impl Guard {
                 .time_to_live(REPORT_BUTTON_TTL)
                 .build(),
             feedback_buttons: Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(REPORT_BUTTON_TTL)
+                .build(),
+            warned: Cache::builder()
                 .max_capacity(100_000)
                 .time_to_live(REPORT_BUTTON_TTL)
                 .build(),
@@ -144,6 +149,11 @@ impl Guard {
         }
     }
 
+    /// True the first time a group message is warned about, so editing it doesn't warn again.
+    pub fn first_warning(&self, chat: i64, message: i32) -> bool {
+        self.warned.entry((chat, message)).or_insert(()).is_fresh()
+    }
+
     /// Quiet checks in a protected group; over the limit, messages just go unchecked.
     pub fn admit_group(&self, chat: i64) -> bool {
         let count = self
@@ -184,6 +194,15 @@ impl Guard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_group_message_is_warned_about_once() {
+        let guard = Guard::new();
+        assert!(guard.first_warning(-100, 5));
+        assert!(!guard.first_warning(-100, 5));
+        assert!(guard.first_warning(-100, 6));
+        assert!(guard.first_warning(-200, 5));
+    }
 
     #[test]
     fn busy_groups_go_unchecked_past_their_limit() {

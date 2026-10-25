@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 use std::sync::{PoisonError, RwLock};
 
+use std::sync::Arc;
 use teloxide::prelude::*;
-use teloxide::types::{Me, ReplyParameters};
+
+use teloxide::types::{ChatMemberUpdated, Me, ReplyParameters};
 
 use checksen::verdict::{self, Lang, Text};
 
+use crate::bot::Services;
 use crate::store::Store;
 
 /// Groups where an admin turned on `/protect`, kept in memory so every group message can be
@@ -66,6 +69,30 @@ pub async fn command(
         }
     };
     say(bot, msg, reply, lang).await
+}
+
+/// Confirms protection once the bot is made an admin, and forgets a group that removes it.
+pub async fn on_membership(
+    bot: Bot,
+    update: ChatMemberUpdated,
+    services: Arc<Services>,
+) -> ResponseResult<()> {
+    let chat = update.chat.id;
+    let protected = &services.protected;
+    if !protected.contains(chat) {
+        return Ok(());
+    }
+    if !update.new_chat_member.is_present() {
+        protected.set(chat, false);
+        if let Err(error) = save(services.store.as_deref(), chat, false).await {
+            tracing::warn!(%error, "could not forget a group that removed the bot");
+        }
+    } else if update.new_chat_member.is_privileged() && !update.old_chat_member.is_privileged() {
+        let lang = services.guard.language(update.from.id.0, None);
+        bot.send_message(chat, verdict::PROTECT_ON.get(lang))
+            .await?;
+    }
+    Ok(())
 }
 
 /// Telegram gives a group a new id when it becomes a supergroup, which making the bot an

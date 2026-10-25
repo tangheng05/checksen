@@ -125,6 +125,8 @@ async fn main() -> anyhow::Result<()> {
         bot,
         dptree::entry()
             .branch(Update::filter_message().endpoint(bot::handle))
+            .branch(Update::filter_edited_message().endpoint(bot::watch_protected))
+            .branch(Update::filter_my_chat_member().endpoint(protect::on_membership))
             .branch(
                 Update::filter_callback_query()
                     .filter(admin::is_review)

@@ -33,6 +33,8 @@ use crate::stats::{self, Stats};
 use crate::store::Store;
 
 const MAX_PHOTO_BYTES: u32 = 10 * 1024 * 1024;
+/// Groups share films and music; quiet checks leave big files to people who ask.
+const QUIET_MAX_FILE_BYTES: u32 = 20 * 1024 * 1024;
 /// Files over this wait their turn, so a few people sending 100 MB files can't run the server out of memory.
 const BIG_FILE_BYTES: u32 = 20 * 1024 * 1024;
 const CLAMAV_BUDGET: Duration = Duration::from_secs(30);
@@ -161,10 +163,7 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
     }
     let command = command(&msg, &me);
     let Some(target) = target(&msg, &me, command) else {
-        if services.protected.contains(msg.chat.id) {
-            return watch(&bot, &msg, &services).await;
-        }
-        return Ok(());
+        return watch_protected(bot, msg, services).await;
     };
     if let Some(group) = target.media_group_id()
         && target.id == msg.id
@@ -293,29 +292,48 @@ async fn respond(
     progress.finish(&reply, keyboard).await
 }
 
-/// Checks a message nobody asked about in a protected group, and replies only on High risk.
-/// Nothing goes to the model, and nothing is shown while it checks.
-async fn watch(bot: &Bot, msg: &Message, services: &Services) -> ResponseResult<()> {
+/// Checks a message nobody asked about, or an edited one, in a protected group, off the
+/// update queue so a slow file scan doesn't hold up the group's next messages.
+pub async fn watch_protected(
+    bot: Bot,
+    msg: Message,
+    services: Arc<Services>,
+) -> ResponseResult<()> {
+    if services.protected.contains(msg.chat.id) {
+        tokio::spawn(watch(bot, msg, services));
+    }
+    Ok(())
+}
+
+/// Nothing goes to the model and nothing is shown while it checks.
+async fn watch(bot: Bot, msg: Message, services: Arc<Services>) {
+    let file_ok = |document: &Document| {
+        let media = document
+            .mime_type
+            .as_ref()
+            .is_some_and(|mime| matches!(mime.type_().as_str(), "video" | "audio"));
+        document.file.size <= QUIET_MAX_FILE_BYTES && !media
+    };
     let checkable = msg.text().is_some()
         || msg.caption().is_some()
         || msg.photo().is_some()
-        || msg.document().is_some();
+        || msg.document().is_some_and(file_ok);
     let from_bot = msg.from.as_ref().is_some_and(|user| user.is_bot);
     if !checkable || from_bot || !services.guard.admit_group(msg.chat.id.0) {
-        return Ok(());
+        return;
     }
     let guard = &services.guard;
-    let lang = language(guard, sender_id(msg), msg);
-    let Some(key) = cache_key(guard, msg, lang) else {
-        return Ok(());
+    let lang = language(guard, sender_id(&msg), &msg);
+    let Some(key) = cache_key(guard, &msg, lang) else {
+        return;
     };
     // Quiet checks skip the model, so their replies mustn't mix with ordinary ones.
     let key = guard.key(("quiet", key));
-    let progress = Progress::quiet(bot, msg, lang);
+    let progress = Progress::quiet(&bot, &msg, lang);
     let reply = match guard.cached(key) {
         Some(reply) => reply,
         None => {
-            let (reply, cacheable) = check(bot, msg, &[], lang, services, &progress).await;
+            let (reply, cacheable) = check(&bot, &msg, &[], lang, &services, &progress).await;
             let reply = Arc::new(reply);
             if cacheable {
                 guard.store(key, reply.clone());
@@ -323,16 +341,28 @@ async fn watch(bot: &Bot, msg: &Message, services: &Services) -> ResponseResult<
             reply
         }
     };
-    let Some(summary) = reply
-        .summary
-        .as_ref()
-        .filter(|summary| summary.level == Level::HighRisk.name())
-    else {
-        return Ok(());
+    let Some(summary) = reply.summary.as_ref().filter(|_| worth_warning(&reply)) else {
+        return;
     };
+    if !guard.first_warning(msg.chat.id.0, msg.id.0) {
+        return;
+    }
     services.stats.count(summary);
     let keyboard = reports::keyboard(services.store.as_deref(), guard, &reply, lang);
-    progress.finish(&reply, keyboard).await
+    if let Err(error) = progress.finish(&reply, keyboard).await {
+        tracing::warn!(%error, "could not warn a protected group");
+    }
+}
+
+/// High risk, or Suspicious when the message gives a way to contact or pay someone, which
+/// genuine messages that only look odd rarely do. Anything less stays silent in a group.
+fn worth_warning(reply: &Reply) -> bool {
+    let Some(summary) = &reply.summary else {
+        return false;
+    };
+    let contact = !reply.reportable.is_empty() || reply.account.is_some();
+    summary.level == Level::HighRisk.name()
+        || (summary.level == Level::Suspicious.name() && contact)
 }
 
 /// Album parts arrive as separate messages, so they're held here until no more come.
@@ -1424,6 +1454,32 @@ mod tests {
             "from": {"id": if from_bot { 99 } else { 8 }, "is_bot": from_bot, "first_name": "Dara"},
             "text": "Send me the OTP code now",
         })
+    }
+
+    #[test]
+    fn groups_hear_only_high_risk_or_suspicious_with_a_contact() {
+        let reply = |level: Level, reportable: Vec<Indicator>| Reply {
+            text: String::new(),
+            account: None,
+            reportable,
+            html: true,
+            summary: Some(Summary {
+                level: level.name(),
+                subject: "text",
+                category: "",
+                signals: Vec::new(),
+            }),
+        };
+        let phone = indicators::in_text("Call 012 345 678");
+        assert!(worth_warning(&reply(Level::HighRisk, Vec::new())));
+        assert!(worth_warning(&reply(Level::Suspicious, phone.clone())));
+        assert!(!worth_warning(&reply(Level::Suspicious, Vec::new())));
+        assert!(!worth_warning(&reply(Level::NoKnownSignals, phone)));
+        let answer = Reply {
+            summary: None,
+            ..reply(Level::HighRisk, Vec::new())
+        };
+        assert!(!worth_warning(&answer));
     }
 
     #[test]
