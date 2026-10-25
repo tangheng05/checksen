@@ -267,6 +267,11 @@ const BANK_APP_ADVICE: Text = text(
     "⚠️ មុនពេលបង់ប្រាក់៖ សូមពិនិត្យឈ្មោះអ្នកទទួល និងចំនួនទឹកប្រាក់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នកឱ្យបានហ្មត់ចត់ជានិច្ច។",
     "⚠️ Before paying, always check the recipient's name and the amount in your bank app.",
 );
+/// High risk replies say "don't send money", so their reminder is for people who already did.
+const ACTED_ADVICE: Text = text(
+    "🆘 បើអ្នកបានបង់ប្រាក់ ឬប្រាប់លេខកូដរួចហើយ សូមតេទៅធនាគាររបស់អ្នកភ្លាមៗ តាមលេខដែលមានក្នុងកម្មវិធីធនាគារ។",
+    "🆘 Already paid or shared a code? Call your bank right away, on the number in its app.",
+);
 const LINK_ADVICE: Text = text(
     "មិនត្រូវបញ្ចូលលេខសម្ងាត់ ឬលេខកូដ OTP តាមតំណភ្ជាប់ (Link) ណាមួយឡើយ។ បើចង់ពិនិត្យមើលគណនី សូមបើកចូលកម្មវិធីធនាគាររបស់អ្នកដោយផ្ទាល់។",
     "Never enter a password or OTP code through a link. To check your account, open your bank app yourself.",
@@ -568,12 +573,11 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
             lang,
         )));
     }
-    let about_money = matches!(level, Level::HighRisk | Level::Suspicious)
-        && !matches!(lead.subject, Subject::File(_))
-        || checks
-            .iter()
-            .any(|check| matches!(check.subject, Subject::Khqr(_)));
-    if about_money {
+    // Inline only where paying is still the decision; under "don't send money" it would read
+    // as if paying were still an option.
+    let paying_decision = level == Level::Suspicious && !matches!(lead.subject, Subject::File(_))
+        || checks.iter().any(about_qr);
+    if paying_decision {
         lines.push(String::new());
         lines.push(escape(BANK_APP_ADVICE.get(lang)));
     }
@@ -605,13 +609,17 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
     let only_files = checks
         .iter()
         .all(|check| matches!(check.subject, Subject::File(_)));
-    if !about_money && !only_files {
+    if !paying_decision && !only_files {
+        let reminder = match level {
+            Level::HighRisk => ACTED_ADVICE.get(lang),
+            _ => BANK_APP_ADVICE.get(lang),
+        };
         // A fold holding only the reminder isn't worth a tap, so it is shown inline instead.
         if details.is_empty() {
             lines.push(String::new());
-            lines.push(escape(BANK_APP_ADVICE.get(lang)));
+            lines.push(escape(reminder));
         } else {
-            details.push(BANK_APP_ADVICE.get(lang).to_owned());
+            details.push(reminder.to_owned());
         }
     }
     let mut fold = Vec::new();
@@ -931,8 +939,16 @@ fn detail_section(
 ) -> String {
     let level = decide(check);
     let mut lines = Vec::new();
+    // Sections are named by what they are; a second level is shown only for another check that
+    // found something, so a plain link inside a warning doesn't read like the bot changed its mind.
     if labeled {
-        lines.push(level.label_for(&check.subject, lang).to_owned());
+        let name = subject_name(&check.subject, lang);
+        lines.push(match level {
+            Level::HighRisk | Level::Suspicious if !is_lead => {
+                format!("{name} · {}", level.label_for(&check.subject, lang))
+            }
+            _ => name.to_owned(),
+        });
     }
     // A file's card already shows its scan results and an app's powers, and its real type when it leads.
     let on_card = |signal: &Signal| match (&check.subject, signal) {
@@ -1639,6 +1655,31 @@ fn kind_name(kind: Kind, lang: Lang) -> &'static str {
     lang.pick(km, en)
 }
 
+/// A payment QR, or one that was edited or couldn't be read as one.
+fn about_qr(check: &Check) -> bool {
+    matches!(check.subject, Subject::Khqr(_))
+        || check.signals.iter().any(|signal| {
+            matches!(
+                signal,
+                Signal::NotKhqr
+                    | Signal::ChecksumInvalid
+                    | Signal::DuplicateTag
+                    | Signal::Malformed
+                    | Signal::Expired
+            )
+        })
+}
+
+fn subject_name(subject: &Subject, lang: Lang) -> &'static str {
+    match subject {
+        Subject::Text => lang.pick("💬 សារ", "💬 Message"),
+        Subject::Link(_) => lang.pick("🔗 តំណ", "🔗 Link"),
+        Subject::Khqr(_) => "💳 KHQR",
+        Subject::File(_) => lang.pick("📎 ឯកសារ", "📎 File"),
+        Subject::Unreadable => lang.pick("🖼 រូបភាព", "🖼 Image"),
+    }
+}
+
 fn indicator_name(kind: IndicatorKind) -> (&'static str, &'static str) {
     match kind {
         IndicatorKind::Phone => ("លេខទូរស័ព្ទ", "phone number"),
@@ -1808,10 +1849,45 @@ mod tests {
                 }]),
             ];
             for reply in replies {
-                assert!(reply.contains(BANK_APP_ADVICE.get(lang)), "{reply}");
+                let reminded = reply.contains(BANK_APP_ADVICE.get(lang))
+                    || reply.contains(ACTED_ADVICE.get(lang));
+                assert!(reminded, "{reply}");
                 assert!(!reply.contains("សុវត្ថិភាព") && !reply.to_lowercase().contains("safe"));
             }
         }
+    }
+
+    #[test]
+    fn high_risk_never_suggests_paying_but_says_what_to_do_if_you_did() {
+        let otp = render(
+            &[crate::analyzers::text::check(
+                "Send me the OTP code you just received",
+            )],
+            About::default(),
+            Lang::En,
+        );
+        assert!(!otp.contains(BANK_APP_ADVICE.en), "{otp}");
+        assert!(
+            otp.contains(ACTED_ADVICE.en) && !otp.contains("blockquote"),
+            "{otp}"
+        );
+        let edited_qr = render_km(&[check_with(vec![Signal::ChecksumInvalid], false)]);
+        assert!(edited_qr.contains(BANK_APP_ADVICE.km));
+        let fake_link = render(
+            &[
+                crate::analyzers::text::check(
+                    "Your ABA account will be locked today. Verify now at the link below.",
+                ),
+                link_check(vec![Signal::Lookalike("ABA"), Signal::NewDomain]),
+            ],
+            About::default(),
+            Lang::En,
+        );
+        assert!(
+            fake_link.contains("💬 Message · 🟠 Suspicious"),
+            "{fake_link}"
+        );
+        assert!(!fake_link.contains("⚪"), "{fake_link}");
     }
 
     #[test]
