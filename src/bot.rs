@@ -52,6 +52,7 @@ const MAX_FRAGMENT_CHARS: usize = 40;
 const CLASSIFIER_BUDGET: Duration = Duration::from_secs(5);
 const SCREENSHOT_CLASSIFIER_BUDGET: Duration = Duration::from_secs(10);
 const TRANSCRIBE_BUDGET: Duration = Duration::from_secs(20);
+const LISTEN_BUDGET: Duration = Duration::from_secs(45);
 const TYPING_EVERY: Duration = Duration::from_secs(4);
 /// Telegram sends an album's parts within a moment of each other, with no sign of which is last.
 const ALBUM_WAIT: Duration = Duration::from_millis(1500);
@@ -73,6 +74,8 @@ pub struct Services {
     pub alert_channel: Option<Recipient>,
     pub protected: Protected,
     pub ai: verdict::Ai,
+    /// The transcriber for voice, with a longer timeout than screenshots need.
+    pub listener: Option<Arc<dyn Transcriber>>,
 }
 
 enum Body {
@@ -471,6 +474,10 @@ impl<'a> Progress<'a> {
         services.transcriber.as_deref().filter(|_| !self.quiet)
     }
 
+    fn listener<'s>(&self, services: &'s Services) -> Option<&'s dyn Transcriber> {
+        services.listener.as_deref().filter(|_| !self.quiet)
+    }
+
     /// Sends the status message on the first step, and edits it on the next ones.
     async fn step(&self, step: Step) {
         if self.quiet {
@@ -747,7 +754,13 @@ async fn check(
     if let Some(sender) = &sender {
         apply_sender(&mut outcome, sender);
     }
-    let text = msg.text().or(msg.caption()).unwrap_or_default();
+    // What a voice message said counts too, so a spoken "I'm from Wing" gets Wing's contact.
+    let text = [msg.text().or(msg.caption()), outcome.heard.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = text.as_str();
     let about = verdict::About {
         forwarded_from: sender
             .as_ref()
@@ -1360,7 +1373,7 @@ async fn check_voice(
     services: &Services,
     progress: &Progress<'_>,
 ) -> (Outcome, Option<MessageKind>) {
-    let Some(transcriber) = progress.transcriber(services) else {
+    let Some(listener) = progress.listener(services) else {
         return (Outcome::text(verdict::CANT_LISTEN.get(lang), true), None);
     };
     if too_long(voice) {
@@ -1373,7 +1386,7 @@ async fn check_voice(
     }
     progress.step(Step::Listen).await;
     let heard = match download(bot, &voice.file.id).await {
-        Ok(audio) => llm::transcribe(&audio, Media::Voice, transcriber, TRANSCRIBE_BUDGET).await,
+        Ok(audio) => llm::transcribe(&audio, Media::Voice, listener, LISTEN_BUDGET).await,
         Err(error) => Err(error),
     };
     let transcript = match heard {

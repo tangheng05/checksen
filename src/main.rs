@@ -48,17 +48,22 @@ async fn main() -> anyhow::Result<()> {
             .with_abusech(abusech.clone()),
     );
     // A deployment that must keep messages away from any AI service sets AI_MODE=off.
-    let ai_off = env_var("AI_MODE").is_some_and(|mode| mode.eq_ignore_ascii_case("off"));
+    let ai_off = switch("AI_MODE", "on", "off")?;
     let (classifier, classifier_is_gemini) = if ai_off { (None, false) } else { classifier()? };
-    let transcriber = match ai_off {
-        true => None,
-        false => GeminiClassifier::from_env(Duration::from_secs(8), 3)?
-            .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>),
+    let gemini = |timeout, attempts| -> anyhow::Result<Option<Arc<dyn Transcriber>>> {
+        Ok(match ai_off {
+            true => None,
+            false => GeminiClassifier::from_env(timeout, attempts)?
+                .map(|gemini| Arc::new(gemini) as Arc<dyn Transcriber>),
+        })
     };
+    let transcriber = gemini(Duration::from_secs(8), 3)?;
+    // Two minutes of speech takes longer than a screenshot, so voice gets its own client.
+    let listener = gemini(Duration::from_secs(30), 2)?;
     if transcriber.is_none() {
         tracing::warn!("no transcriber; photos are checked for QR codes only");
     }
-    let gemini_paid = env_var("GEMINI_PAID").is_some_and(|paid| paid == "true");
+    let gemini_paid = switch("GEMINI_PAID", "false", "true")?;
     let ai = if classifier.is_none() && transcriber.is_none() {
         verdict::Ai::Off
     } else if (transcriber.is_some() || classifier_is_gemini) && !gemini_paid {
@@ -134,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         alert_channel,
         protected: protect::Protected::load(store.as_deref()).await?,
         ai,
+        listener,
     });
     tokio::spawn(stats::send_weekly_drafts(bot.clone(), services.clone()));
 
@@ -259,6 +265,21 @@ async fn register_commands(bot: &Bot, admins: &admin::Admins) {
     }
 }
 
+/// True when `name` is set to `on_word`; unset or `off_word` is false, and anything else stops the
+/// bot, so a typo in a privacy setting can't silently leave AI on.
+fn switch(name: &str, off_word: &str, on_word: &str) -> anyhow::Result<bool> {
+    parse_switch(name, env_var(name).as_deref(), off_word, on_word)
+}
+
+fn parse_switch(name: &str, value: Option<&str>, off: &str, on: &str) -> anyhow::Result<bool> {
+    match value {
+        None => Ok(false),
+        Some(value) if value.eq_ignore_ascii_case(on) => Ok(true),
+        Some(value) if value.eq_ignore_ascii_case(off) => Ok(false),
+        Some(value) => anyhow::bail!("{name} must be {off} or {on}, not {value:?}"),
+    }
+}
+
 /// The text classifier, and whether it is Gemini, whose free tier may train on what it's sent.
 fn classifier() -> anyhow::Result<(Option<Arc<dyn Classifier>>, bool)> {
     let timeout = Duration::from_secs(10);
@@ -286,5 +307,20 @@ async fn purge_shared(store: Arc<store::Store>) {
             Ok(removed) => tracing::info!(removed, "deleted shared messages older than 30 days"),
             Err(error) => tracing::warn!(%error, "could not delete old shared messages"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_typo_in_a_privacy_setting_stops_the_bot() {
+        let ai_off = |value| parse_switch("AI_MODE", value, "on", "off");
+        assert!(!ai_off(None).unwrap(), "AI stays on by default");
+        assert!(ai_off(Some("OFF")).unwrap());
+        assert!(!ai_off(Some("on")).unwrap());
+        assert!(ai_off(Some("of")).is_err());
+        assert!(parse_switch("GEMINI_PAID", Some("yes"), "false", "true").is_err());
     }
 }
