@@ -25,6 +25,16 @@ pub struct Reply {
     pub reportable: Vec<Indicator>,
     /// Verdicts use Telegram HTML; fixed answers are plain text.
     pub html: bool,
+    /// What a verdict found, kept with 👍/👎 feedback; fixed answers have none.
+    pub summary: Option<Summary>,
+}
+
+/// A verdict without the message: its level, what was checked, and the signals found.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Summary {
+    pub level: &'static str,
+    pub subject: &'static str,
+    pub signals: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -58,6 +68,7 @@ pub struct Guard {
     model_calls: Cache<(ModelCall, u64), Arc<AtomicU32>>,
     languages: Cache<u64, Lang>,
     report_buttons: Cache<u64, Arc<Vec<Indicator>>>,
+    feedback_buttons: Cache<u64, Arc<Summary>>,
 }
 
 impl Guard {
@@ -84,6 +95,10 @@ impl Guard {
                 .max_capacity(100_000)
                 .time_to_live(REPORT_BUTTON_TTL)
                 .build(),
+            feedback_buttons: Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(REPORT_BUTTON_TTL)
+                .build(),
         }
     }
 
@@ -97,6 +112,17 @@ impl Guard {
 
     pub fn reported_by_button(&self, id: u64) -> Option<Arc<Vec<Indicator>>> {
         self.report_buttons.get(&id)
+    }
+
+    /// Keeps what 👍/👎 would rate; the same verdict always gets the same id.
+    pub fn feedback_button(&self, summary: &Summary) -> u64 {
+        let id = self.key(("feedback", summary));
+        self.feedback_buttons.insert(id, Arc::new(summary.clone()));
+        id
+    }
+
+    pub fn rated_by_button(&self, id: u64) -> Option<Arc<Summary>> {
+        self.feedback_buttons.get(&id)
     }
 
     pub fn key(&self, parts: impl Hash) -> u64 {
@@ -199,6 +225,7 @@ mod tests {
                 account: Some("sok@abaa".to_owned()),
                 reportable: Vec::new(),
                 html: true,
+                summary: None,
             }),
         );
         let cached = guard.cached(key).unwrap();

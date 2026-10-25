@@ -12,7 +12,7 @@ use crate::guard::{Guard, Reply};
 use crate::store::{REPORT_THRESHOLD, ReportOutcome, Reports, Review, Store};
 
 /// A KHQR reply asks whether the payee is who they meant to pay; other replies with a phone
-/// number, username or unknown site in them offer to report it.
+/// number, username or unknown site in them offer to report it. Every verdict asks 👍/👎.
 pub fn keyboard(
     store: Option<&Store>,
     guard: &Guard,
@@ -20,21 +20,38 @@ pub fn keyboard(
     lang: Lang,
 ) -> Option<InlineKeyboardMarkup> {
     let store = store?;
+    let mut rows = Vec::new();
     if let Some(account) = &reply.account {
-        let yes = store.callback_data(true, account)?;
-        let no = store.callback_data(false, account)?;
-        return Some(InlineKeyboardMarkup::new([[
-            InlineKeyboardButton::callback(verdict::INTENDED_BUTTON.get(lang), yes),
-            InlineKeyboardButton::callback(verdict::NOT_INTENDED_BUTTON.get(lang), no),
-        ]]));
+        if let (Some(yes), Some(no)) = (
+            store.callback_data(true, account),
+            store.callback_data(false, account),
+        ) {
+            rows.push(vec![
+                InlineKeyboardButton::callback(verdict::INTENDED_BUTTON.get(lang), yes),
+                InlineKeyboardButton::callback(verdict::NOT_INTENDED_BUTTON.get(lang), no),
+            ]);
+        }
+    } else if !reply.reportable.is_empty() {
+        let report = store.report_callback(guard.report_button(&reply.reportable));
+        rows.push(vec![InlineKeyboardButton::callback(
+            verdict::REPORT_BUTTON.get(lang),
+            report,
+        )]);
     }
-    if reply.reportable.is_empty() {
-        return None;
+    if let Some(summary) = &reply.summary {
+        let id = guard.feedback_button(summary);
+        rows.push(vec![
+            InlineKeyboardButton::callback(
+                verdict::HELPFUL_BUTTON.get(lang),
+                store.feedback_callback(true, id),
+            ),
+            InlineKeyboardButton::callback(
+                verdict::NOT_HELPFUL_BUTTON.get(lang),
+                store.feedback_callback(false, id),
+            ),
+        ]);
     }
-    let report = store.report_callback(guard.report_button(&reply.reportable));
-    Some(InlineKeyboardMarkup::new([[
-        InlineKeyboardButton::callback(verdict::REPORT_BUTTON.get(lang), report),
-    ]]))
+    (!rows.is_empty()).then(|| InlineKeyboardMarkup::new(rows))
 }
 
 pub async fn forget_reply(store: Option<&Store>, user: Option<&User>, lang: Lang) -> String {

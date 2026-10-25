@@ -52,8 +52,8 @@ const fn text(km: &'static str, en: &'static str) -> Text {
 }
 
 pub const HELP: Text = text(
-    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។ បើខ្ញុំឆ្លើយខុស សូមចុច 👎។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it. If I got something wrong, tap 👎.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
 pub const WELCOME: Text = text(
     "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
@@ -165,6 +165,37 @@ pub const SCAM_REPORTED: Text = text(
     "Thanks for reporting. If others report it too, CheckSen will warn people about it.",
 );
 pub const REPORT_BUTTON: Text = text("🚩 រាយការណ៍ថាជាការបោកប្រាស់", "🚩 Report as a scam");
+pub const HELPFUL_BUTTON: Text = text("👍 ត្រូវ", "👍 Right");
+pub const NOT_HELPFUL_BUTTON: Text = text("👎 ខុស", "👎 Wrong");
+pub const FEEDBACK_THANKS: Text = text(
+    "អរគុណ! មតិរបស់អ្នកជួយឱ្យ CheckSen កាន់តែប្រសើរ។",
+    "Thanks! This helps CheckSen get better.",
+);
+pub const FEEDBACK_EXPIRED: Text = text("ប៊ូតុងនេះផុតកំណត់ហើយ។", "This button has expired.");
+pub const FEEDBACK_LIMIT: Text = text(
+    "អ្នកបានវាយតម្លៃច្រើនពេកសម្រាប់ថ្ងៃនេះ។ សូមសាកម្តងទៀតនៅថ្ងៃស្អែក។",
+    "You've rated a lot of replies today. Please try again tomorrow.",
+);
+pub const SHARE_ASK: Text = text(
+    "សូមអភ័យទោសដែលខ្ញុំខុស។ តើអ្នកចង់ចែករំលែកសារនេះជាមួយក្រុមការងារ CheckSen ដើម្បីឱ្យយើងកែលម្អទេ?\n\nបើអ្នកចុច «ចែករំលែក» សារនេះនឹងត្រូវរក្សាទុកយ៉ាងយូរ ៣០ ថ្ងៃ ហើយមានតែក្រុមការងារប៉ុណ្ណោះដែលមើលឃើញ។ អត្ថបទរបស់វាអាចត្រូវបានដាក់បញ្ចូលក្នុងសារតេស្តសាធារណៈរបស់ CheckSen ដោយលុបព័ត៌មានផ្ទាល់ខ្លួនចេញ។ ផ្ញើ /forget ដើម្បីលុបវានៅពេលណាក៏បាន។",
+    "Sorry I got this wrong. Would you like to share this message with the CheckSen team so we can fix it?\n\nIf you tap Share, it's kept for up to 30 days and only the team can see it. Its text may be added to CheckSen's public test messages with personal details removed. Send /forget to delete it at any time.",
+);
+pub const SHARE_BUTTON: Text = text("📨 ចែករំលែក", "📨 Share");
+pub const NO_SHARE_BUTTON: Text = text("ទេ អរគុណ", "No thanks");
+pub const SHARED: Text = text(
+    "អរគុណ! ក្រុមការងារនឹងពិនិត្យសារនេះ។",
+    "Thanks! The team will look at it.",
+);
+pub const NOT_SHARED: Text = text(
+    "យល់ព្រម មិនបានរក្សាទុកអ្វីទេ។ អរគុណសម្រាប់មតិរបស់អ្នក!",
+    "OK, nothing was kept. Thanks for telling me!",
+);
+pub const SHARE_FAILED: Text = text(
+    "មិនអាចរក្សាទុកសារនេះបានទេ។ សូមសាកម្តងទៀតពេលក្រោយ។",
+    "Couldn't save this message. Please try again later.",
+);
+pub const REVIEW_DELETE_BUTTON: Text = text("🗑 លុប", "🗑 Delete");
+pub const REVIEW_SAVED: Text = text("បានរក្សាទុក។", "Saved.");
 pub const REVIEW_SCAM_BUTTON: Text = text("✅ ជាការបោកប្រាស់", "✅ Scam");
 pub const REVIEW_CLEAR_BUTTON: Text = text("❎ មិនមែនទេ", "❎ Not a scam");
 pub const REVIEW_SKIP_BUTTON: Text = text("⏭ រំលង", "⏭ Skip");
@@ -213,11 +244,9 @@ const SCREENSHOT_UNREAD: Text = text(
 pub fn forgotten(removed: u64, lang: Lang) -> String {
     match lang {
         Lang::Km => {
-            format!("បានលុបការរាយការណ៍របស់អ្នកចំនួន {removed} រួចហើយ។ CheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។")
+            format!("បានលុបការរាយការណ៍របស់អ្នកចំនួន {removed} និងសារដែលអ្នកបានចែករំលែក រួចហើយ។")
         }
-        Lang::En => format!(
-            "Deleted {removed} of your reports. CheckSen doesn't keep your messages or images."
-        ),
+        Lang::En => format!("Deleted {removed} of your reports, and any message you shared."),
     }
 }
 
@@ -230,6 +259,16 @@ pub enum Level {
 }
 
 impl Level {
+    /// The name stored with feedback.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::HighRisk => "high_risk",
+            Self::Suspicious => "suspicious",
+            Self::NoKnownSignals => "no_known_signals",
+            Self::CantTell => "cant_tell",
+        }
+    }
+
     fn label(self, lang: Lang) -> &'static str {
         match self {
             Self::HighRisk => lang.pick("🔴 ហានិភ័យខ្ពស់", "🔴 High risk"),
@@ -334,11 +373,15 @@ pub struct About<'a> {
 
 /// Telegram HTML: the verdict, one line on what it is, one action, then the details folded away.
 /// A file's name, type and scan results stay outside the fold.
-pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
-    let Some(lead) = checks
+/// The check a reply leads with: the most severe one.
+pub fn lead(checks: &[Check]) -> Option<&Check> {
+    checks
         .iter()
         .min_by_key(|check| std::cmp::Reverse(severity(decide(check))))
-    else {
+}
+
+pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
+    let Some(lead) = lead(checks) else {
         return escape(&no_qr_found(lang));
     };
     let level = decide(lead);
@@ -468,6 +511,26 @@ pub fn review_item(indicator: &Indicator, reporters: i64, lang: Lang) -> String 
         Lang::En => format!(
             "{reporters} people reported this {en} as a scam:\n<code>{value}</code>\n\nIs it a scam?"
         ),
+    }
+}
+
+/// A shared message shown to a reviewer, as Telegram HTML, with what CheckSen said about it.
+pub fn shared_item(text: Option<&str>, level: &str, signals: &[String], lang: Lang) -> String {
+    let said = match signals {
+        [] => escape(level),
+        _ => format!("{} · {}", escape(level), escape(&signals.join(", "))),
+    };
+    let header = match lang {
+        Lang::Km => format!("សារដែលអ្នកប្រើបានចែករំលែក។ CheckSen បានឆ្លើយ៖ <code>{said}</code>"),
+        Lang::En => format!("A message someone shared. CheckSen said: <code>{said}</code>"),
+    };
+    match text {
+        Some(text) => format!(
+            "{header}\n\n<blockquote expandable>{}</blockquote>\n\n{}",
+            escape(&inert(text)),
+            lang.pick("តើវាជាការបោកប្រាស់មែនទេ?", "Is it a scam?")
+        ),
+        None => header,
     }
 }
 
@@ -1706,6 +1769,21 @@ mod tests {
             render(&[check], About::default(), Lang::En)
                 .contains("reviewers confirmed this website")
         );
+    }
+
+    #[test]
+    fn shared_messages_cannot_render_as_links() {
+        let item = shared_item(
+            Some("Pay at <a href=x>scam.example</a>"),
+            "no_known_signals",
+            &[],
+            Lang::En,
+        );
+        assert!(
+            item.contains("&lt;a href=x&gt;scam[.]example&lt;/a&gt;"),
+            "{item}"
+        );
+        assert!(item.contains("<code>no_known_signals</code>"));
     }
 
     #[test]

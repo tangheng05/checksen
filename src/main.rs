@@ -1,5 +1,6 @@
 mod admin;
 mod bot;
+mod feedback;
 mod guard;
 mod reports;
 mod store;
@@ -62,6 +63,9 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    if let Some(store) = store.clone() {
+        tokio::spawn(purge_shared(store));
+    }
     let admins = admin::Admins::from_env()?;
     anyhow::ensure!(
         admins.is_empty() || store.is_some(),
@@ -115,6 +119,11 @@ async fn main() -> anyhow::Result<()> {
                     .filter(admin::is_review)
                     .endpoint(admin::handle_callback),
             )
+            .branch(
+                Update::filter_callback_query()
+                    .filter(feedback::is_feedback)
+                    .endpoint(feedback::handle_callback),
+            )
             .branch(Update::filter_callback_query().endpoint(reports::handle_callback)),
     )
     .dependencies(dptree::deps![services, store])
@@ -157,4 +166,17 @@ fn classifier() -> anyhow::Result<Option<Arc<dyn Classifier>>> {
         "neither ANTHROPIC_API_KEY nor GEMINI_API_KEY is set; text checks use rules only"
     );
     Ok(None)
+}
+
+/// Shared messages are deleted after 30 days, so check every hour.
+async fn purge_shared(store: Arc<store::Store>) {
+    let mut hourly = tokio::time::interval(Duration::from_secs(60 * 60));
+    loop {
+        hourly.tick().await;
+        match store.purge_shared().await {
+            Ok(0) => {}
+            Ok(removed) => tracing::info!(removed, "deleted shared messages older than 30 days"),
+            Err(error) => tracing::warn!(%error, "could not delete old shared messages"),
+        }
+    }
 }

@@ -25,7 +25,7 @@ use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Step, Text};
 
 use crate::admin::{self, Admins};
-use crate::guard::{Admission, Guard, ModelCall, Reply};
+use crate::guard::{Admission, Guard, ModelCall, Reply, Summary};
 use crate::reports;
 use crate::store::Store;
 
@@ -108,6 +108,7 @@ impl Outcome {
                 account: None,
                 reportable: Vec::new(),
                 html: false,
+                summary: None,
             },
             Body::Checks(checks) => {
                 let mut payees = checks.iter().filter_map(|check| match &check.subject {
@@ -118,6 +119,15 @@ impl Outcome {
                     (Some(account), None) => Some(account),
                     _ => None,
                 };
+                let summary = verdict::lead(&checks).map(|lead| Summary {
+                    level: verdict::decide(lead).name(),
+                    subject: lead.subject.name(),
+                    signals: checks
+                        .iter()
+                        .flat_map(|check| &check.signals)
+                        .map(|signal| format!("{signal:?}"))
+                        .collect(),
+                });
                 let verdict = verdict::render(&checks, about, lang);
                 let text = match self.preface {
                     Some(preface) => format!("{}\n\n{verdict}", verdict::escape(preface)),
@@ -128,6 +138,7 @@ impl Outcome {
                     account,
                     reportable: self.reportable,
                     html: true,
+                    summary,
                 }
             }
         };
@@ -484,7 +495,7 @@ fn language(guard: &Guard, sender: u64, msg: &Message) -> Lang {
     guard.language(sender, typed)
 }
 
-fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
+pub fn largest_photo(msg: &Message) -> Option<&PhotoSize> {
     msg.photo()
         .and_then(|sizes| sizes.iter().max_by_key(|size| size.width * size.height))
 }

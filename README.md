@@ -67,12 +67,14 @@ The data, labels and how they were collected are in [`evals/`](evals/README.md).
 
 - Links, and every page they redirect through, are sent to Google Safe Browsing and abuse.ch's URLhaus when they are configured. Links found inside a file are sent without their query string.
 - Files are downloaded into memory (up to Telegram's 20 MB bot limit, or 100 MB with a [local Bot API server](#files-up-to-100-mb)), checked, and discarded. ClamAV runs on the same server, so files never leave it. VirusTotal and abuse.ch's MalwareBazaar get only the file's SHA-256 fingerprint; files are never uploaded. Bigger files are judged by their name and type only.
-- Messages and images are checked in memory and never saved. Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
+- Messages and images are checked in memory and never saved, unless you choose to share one (below). Replies are cached for an hour under a hash of the content, and rate limits use a hash of your Telegram ID, both in memory only.
 - When AI checking is on, message text and screenshots are sent to Google's Gemini API (free tier) to read and classify them. Google may use free-tier inputs to improve its products and have people review them, so `/help` asks you to hide account numbers and personal details first.
 - The language you write in is remembered in memory for 30 days, under a hash of your Telegram ID, so forwarded messages get replies in your language.
 - For a link to a site it doesn't know, the bot opens the page once from its server to read the title. It never opens links to well-known services, so one-time login links aren't used up.
 - If you tap "No" on a KHQR check, or "Report as a scam" on any other check, the bot stores a report against that payment account, phone number, Telegram username or website, linked only to a keyed hash of your Telegram ID. The message itself is never stored. Something is shown as reported only after 3 different people report it, and official sites and Telegram's own accounts can't be reported.
-- `/forget` deletes every report linked to you.
+- 👍/👎 under a reply saves only the risk level, the rules version and the names of the signals found, linked to a keyed hash of your Telegram ID, never the message.
+- After 👎 in a private chat, the bot asks whether you want to share the message with the CheckSen team. Only if you tap Share is its text (or the photo's Telegram file id; files are never shared) stored, for 30 days at most, and only reviewers see it. Text that reviewers label may be added, with personal details removed, to the public test messages in [`evals/`](evals/README.md).
+- `/forget` deletes every report, rating and shared message linked to you.
 
 ## Run it yourself
 

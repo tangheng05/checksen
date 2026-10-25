@@ -37,6 +37,19 @@ pub enum Subject {
     File(Box<FileInfo>),
 }
 
+impl Subject {
+    /// The name stored with feedback.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Unreadable => "unreadable",
+            Self::Text => "text",
+            Self::Khqr(_) => "khqr",
+            Self::Link(_) => "link",
+            Self::File(_) => "file",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal {
     NotKhqr,
