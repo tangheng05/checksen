@@ -52,8 +52,8 @@ const fn text(km: &'static str, en: &'static str) -> Text {
 }
 
 pub const HELP: Text = text(
-    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។ បើខ្ញុំឆ្លើយខុស សូមចុច 👎។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it. If I got something wrong, tap 👎.\n\nCheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។ បើខ្ញុំឆ្លើយខុស សូមចុច 👎។\n\nក្នុងក្រុម admin អាចផ្ញើ /protect ហើយខ្ញុំនឹងព្រមានដោយស្ងាត់ៗ ពេលឃើញសារដែលមានហានិភ័យខ្ពស់។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ លុះត្រាតែអ្នកជ្រើសរើសចែករំលែកវា ក្រោយពេលចុច 👎។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it. If I got something wrong, tap 👎.\n\nIn a group, an admin can send /protect and I'll quietly warn about high-risk messages.\n\nCheckSen doesn't keep your messages or images, unless you choose to share one after tapping 👎. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
 pub const WELCOME: Text = text(
     "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
@@ -217,6 +217,30 @@ pub const WEEKLY_DRAFT: Text = text(
     "Last week's numbers are ready. Check them, then post:",
 );
 pub const STATS_FAILED: Text = text("មិនអាចទាញយកចំនួនបានទេ។", "Couldn't load the numbers.");
+pub const PROTECT_ON: Text = text(
+    "🛡 CheckSen កំពុងការពារក្រុមនេះ។ ខ្ញុំនឹងពិនិត្យសារ តំណ សារបញ្ជូនបន្ត កូដ QR និងឯកសារ ដោយស្ងាត់ៗ ហើយនិយាយតែពេលឃើញហានិភ័យខ្ពស់ប៉ុណ្ណោះ។ សារក្នុងក្រុមនេះមិនត្រូវបានផ្ញើទៅ AI ឬរក្សាទុកឡើយ។ ផ្ញើ /unprotect ដើម្បីបិទ។",
+    "🛡 CheckSen is now protecting this group. I'll quietly check messages, links, forwarded posts, QR codes and files, and only speak up when something is high risk. Messages here are never sent to AI or saved. Send /unprotect to turn this off.",
+);
+pub const PROTECT_NEEDS_ADMIN: Text = text(
+    "🛡 ការការពារបានបើកហើយ។ ជំហានមួយទៀត៖ សូមដាក់ខ្ញុំជា admin របស់ក្រុមនេះ ដើម្បីឱ្យខ្ញុំមើលឃើញសារ។ ខ្ញុំមិនត្រូវការសិទ្ធិពិសេសអ្វីទេ។",
+    "🛡 Protection is on. One more step: make me an admin of this group so I can see its messages. I don't need any special rights.",
+);
+pub const PROTECT_OFF: Text = text(
+    "CheckSen ឈប់ពិនិត្យក្រុមនេះហើយ។ អ្នកនៅតែអាចសួរខ្ញុំបាន ដោយឆ្លើយតបសារមួយ ហើយផ្ញើ /check។",
+    "CheckSen stopped checking this group. You can still ask me by replying to a message with /check.",
+);
+pub const PROTECT_ADMINS_ONLY: Text = text(
+    "មានតែ admin របស់ក្រុមទេ ដែលអាចបើក ឬបិទការការពារបាន។",
+    "Only the group's admins can turn protection on or off.",
+);
+pub const PROTECT_GROUPS_ONLY: Text = text(
+    "សូមបញ្ចូលខ្ញុំទៅក្នុងក្រុម ហើយផ្ញើ /protect នៅទីនោះ ដើម្បីឱ្យខ្ញុំពិនិត្យសារក្នុងក្រុម។",
+    "Add me to a group and send /protect there, and I'll check its messages.",
+);
+pub const PROTECT_FAILED: Text = text(
+    "មិនអាចផ្លាស់ប្តូរបានទេពេលនេះ។ សូមសាកម្តងទៀត។",
+    "Couldn't change that right now. Please try again.",
+);
 pub const REVIEW_DELETE_BUTTON: Text = text("🗑 លុប", "🗑 Delete");
 pub const REVIEW_SAVED: Text = text("បានរក្សាទុក។", "Saved.");
 pub const REVIEW_SCAM_BUTTON: Text = text("✅ ជាការបោកប្រាស់", "✅ Scam");

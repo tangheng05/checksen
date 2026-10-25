@@ -27,6 +27,7 @@ use checksen::verdict::{self, Lang, Level, Step, Text};
 
 use crate::admin::{self, Admins};
 use crate::guard::{Admission, Guard, ModelCall, Reply, Summary};
+use crate::protect::{self, Protected};
 use crate::reports;
 use crate::stats::{self, Stats};
 use crate::store::Store;
@@ -62,6 +63,7 @@ pub struct Services {
     pub admins: Admins,
     pub stats: Arc<Stats>,
     pub alert_channel: Option<Recipient>,
+    pub protected: Protected,
 }
 
 enum Body {
@@ -152,8 +154,16 @@ impl Outcome {
 }
 
 pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> ResponseResult<()> {
+    if let Some(to) = msg.migrate_to_chat_id() {
+        let store = services.store.as_deref();
+        protect::migrate(&services.protected, store, msg.chat.id, *to).await;
+        return Ok(());
+    }
     let command = command(&msg, &me);
     let Some(target) = target(&msg, &me, command) else {
+        if services.protected.contains(msg.chat.id) {
+            return watch(&bot, &msg, &services).await;
+        }
         return Ok(());
     };
     if let Some(group) = target.media_group_id()
@@ -176,6 +186,11 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
             let reply = reports::forget_reply(services.store.as_deref(), user, lang).await;
             answer(&bot, target, reply).await?;
             return Ok(());
+        }
+        Some(name @ ("protect" | "unprotect")) => {
+            let (protected, store) = (&services.protected, services.store.as_deref());
+            let on = name == "protect";
+            return protect::command(&bot, &msg, &me, protected, store, on, lang).await;
         }
         Some(name @ ("review" | "export" | "stats"))
             if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) =>
@@ -278,6 +293,48 @@ async fn respond(
     progress.finish(&reply, keyboard).await
 }
 
+/// Checks a message nobody asked about in a protected group, and replies only on High risk.
+/// Nothing goes to the model, and nothing is shown while it checks.
+async fn watch(bot: &Bot, msg: &Message, services: &Services) -> ResponseResult<()> {
+    let checkable = msg.text().is_some()
+        || msg.caption().is_some()
+        || msg.photo().is_some()
+        || msg.document().is_some();
+    let from_bot = msg.from.as_ref().is_some_and(|user| user.is_bot);
+    if !checkable || from_bot || !services.guard.admit_group(msg.chat.id.0) {
+        return Ok(());
+    }
+    let guard = &services.guard;
+    let lang = language(guard, sender_id(msg), msg);
+    let Some(key) = cache_key(guard, msg, lang) else {
+        return Ok(());
+    };
+    // Quiet checks skip the model, so their replies mustn't mix with ordinary ones.
+    let key = guard.key(("quiet", key));
+    let progress = Progress::quiet(bot, msg, lang);
+    let reply = match guard.cached(key) {
+        Some(reply) => reply,
+        None => {
+            let (reply, cacheable) = check(bot, msg, &[], lang, services, &progress).await;
+            let reply = Arc::new(reply);
+            if cacheable {
+                guard.store(key, reply.clone());
+            }
+            reply
+        }
+    };
+    let Some(summary) = reply
+        .summary
+        .as_ref()
+        .filter(|summary| summary.level == Level::HighRisk.name())
+    else {
+        return Ok(());
+    };
+    services.stats.count(summary);
+    let keyboard = reports::keyboard(services.store.as_deref(), guard, &reply, lang);
+    progress.finish(&reply, keyboard).await
+}
+
 /// Album parts arrive as separate messages, so they're held here until no more come.
 #[derive(Default)]
 pub struct Albums(Mutex<HashMap<(ChatId, String), Album>>);
@@ -325,10 +382,13 @@ impl Albums {
 }
 
 /// A status message for slow checks that ticks off their steps, then is edited into the reply.
+/// How a check reports its steps. A quiet check, in a protected group where nobody asked,
+/// shows no steps and sends nothing to the model.
 struct Progress<'a> {
     bot: &'a Bot,
     to: &'a Message,
     lang: Lang,
+    quiet: bool,
     shown: Mutex<Shown>,
 }
 
@@ -345,12 +405,32 @@ impl<'a> Progress<'a> {
             bot,
             to,
             lang,
+            quiet: false,
             shown: Mutex::default(),
         }
     }
 
+    fn quiet(bot: &'a Bot, to: &'a Message, lang: Lang) -> Self {
+        Self {
+            quiet: true,
+            ..Self::new(bot, to, lang)
+        }
+    }
+
+    /// How long the classifier may take, or None when it must not be asked.
+    fn model(&self, budget: Duration) -> Option<Duration> {
+        (!self.quiet).then_some(budget)
+    }
+
+    fn transcriber<'s>(&self, services: &'s Services) -> Option<&'s dyn Transcriber> {
+        services.transcriber.as_deref().filter(|_| !self.quiet)
+    }
+
     /// Sends the status message on the first step, and edits it on the next ones.
     async fn step(&self, step: Step) {
+        if self.quiet {
+            return;
+        }
         let mut shown = self.shown.lock().await;
         if shown.current == Some(step) {
             return;
@@ -604,7 +684,7 @@ async fn check(
         let checks = reports::with_reports(checks, services.store.as_deref()).await;
         (Outcome::of(checks), None)
     } else if let Some(message) = msg.text() {
-        check_text(msg, message, lang, services).await
+        check_text(msg, message, lang, services, progress).await
     } else if let Some(document) = msg.document() {
         check_document(bot, msg, document, lang, services, progress).await
     } else {
@@ -682,6 +762,7 @@ async fn check_text(
     message: &str,
     lang: Lang,
     services: &Services,
+    progress: &Progress<'_>,
 ) -> (Outcome, Option<MessageKind>) {
     let urls = urls_in(msg);
     let rules = intent::detect(message);
@@ -701,8 +782,14 @@ async fn check_text(
     }
 
     let has_links = !urls.is_empty();
-    let (checks, reading, reportable) =
-        text_checks(message, urls, !has_links, services, CLASSIFIER_BUDGET).await;
+    let (checks, reading, reportable) = text_checks(
+        message,
+        urls,
+        !has_links,
+        services,
+        progress.model(CLASSIFIER_BUDGET),
+    )
+    .await;
     let intent = intent::decide(rules, reading.intent, message);
     let flagged = has_links
         || checks
@@ -721,22 +808,22 @@ async fn check_text(
 }
 
 /// The text check is always shown when `show_text` is set, otherwise only when it found something.
+/// The classifier is asked only with a `budget`.
 async fn text_checks(
     message: &str,
     urls: Vec<Url>,
     show_text: bool,
     services: &Services,
-    budget: Duration,
+    budget: Option<Duration>,
 ) -> (Vec<Check>, Reading, Vec<Indicator>) {
     let text_check = text::check(message);
     // A bare link is covered by the link check; the model only sees real text.
     let classify = prose_chars(message) >= MIN_TEXT_CHARS || !text_check.signals.is_empty();
     let ((text_check, reading), link_checks) = tokio::join!(
         async {
-            if classify {
-                classify_text(text_check, message, services, budget).await
-            } else {
-                (text_check, Reading::default())
+            match budget.filter(|_| classify) {
+                Some(budget) => classify_text(text_check, message, services, budget).await,
+                None => (text_check, Reading::default()),
             }
         },
         join_all(urls.into_iter().map(|url| services.links.check(url)))
@@ -842,7 +929,7 @@ async fn check_document(
             {
                 progress.step(Step::Scan).await;
             }
-            scan(bytes, services).await
+            scan(bytes, services, progress).await
         }
         Err(why) => (Scans::default(), matches!(why, Unread::TooBig(_))),
     };
@@ -886,8 +973,14 @@ async fn check_document(
     }
     let mut reportable = Vec::new();
     if let Some(caption) = msg.caption() {
-        let (caption_checks, _, found) =
-            text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
+        let (caption_checks, _, found) = text_checks(
+            caption,
+            urls_in(msg),
+            false,
+            services,
+            progress.model(CLASSIFIER_BUDGET),
+        )
+        .await;
         checks.extend(caption_checks);
         reportable = found;
     }
@@ -903,7 +996,8 @@ async fn check_document(
 }
 
 /// Runs the configured antivirus checks; the flag is false when one of them failed.
-async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
+/// VirusTotal's small daily allowance is kept for people who asked, not quiet group checks.
+async fn scan(bytes: &[u8], services: &Services, progress: &Progress<'_>) -> (Scans, bool) {
     let sha256 = scan::fingerprint(bytes);
     let clamav = async {
         let clamav = services.clamav.as_ref()?;
@@ -920,7 +1014,7 @@ async fn scan(bytes: &[u8], services: &Services) -> (Scans, bool) {
         }
     };
     let virustotal = async {
-        let virustotal = services.virustotal.as_ref()?;
+        let virustotal = services.virustotal.as_ref().filter(|_| !progress.quiet)?;
         if !services.guard.allow_model_call(ModelCall::FileLookup) {
             tracing::warn!("daily VirusTotal budget used up");
             return Some(Err(()));
@@ -992,7 +1086,7 @@ async fn check_photo(
         Err(error) => {
             tracing::warn!(%error, "photo download failed");
             let failed = Outcome::text(verdict::no_qr_found(lang), false);
-            caption_or(msg, services, failed).await
+            caption_or(msg, services, progress, failed).await
         }
     }
 }
@@ -1017,7 +1111,7 @@ async fn check_image(
         Ok(decoded) => decoded,
         Err(error) => {
             tracing::warn!(%error, "QR decoding failed");
-            return caption_or(msg, services, failed()).await;
+            return caption_or(msg, services, progress, failed()).await;
         }
     };
     if !payloads.is_empty() {
@@ -1029,20 +1123,26 @@ async fn check_image(
         .await;
         let mut checks = reports::with_reports(checks, services.store.as_deref()).await;
         if let Some(caption) = caption {
-            let (caption_checks, _, _) =
-                text_checks(caption, urls_in(msg), false, services, CLASSIFIER_BUDGET).await;
+            let (caption_checks, _, _) = text_checks(
+                caption,
+                urls_in(msg),
+                false,
+                services,
+                progress.model(CLASSIFIER_BUDGET),
+            )
+            .await;
             checks.extend(caption_checks);
         }
         return (Outcome::of(checks), None);
     }
 
-    let Some(transcriber) = services.transcriber.as_deref() else {
-        return caption_or(msg, services, Outcome::of(Vec::new())).await;
+    let Some(transcriber) = progress.transcriber(services) else {
+        return caption_or(msg, services, progress, Outcome::of(Vec::new())).await;
     };
     let unread = || Outcome::text(verdict::screenshot_unread(lang), false);
     if !services.guard.allow_model_call(ModelCall::Screenshot) {
         tracing::warn!("daily screenshot budget used up");
-        return caption_or(msg, services, unread()).await;
+        return caption_or(msg, services, progress, unread()).await;
     }
     progress.step(Step::ReadText).await;
     match llm::transcribe(&image, transcriber, TRANSCRIBE_BUDGET).await {
@@ -1058,18 +1158,18 @@ async fn check_image(
                 urls,
                 show_text,
                 services,
-                SCREENSHOT_CLASSIFIER_BUDGET,
+                progress.model(SCREENSHOT_CLASSIFIER_BUDGET),
             )
             .await;
             (Outcome::of(checks).reporting(reportable), reading.kind)
         }
         Ok(None) => {
             let nothing = Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true);
-            caption_or(msg, services, nothing).await
+            caption_or(msg, services, progress, nothing).await
         }
         Err(error) => {
             tracing::warn!(%error, "screenshot transcription failed");
-            caption_or(msg, services, unread()).await
+            caption_or(msg, services, progress, unread()).await
         }
     }
 }
@@ -1126,7 +1226,7 @@ async fn check_album(
     let mut checks = reports::with_reports(checks, services.store.as_deref()).await;
 
     let mut transcripts = Vec::new();
-    if let Some(transcriber) = services.transcriber.as_deref()
+    if let Some(transcriber) = progress.transcriber(services)
         && !without_qr.is_empty()
     {
         progress.step(Step::ReadText).await;
@@ -1166,7 +1266,8 @@ async fn check_album(
     if !message.is_empty() {
         let urls = urls_in(msg);
         let show_text = !had_qr && urls.is_empty();
-        let (text, reading, found) = text_checks(&message, urls, show_text, services, budget).await;
+        let (text, reading, found) =
+            text_checks(&message, urls, show_text, services, progress.model(budget)).await;
         checks.extend(text);
         reportable = found;
         kind = reading.kind.filter(|_| !had_qr);
@@ -1175,7 +1276,7 @@ async fn check_album(
         Outcome::of(checks).reporting(reportable)
     } else if !complete {
         Outcome::text(verdict::screenshot_unread(lang), false)
-    } else if services.transcriber.is_some() {
+    } else if progress.transcriber(services).is_some() {
         Outcome::text(verdict::NOTHING_IN_PHOTO.get(lang), true)
     } else {
         Outcome::of(checks)
@@ -1194,6 +1295,7 @@ async fn check_album(
 async fn caption_or(
     msg: &Message,
     services: &Services,
+    progress: &Progress<'_>,
     fallback: Outcome,
 ) -> (Outcome, Option<MessageKind>) {
     let Some(caption) = msg.caption() else {
@@ -1201,8 +1303,14 @@ async fn caption_or(
     };
     let urls = urls_in(msg);
     let show_text = urls.is_empty();
-    let (checks, reading, reportable) =
-        text_checks(caption, urls, show_text, services, CLASSIFIER_BUDGET).await;
+    let (checks, reading, reportable) = text_checks(
+        caption,
+        urls,
+        show_text,
+        services,
+        progress.model(CLASSIFIER_BUDGET),
+    )
+    .await;
     let outcome = Outcome::of(checks).reporting(reportable);
     let cacheable = outcome.cacheable && fallback.cacheable;
     (
@@ -1316,6 +1424,20 @@ mod tests {
             "from": {"id": if from_bot { 99 } else { 8 }, "is_bot": from_bot, "first_name": "Dara"},
             "text": "Send me the OTP code now",
         })
+    }
+
+    #[test]
+    fn quiet_checks_never_ask_the_model() {
+        let bot = Bot::new("0:test");
+        let msg = message("group", "Send me the OTP code now", None);
+        assert_eq!(
+            Progress::quiet(&bot, &msg, Lang::En).model(CLASSIFIER_BUDGET),
+            None
+        );
+        assert_eq!(
+            Progress::new(&bot, &msg, Lang::En).model(CLASSIFIER_BUDGET),
+            Some(CLASSIFIER_BUDGET)
+        );
     }
 
     fn target_id(msg: &Message) -> Option<i32> {

@@ -9,6 +9,8 @@ use checksen::analyzers::indicators::Indicator;
 use checksen::verdict::Lang;
 
 const CHECKS_PER_WINDOW: u32 = 30;
+/// Messages nobody asked about in one protected group, so a busy group can't crowd out people.
+const GROUP_CHECKS_PER_WINDOW: u32 = 200;
 const WINDOW: Duration = Duration::from_secs(60 * 60);
 const REPLY_TTL: Duration = Duration::from_secs(60 * 60);
 const MODEL_CALLS_PER_DAY: u32 = 5_000;
@@ -142,6 +144,14 @@ impl Guard {
         }
     }
 
+    /// Quiet checks in a protected group; over the limit, messages just go unchecked.
+    pub fn admit_group(&self, chat: i64) -> bool {
+        let count = self
+            .checks
+            .get_with(self.key(("group", chat)), || Arc::new(AtomicU32::new(0)));
+        count.fetch_add(1, Ordering::Relaxed) < GROUP_CHECKS_PER_WINDOW
+    }
+
     pub fn allow_model_call(&self, call: ModelCall) -> bool {
         let day = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -174,6 +184,17 @@ impl Guard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn busy_groups_go_unchecked_past_their_limit() {
+        let guard = Guard::new();
+        for _ in 0..GROUP_CHECKS_PER_WINDOW {
+            assert!(guard.admit_group(-100));
+        }
+        assert!(!guard.admit_group(-100));
+        assert!(guard.admit_group(-200));
+        assert_eq!(guard.admit(-100i64 as u64), Admission::Allowed);
+    }
 
     #[test]
     fn limits_each_sender_and_notifies_once() {

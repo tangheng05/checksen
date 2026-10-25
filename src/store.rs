@@ -620,6 +620,22 @@ impl Store {
         )
     }
 
+    pub async fn protected_chats(&self) -> anyhow::Result<Vec<i64>> {
+        Ok(sqlx::query_scalar("SELECT chat_id FROM protected_chats")
+            .fetch_all(&self.pool)
+            .await?)
+    }
+
+    pub async fn set_protected(&self, chat: i64, on: bool) -> anyhow::Result<()> {
+        let query = if on {
+            "INSERT INTO protected_chats (chat_id) VALUES ($1) ON CONFLICT DO NOTHING"
+        } else {
+            "DELETE FROM protected_chats WHERE chat_id = $1"
+        };
+        sqlx::query(query).bind(chat).execute(&self.pool).await?;
+        Ok(())
+    }
+
     /// Lets a week be drafted again after its draft couldn't be sent.
     pub async fn unclaim_week(&self, week: NaiveDate) -> anyhow::Result<()> {
         sqlx::query("DELETE FROM weekly_posts WHERE week = $1 AND posted_at IS NULL")
@@ -1009,6 +1025,19 @@ mod tests {
         assert!(!store.mark_posted(week, true).await.unwrap());
         store.mark_posted(week, false).await.unwrap();
         assert!(store.mark_posted(week, true).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn protected_groups_are_saved() {
+        let Some(store) = database().await else {
+            return;
+        };
+        let chat = -(unique_user() as i64 % 1_000_000_000_000);
+        store.set_protected(chat, true).await.unwrap();
+        store.set_protected(chat, true).await.unwrap();
+        assert!(store.protected_chats().await.unwrap().contains(&chat));
+        store.set_protected(chat, false).await.unwrap();
+        assert!(!store.protected_chats().await.unwrap().contains(&chat));
     }
 
     #[tokio::test]

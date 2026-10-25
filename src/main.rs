@@ -2,6 +2,7 @@ mod admin;
 mod bot;
 mod feedback;
 mod guard;
+mod protect;
 mod reports;
 mod stats;
 mod store;
@@ -116,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
         admins,
         stats: stats.clone(),
         alert_channel,
+        protected: protect::Protected::load(store.as_deref()).await?,
     });
     tokio::spawn(stats::send_weekly_drafts(bot.clone(), services.clone()));
 
@@ -180,6 +182,32 @@ async fn register_commands(bot: &Bot, admins: &admin::Admins) {
         ))
         .language_code("en"),
     ];
+    for (help, protect, unprotect, lang) in [
+        (
+            "របៀបប្រើ CheckSen",
+            "ពិនិត្យសារក្នុងក្រុមនេះដោយស្ងាត់ៗ",
+            "ឈប់ពិនិត្យក្រុមនេះ",
+            None,
+        ),
+        (
+            "How to use CheckSen",
+            "Quietly check this group's messages",
+            "Stop checking this group",
+            Some("en"),
+        ),
+    ] {
+        let mut request = bot
+            .set_my_commands(vec![
+                BotCommand::new("help", help),
+                BotCommand::new("protect", protect),
+                BotCommand::new("unprotect", unprotect),
+            ])
+            .scope(BotCommandScope::AllChatAdministrators);
+        if let Some(lang) = lang {
+            request = request.language_code(lang);
+        }
+        requests.push(request);
+    }
     for admin in admins.ids() {
         let scope = BotCommandScope::Chat {
             chat_id: Recipient::Id(ChatId::from(*admin)),
