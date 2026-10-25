@@ -24,6 +24,7 @@ use checksen::analyzers::text::RULES_VERSION;
 use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Step, Text};
 
+use crate::admin::{self, Admins};
 use crate::guard::{Admission, Guard, ModelCall, Reply};
 use crate::reports;
 use crate::store::Store;
@@ -56,6 +57,7 @@ pub struct Services {
     pub max_file_bytes: u32,
     pub big_files: tokio::sync::Semaphore,
     pub albums: Albums,
+    pub admins: Admins,
 }
 
 enum Body {
@@ -157,6 +159,12 @@ pub async fn handle(bot: Bot, msg: Message, me: Me, services: Arc<Services>) -> 
             let user = msg.from.as_ref();
             let reply = reports::forget_reply(services.store.as_deref(), user, lang).await;
             answer(&bot, target, reply).await?;
+            return Ok(());
+        }
+        Some("review") if msg.chat.is_private() && services.admins.contains(msg.from.as_ref()) => {
+            if let Some(store) = services.store.as_deref() {
+                admin::show_next(&bot, msg.chat.id, store, 0, lang).await?;
+            }
             return Ok(());
         }
         Some("start") => Some(&verdict::WELCOME),

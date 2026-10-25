@@ -24,7 +24,7 @@
 | A text message | Common scam patterns in Khmer and English: OTP requests, upfront fees for loans, jobs or prizes, account-freeze threats, fake police or power-cut threats, scam-compound and overseas job ads, charity pleas to personal accounts, "send money before we call" romance scams, extortion, online gambling ads, Telegram accounts posing as bank support, and more |
 | A screenshot of a message | Reads the text in it and checks it the same way as a text message, along with any caption and links |
 | A file | Its real type from its first bytes (a "PDF" that is really an `.exe`), double extensions like `.pdf.exe`, the hidden reverse-text trick, programs and passwords inside `.zip` files, bank-named apps and fake-login web pages. It also looks inside: what an Android app is allowed to do (read SMS codes, control the screen, draw fake login screens), Office macros, PDFs that run scripts or programs, saved web pages that send passwords away, and links inside PDFs and web pages. When set up, it adds a ClamAV scan and VirusTotal and MalwareBazaar lookups. A photo or KHQR screenshot sent as a file gets the same check as a photo |
-| A phone number, username or site that people reported | Warns once 3 different people have reported it with the "🚩 Report as a scam" button, so new scams get flagged before any rule or list knows them |
+| A phone number, username or site that people reported | Warns once 3 different people have reported it with the "🚩 Report as a scam" button, so new scams get flagged before any rule or list knows them. Reviewers then check each one: a confirmed scam is shown as High risk, and one they clear is never flagged again |
 | Who forwarded it | Flags personal accounts named like a bank or Telegram ("ABA Bank Support", "Telegram Security"), since neither writes to people from personal accounts, and names official channels |
 | A message forwarded from Telegram's own account | Confirms it really came from Telegram and warns never to share the login code; it isn't sent to the AI |
 | A question, or "I already paid" | A fixed, reviewed answer: what to do right away if you were scammed, how to report, whether banks ever ask for codes, and what the bot can check |
@@ -92,6 +92,7 @@ cargo run --release --bin checksen
 | `ANTHROPIC_API_KEY` | no | Uses Claude for text checks instead of Gemini |
 | `DATABASE_URL` | no | Postgres for reports (KHQR accounts, phone numbers, usernames, websites); migrations run on start |
 | `HASH_SECRET` | with `DATABASE_URL` | At least 32 random characters, used to hash reporter IDs |
+| `ADMIN_IDS` | no | Comma-separated Telegram user IDs who can `/review` reported contacts and are told when one reaches 3 reports. Needs `DATABASE_URL` |
 | `ABUSECH_AUTH_KEY` | no | Free key from [auth.abuse.ch](https://auth.abuse.ch/) for URLhaus (links that spread malware) and MalwareBazaar (known malware files, by fingerprint). Free under fair use; the bot makes at most 5,000 lookups a day |
 | `SAFE_BROWSING_API_KEY` | no | Free [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) key for checking links against known phishing and malware sites |
 | `CLAMD_ADDRESS` | no | ClamAV daemon, as a socket path (`/var/run/clamav/clamd.ctl`) or `host:port`, for scanning files |

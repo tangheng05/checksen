@@ -49,6 +49,7 @@ pub enum Signal {
     NewDomain,
     Reported(u32),
     ReportedScam(IndicatorKind, u32),
+    ConfirmedScam(IndicatorKind),
     OtpRequest,
     UpfrontFee,
     MoveMoneyOut,
@@ -109,6 +110,7 @@ impl Signal {
                 | Self::KnownMalwareLink
                 | Self::StealsCodes
                 | Self::SendsToAttacker
+                | Self::ConfirmedScam(_)
         )
     }
 
@@ -168,7 +170,8 @@ impl Signal {
             | Self::KnownBadSite(_)
             | Self::KnownMalwareLink
             | Self::StealsCodes
-            | Self::SendsToAttacker => 1.0,
+            | Self::SendsToAttacker
+            | Self::ConfirmedScam(_) => 1.0,
         }
     }
 }

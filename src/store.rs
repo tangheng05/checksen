@@ -1,5 +1,5 @@
 use anyhow::ensure;
-use checksen::analyzers::indicators::Indicator;
+use checksen::analyzers::indicators::{Indicator, IndicatorKind};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
@@ -11,6 +11,70 @@ pub const REPORT_THRESHOLD: i64 = 3;
 const REPORTS_PER_DAY: i64 = 10;
 const MAX_ACCOUNT_BYTES: usize = 32;
 const TAG_BYTES: usize = 8;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Review {
+    #[default]
+    Unreviewed,
+    Confirmed,
+    Cleared,
+}
+
+impl Review {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unreviewed => "unreviewed",
+            Self::Confirmed => "confirmed",
+            Self::Cleared => "cleared",
+        }
+    }
+
+    fn parse(value: &str) -> Self {
+        match value {
+            "confirmed" => Self::Confirmed,
+            "cleared" => Self::Cleared,
+            _ => Self::Unreviewed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Reports {
+    pub reporters: i64,
+    pub review: Review,
+}
+
+/// What a reviewer tapped under a reported contact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decision {
+    Confirm,
+    Clear,
+    Skip,
+}
+
+impl Decision {
+    pub fn review(self) -> Option<Review> {
+        match self {
+            Self::Confirm => Some(Review::Confirmed),
+            Self::Clear => Some(Review::Cleared),
+            Self::Skip => None,
+        }
+    }
+
+    fn code(self) -> char {
+        match self {
+            Self::Confirm => 'c',
+            Self::Clear => 'x',
+            Self::Skip => 's',
+        }
+    }
+}
+
+pub struct ToReview {
+    pub id: i64,
+    pub indicator: Indicator,
+    pub reporters: i64,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReportOutcome {
@@ -90,62 +154,140 @@ impl Store {
         Some((intended, account.to_owned()))
     }
 
-    /// The "report as a scam" button only carries an id; the indicators wait in memory.
-    pub fn report_callback(&self, id: u64) -> String {
-        let id = format!("{id:016x}");
+    fn signed(&self, purpose: &[u8], payload: &str) -> String {
         let tag = self
-            .mac(b"report", &[id.as_bytes()])
+            .mac(purpose, &[payload.as_bytes()])
             .finalize()
             .into_bytes();
-        format!("r:{id}:{}", hex::encode(&tag[..TAG_BYTES]))
+        format!("{payload}:{}", hex::encode(&tag[..TAG_BYTES]))
+    }
+
+    fn verified<'a>(&self, purpose: &[u8], data: &'a str) -> Option<&'a str> {
+        let (payload, tag) = data.rsplit_once(':')?;
+        let tag = hex::decode(tag).ok().filter(|tag| tag.len() == TAG_BYTES)?;
+        self.mac(purpose, &[payload.as_bytes()])
+            .verify_truncated_left(&tag)
+            .ok()?;
+        Some(payload)
+    }
+
+    /// The "report as a scam" button only carries an id; the indicators wait in memory.
+    pub fn report_callback(&self, id: u64) -> String {
+        self.signed(b"report", &format!("r:{id:016x}"))
     }
 
     pub fn verify_report_callback(&self, data: &str) -> Option<u64> {
-        let (id, tag) = data.strip_prefix("r:")?.split_once(':')?;
-        let tag = hex::decode(tag).ok().filter(|tag| tag.len() == TAG_BYTES)?;
-        self.mac(b"report", &[id.as_bytes()])
-            .verify_truncated_left(&tag)
-            .ok()?;
+        let id = self.verified(b"report", data)?.strip_prefix("r:")?;
         u64::from_str_radix(id, 16).ok()
     }
 
-    pub async fn reporters(&self, indicator: &Indicator) -> anyhow::Result<i64> {
+    /// `skipped` is how far into the queue the reviewer is, so Skip can move past an item.
+    pub fn review_callback(&self, decision: Decision, id: i64, skipped: i64) -> String {
+        self.signed(
+            b"review",
+            &format!("v:{}:{id:x}:{skipped:x}", decision.code()),
+        )
+    }
+
+    pub fn verify_review_callback(&self, data: &str) -> Option<(Decision, i64, i64)> {
+        let payload = self.verified(b"review", data)?.strip_prefix("v:")?;
+        let mut parts = payload.split(':');
+        let decision = match parts.next()? {
+            "c" => Decision::Confirm,
+            "x" => Decision::Clear,
+            "s" => Decision::Skip,
+            _ => return None,
+        };
+        let id = i64::from_str_radix(parts.next()?, 16).ok()?;
+        let skipped = i64::from_str_radix(parts.next()?, 16).ok()?;
+        parts.next().is_none().then_some((decision, id, skipped))
+    }
+
+    pub async fn reporters(&self, indicator: &Indicator) -> anyhow::Result<Reports> {
         Ok(self
             .reporters_of(std::slice::from_ref(indicator))
             .await?
             .first()
             .copied()
-            .unwrap_or(0))
+            .unwrap_or_default())
     }
 
-    /// How many people reported each indicator, in one query.
-    pub async fn reporters_of(&self, indicators: &[Indicator]) -> anyhow::Result<Vec<i64>> {
+    /// How many people reported each indicator, and what a reviewer decided, in one query.
+    pub async fn reporters_of(&self, indicators: &[Indicator]) -> anyhow::Result<Vec<Reports>> {
         let kinds: Vec<&str> = indicators.iter().map(|found| found.kind.as_str()).collect();
         let values: Vec<&str> = indicators
             .iter()
             .map(|found| found.value.as_str())
             .collect();
-        let counts: Vec<(i32, i64)> = sqlx::query_as(
-            "SELECT wanted.n::int4, count(DISTINCT r.reporter_hash)
+        let rows: Vec<(i32, String, i64)> = sqlx::query_as(
+            "SELECT wanted.n::int4, i.review,
+                    count(DISTINCT r.reporter_hash) FILTER (WHERE r.status <> 'disputed')
              FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS wanted (kind, value, n)
              JOIN indicators i ON i.kind = wanted.kind AND i.value = wanted.value
-             JOIN reports r ON r.indicator_id = i.id AND r.status <> 'disputed'
-             GROUP BY wanted.n",
+             LEFT JOIN reports r ON r.indicator_id = i.id
+             GROUP BY wanted.n, i.review",
         )
         .bind(&kinds)
         .bind(&values)
         .fetch_all(&self.pool)
         .await?;
-        let mut reporters = vec![0; indicators.len()];
-        for (position, count) in counts {
+        let mut reports = vec![Reports::default(); indicators.len()];
+        for (position, review, reporters) in rows {
             if let Some(slot) = usize::try_from(position - 1)
                 .ok()
-                .and_then(|index| reporters.get_mut(index))
+                .and_then(|index| reports.get_mut(index))
             {
-                *slot = count;
+                *slot = Reports {
+                    reporters,
+                    review: Review::parse(&review),
+                };
             }
         }
-        Ok(reporters)
+        Ok(reports)
+    }
+
+    /// The unreviewed contact `skipped` places down the queue, most reported first.
+    pub async fn next_to_review(&self, skipped: i64) -> anyhow::Result<Option<ToReview>> {
+        let row: Option<(i64, String, String, i64)> = sqlx::query_as(
+            "SELECT i.id, i.kind, i.value, count(DISTINCT r.reporter_hash) AS reporters
+             FROM indicators i
+             JOIN reports r ON r.indicator_id = i.id AND r.status <> 'disputed'
+             WHERE i.review = 'unreviewed'
+             GROUP BY i.id
+             ORDER BY reporters DESC, i.id
+             OFFSET $1 LIMIT 1",
+        )
+        .bind(skipped)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.and_then(|(id, kind, value, reporters)| {
+            Some(ToReview {
+                id,
+                indicator: Indicator {
+                    kind: IndicatorKind::parse(&kind)?,
+                    value,
+                },
+                reporters,
+            })
+        }))
+    }
+
+    /// Records a reviewer's decision and returns what was decided on.
+    pub async fn set_review(&self, id: i64, review: Review) -> anyhow::Result<Option<Indicator>> {
+        let row: Option<(String, String)> = sqlx::query_as(
+            "UPDATE indicators SET review = $2, reviewed_at = now() WHERE id = $1
+             RETURNING kind, value",
+        )
+        .bind(id)
+        .bind(review.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.and_then(|(kind, value)| {
+            Some(Indicator {
+                kind: IndicatorKind::parse(&kind)?,
+                value,
+            })
+        }))
     }
 
     /// Reports each indicator; the outcome is the first that isn't a repeat.
@@ -205,7 +347,7 @@ impl Store {
         })
     }
 
-    /// Deletes a person's reports, and any reported value nobody else reported.
+    /// Deletes a person's reports, and any unreviewed value nobody else reported.
     pub async fn forget(&self, user_id: u64) -> anyhow::Result<u64> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM reports WHERE reporter_hash = $1")
@@ -214,7 +356,8 @@ impl Store {
             .await?
             .rows_affected();
         sqlx::query(
-            "DELETE FROM indicators i WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.indicator_id = i.id)",
+            "DELETE FROM indicators i WHERE i.review = 'unreviewed'
+             AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.indicator_id = i.id)",
         )
         .execute(&mut *tx)
         .await?;
@@ -313,7 +456,7 @@ mod tests {
             ReportOutcome::AlreadyReported
         );
         store.report(&account, first + 1).await.unwrap();
-        assert_eq!(store.reporters(&account).await.unwrap(), 2);
+        assert_eq!(store.reporters(&account).await.unwrap().reporters, 2);
         store
             .report(
                 &Indicator::khqr_account(&account.value.to_uppercase()),
@@ -321,7 +464,10 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(store.reporters(&account).await.unwrap(), REPORT_THRESHOLD);
+        assert_eq!(
+            store.reporters(&account).await.unwrap().reporters,
+            REPORT_THRESHOLD
+        );
     }
 
     #[tokio::test]
@@ -339,7 +485,7 @@ mod tests {
         .execute(&store.pool)
         .await
         .unwrap();
-        assert_eq!(store.reporters(&account).await.unwrap(), 0);
+        assert_eq!(store.reporters(&account).await.unwrap().reporters, 0);
     }
 
     #[tokio::test]
@@ -376,6 +522,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn review_callbacks_round_trip_and_reject_tampering() {
+        let store = offline();
+        let data = store.review_callback(Decision::Clear, i64::MAX, 12);
+        assert!(data.len() <= 64, "{}", data.len());
+        assert_eq!(
+            store.verify_review_callback(&data),
+            Some((Decision::Clear, i64::MAX, 12))
+        );
+        assert!(
+            store
+                .verify_review_callback(&data.replacen("v:x:", "v:c:", 1))
+                .is_none()
+        );
+        let report = store.report_callback(7);
+        assert!(store.verify_review_callback(&report).is_none());
+        assert!(store.verify_report_callback(&data).is_none());
+    }
+
+    #[tokio::test]
+    async fn reviews_are_returned_and_outlast_forget() {
+        let Some(store) = database().await else {
+            return;
+        };
+        let account = unique_account("review");
+        let user = unique_user();
+        store.report(&account, user).await.unwrap();
+        let id: i64 = sqlx::query_scalar("SELECT id FROM indicators WHERE value = $1")
+            .bind(&account.value)
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            store.set_review(id, Review::Confirmed).await.unwrap(),
+            Some(account.clone())
+        );
+        store.forget(user).await.unwrap();
+        assert_eq!(
+            store.reporters(&account).await.unwrap(),
+            Reports {
+                reporters: 0,
+                review: Review::Confirmed
+            }
+        );
+    }
+
+    #[tokio::test]
     async fn phones_usernames_and_sites_are_counted_together() {
         let Some(store) = database().await else {
             return;
@@ -395,13 +587,14 @@ mod tests {
             ReportOutcome::Recorded
         );
         store.report(&phone, user + 1).await.unwrap();
-        assert_eq!(
-            store
-                .reporters_of(&[site, phone, same_value_other_kind])
-                .await
-                .unwrap(),
-            [1, 2, 0]
-        );
+        let reporters: Vec<i64> = store
+            .reporters_of(&[site, phone, same_value_other_kind])
+            .await
+            .unwrap()
+            .iter()
+            .map(|reports| reports.reporters)
+            .collect();
+        assert_eq!(reporters, [1, 2, 0]);
     }
 
     #[tokio::test]
@@ -413,7 +606,7 @@ mod tests {
         let user = unique_user();
         store.report(&account, user).await.unwrap();
         assert_eq!(store.forget(user).await.unwrap(), 1);
-        assert_eq!(store.reporters(&account).await.unwrap(), 0);
+        assert_eq!(store.reporters(&account).await.unwrap().reporters, 0);
         let left: i64 = sqlx::query_scalar("SELECT count(*) FROM indicators WHERE value = $1")
             .bind(&account.value)
             .fetch_one(&store.pool)

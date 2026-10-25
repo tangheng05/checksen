@@ -28,6 +28,17 @@ impl IndicatorKind {
             Self::Domain => "domain",
         }
     }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        [
+            Self::KhqrAccount,
+            Self::Phone,
+            Self::TelegramUsername,
+            Self::Domain,
+        ]
+        .into_iter()
+        .find(|kind| kind.as_str() == name)
+    }
 }
 
 /// A normalized value, so the same number or site written two ways counts as one.

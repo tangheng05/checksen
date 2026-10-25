@@ -9,7 +9,7 @@ use checksen::verdict::{self, Lang};
 
 use crate::bot::Services;
 use crate::guard::{Guard, Reply};
-use crate::store::{REPORT_THRESHOLD, ReportOutcome, Store};
+use crate::store::{REPORT_THRESHOLD, ReportOutcome, Reports, Review, Store};
 
 /// A KHQR reply asks whether the payee is who they meant to pay; other replies with a phone
 /// number, username or unknown site in them offer to report it.
@@ -91,7 +91,11 @@ pub async fn handle_callback(
         thanks
     } else {
         match store.report_all(&indicators, reporter).await {
-            Ok(ReportOutcome::Recorded | ReportOutcome::AlreadyReported) => thanks,
+            Ok(ReportOutcome::Recorded) => {
+                notify_if_due(&bot, store, &services, &indicators).await;
+                thanks
+            }
+            Ok(ReportOutcome::AlreadyReported) => thanks,
             Ok(ReportOutcome::DailyLimit) => &verdict::REPORT_LIMIT,
             Err(error) => {
                 tracing::warn!(%error, "report failed");
@@ -103,6 +107,24 @@ pub async fn handle_callback(
     Ok(())
 }
 
+/// Tells reviewers when a contact has just reached enough reports to warn people.
+async fn notify_if_due(bot: &Bot, store: &Store, services: &Services, indicators: &[Indicator]) {
+    if services.admins.is_empty() {
+        return;
+    }
+    match store.reporters_of(indicators).await {
+        Ok(reports)
+            if reports.iter().any(|reports| {
+                reports.reporters == REPORT_THRESHOLD && reports.review == Review::Unreviewed
+            }) =>
+        {
+            services.admins.notify(bot, &services.guard).await;
+        }
+        Ok(_) => {}
+        Err(error) => tracing::warn!(%error, "report lookup failed"),
+    }
+}
+
 pub async fn with_reports(mut checks: Vec<Check>, store: Option<&Store>) -> Vec<Check> {
     let Some(store) = store else {
         return checks;
@@ -111,20 +133,29 @@ pub async fn with_reports(mut checks: Vec<Check>, store: Option<&Store>) -> Vec<
         let Subject::Khqr(payee) = &check.subject else {
             continue;
         };
-        match store
-            .reporters(&Indicator::khqr_account(&payee.bakong_account_id))
-            .await
-        {
-            Ok(reporters) if reporters >= REPORT_THRESHOLD => {
-                check.signals.push(Signal::Reported(
-                    u32::try_from(reporters).unwrap_or(u32::MAX),
-                ));
-            }
-            Ok(_) => {}
+        let account = Indicator::khqr_account(&payee.bakong_account_id);
+        match store.reporters(&account).await {
+            Ok(reports) => check.signals.extend(signal(account.kind, reports)),
             Err(error) => tracing::warn!(%error, "report lookup failed"),
         }
     }
     checks
+}
+
+/// A reviewer's decision wins; until there is one, enough reporters make it suspicious.
+fn signal(kind: IndicatorKind, reports: Reports) -> Option<Signal> {
+    match reports.review {
+        Review::Confirmed => Some(Signal::ConfirmedScam(kind)),
+        Review::Cleared => None,
+        Review::Unreviewed if reports.reporters >= REPORT_THRESHOLD => {
+            let reporters = u32::try_from(reports.reporters).unwrap_or(u32::MAX);
+            Some(match kind {
+                IndicatorKind::KhqrAccount => Signal::Reported(reporters),
+                _ => Signal::ReportedScam(kind, reporters),
+            })
+        }
+        Review::Unreviewed => None,
+    }
 }
 
 /// The site a link check ended up on, as a reportable indicator.
@@ -135,8 +166,8 @@ pub fn link_domain(check: &Check) -> Option<Indicator> {
     Indicator::domain(link.redirected_to.as_deref().unwrap_or(&link.host))
 }
 
-/// Adds `ReportedScam` where enough people reported a contact: sites to their link check,
-/// phone numbers and usernames to the text check.
+/// Flags reported contacts: sites on their link check, phone numbers and usernames on the
+/// text check.
 pub async fn flag_reported(
     store: Option<&Store>,
     indicators: &[Indicator],
@@ -146,19 +177,17 @@ pub async fn flag_reported(
     let Some(store) = store.filter(|_| !indicators.is_empty()) else {
         return;
     };
-    let reporters = match store.reporters_of(indicators).await {
-        Ok(reporters) => reporters,
+    let reports = match store.reporters_of(indicators).await {
+        Ok(reports) => reports,
         Err(error) => {
             tracing::warn!(%error, "report lookup failed");
             return;
         }
     };
-    for (indicator, reporters) in indicators.iter().zip(reporters) {
-        if reporters < REPORT_THRESHOLD {
+    for (indicator, reports) in indicators.iter().zip(reports) {
+        let Some(signal) = signal(indicator.kind, reports) else {
             continue;
-        }
-        let signal =
-            Signal::ReportedScam(indicator.kind, u32::try_from(reporters).unwrap_or(u32::MAX));
+        };
         let check = match indicator.kind {
             IndicatorKind::Domain => link_checks
                 .iter_mut()
@@ -166,12 +195,19 @@ pub async fn flag_reported(
             _ => Some(&mut *text_check),
         };
         if let Some(check) = check
-            && !check.signals.iter().any(
-                |found| matches!(found, Signal::ReportedScam(kind, _) if *kind == indicator.kind),
-            )
+            && !check.signals.iter().any(|found| same_kind(*found, signal))
         {
             check.signals.push(signal);
         }
+    }
+}
+
+/// One reason per kind of contact is enough, so two reported numbers aren't listed twice.
+fn same_kind(found: Signal, signal: Signal) -> bool {
+    match (found, signal) {
+        (Signal::ReportedScam(found, _), Signal::ReportedScam(kind, _)) => found == kind,
+        (Signal::ConfirmedScam(found), Signal::ConfirmedScam(kind)) => found == kind,
+        _ => false,
     }
 }
 
@@ -180,6 +216,32 @@ mod tests {
     use checksen::analyzers::text;
 
     use super::*;
+
+    #[test]
+    fn a_review_decides_over_the_report_count() {
+        let reports = |reporters, review| Reports { reporters, review };
+        let phone = IndicatorKind::Phone;
+        assert_eq!(
+            signal(phone, reports(0, Review::Confirmed)),
+            Some(Signal::ConfirmedScam(phone))
+        );
+        assert_eq!(signal(phone, reports(50, Review::Cleared)), None);
+        assert_eq!(
+            signal(phone, reports(REPORT_THRESHOLD - 1, Review::Unreviewed)),
+            None
+        );
+        assert_eq!(
+            signal(phone, reports(REPORT_THRESHOLD, Review::Unreviewed)),
+            Some(Signal::ReportedScam(phone, 3))
+        );
+        assert_eq!(
+            signal(
+                IndicatorKind::KhqrAccount,
+                reports(REPORT_THRESHOLD, Review::Unreviewed)
+            ),
+            Some(Signal::Reported(3))
+        );
+    }
 
     #[tokio::test]
     async fn contacts_reported_by_enough_people_are_flagged() {

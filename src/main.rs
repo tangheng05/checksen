@@ -1,3 +1,4 @@
+mod admin;
 mod bot;
 mod guard;
 mod reports;
@@ -61,6 +62,12 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    let admins = admin::Admins::from_env()?;
+    anyhow::ensure!(
+        admins.is_empty() || store.is_some(),
+        "ADMIN_IDS needs DATABASE_URL, since reviews are saved there"
+    );
+
     let token = env_var("TELOXIDE_TOKEN").context("set TELOXIDE_TOKEN (see .env.example)")?;
     let (bot, max_file_mb) = match env_var("TELEGRAM_API_URL") {
         Some(url) => {
@@ -96,12 +103,18 @@ async fn main() -> anyhow::Result<()> {
         max_file_bytes: max_file_mb * 1024 * 1024,
         big_files: tokio::sync::Semaphore::new(2),
         albums: bot::Albums::default(),
+        admins,
     });
 
     Dispatcher::builder(
         bot,
         dptree::entry()
             .branch(Update::filter_message().endpoint(bot::handle))
+            .branch(
+                Update::filter_callback_query()
+                    .filter(admin::is_review)
+                    .endpoint(admin::handle_callback),
+            )
             .branch(Update::filter_callback_query().endpoint(reports::handle_callback)),
     )
     .dependencies(dptree::deps![services, store])

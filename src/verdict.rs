@@ -1,7 +1,7 @@
 use khqr_core::{Currency, DecodedKhqr};
 
 use crate::analyzers::file::{Detector, FileInfo, FileKind, Unread, VirusTotal};
-use crate::analyzers::indicators::IndicatorKind;
+use crate::analyzers::indicators::{Indicator, IndicatorKind};
 use crate::analyzers::inside::Power;
 use crate::analyzers::intent::Intent;
 use crate::analyzers::link::{self, LinkInfo};
@@ -52,8 +52,8 @@ const fn text(km: &'static str, en: &'static str) -> Text {
 }
 
 pub const HELP: Text = text(
-    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
-    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
+    "សូមផ្ញើសារ តំណ (link) កូដ KHQR រូបថតអេក្រង់ ឬឯកសារ ដែលអ្នកសង្ស័យ មកទីនេះ។ ខ្ញុំនឹងប្រាប់ថា QR បង់ប្រាក់ទៅអ្នកណា តំណនាំទៅគេហទំព័រណា ឯកសារនោះជាអ្វីពិតប្រាកដ និងសារនោះមានសញ្ញាបោកប្រាស់ឬអត់។\n\nបើអ្នកដឹងថាវាជាការបោកប្រាស់ ចុច 🚩 នៅក្រោមចម្លើយរបស់ខ្ញុំ។ ពេលមានអ្នក ៣ នាក់រាយការណ៍ CheckSen នឹងព្រមានអ្នកដទៃ ហើយក្រុមការងាររបស់យើងនឹងពិនិត្យវា។\n\nCheckSen មិនរក្សាទុកសារ ឬរូបភាពរបស់អ្នកទេ។ ដើម្បីពិនិត្យ អត្ថបទ និងរូបភាពអាចត្រូវបានផ្ញើទៅសេវា AI របស់ក្រុមហ៊ុនខាងក្រៅ ដែលអាចយកទៅកែលម្អសេវារបស់គេ ហើយមនុស្សអាចមើលឃើញ។ សូមបិទលេខគណនី និងព័ត៌មានផ្ទាល់ខ្លួនសិន មុនផ្ញើ។",
+    "Send me a message, link, KHQR code, screenshot or file you're unsure about. I'll tell you who a QR really pays, where a link goes, what a file really is, and whether a message has scam signs.\n\nIf you know it's a scam, tap 🚩 under my reply. Once 3 people report it, CheckSen warns others, and our team reviews it.\n\nCheckSen doesn't keep your messages or images. To check them, text and images may be sent to an outside company's AI service, which may use them to improve its service and let people see them. Please hide account numbers and personal details before sending.",
 );
 pub const WELCOME: Text = text(
     "សួស្តី! ខ្ញុំជា CheckSen 👋\nមុនចុចតំណ ឬបង់ប្រាក់ ផ្ញើវាមកខ្ញុំពិនិត្យសិន៖\n• សារដែលអ្នកសង្ស័យ (forward មកក៏បាន)\n• តំណ (link)\n• រូប KHQR ឬរូបថតអេក្រង់\n• ឯកសារ ដូចជា .apk\n\nខ្ញុំនឹងប្រាប់កម្រិតហានិភ័យ និងហេតុផល ក្នុងរយៈពេលប៉ុន្មានវិនាទី។ ចុច /help ដើម្បីដឹងបន្ថែម។\n\nI reply in English too: just write to me in English.",
@@ -165,6 +165,18 @@ pub const SCAM_REPORTED: Text = text(
     "Thanks for reporting. If others report it too, CheckSen will warn people about it.",
 );
 pub const REPORT_BUTTON: Text = text("🚩 រាយការណ៍ថាជាការបោកប្រាស់", "🚩 Report as a scam");
+pub const REVIEW_SCAM_BUTTON: Text = text("✅ ជាការបោកប្រាស់", "✅ Scam");
+pub const REVIEW_CLEAR_BUTTON: Text = text("❎ មិនមែនទេ", "❎ Not a scam");
+pub const REVIEW_SKIP_BUTTON: Text = text("⏭ រំលង", "⏭ Skip");
+pub const REVIEW_EMPTY: Text = text("គ្មានការរាយការណ៍ដែលត្រូវពិនិត្យទៀតទេ។", "Nothing left to review.");
+pub const REVIEW_DUE: Text = text(
+    "មានការរាយការណ៍ថ្មីដែលត្រូវពិនិត្យ។ ចុច /review",
+    "A reported contact is ready to review. Tap /review",
+);
+pub const REVIEW_FAILED: Text = text(
+    "មិនអាចរក្សាទុកការសម្រេចបានទេ។ សូមសាកម្តងទៀត។",
+    "Couldn't save that decision. Please try again.",
+);
 pub const REPORT_EXPIRED: Text = text(
     "ប៊ូតុងនេះផុតកំណត់ហើយ។ សូមផ្ញើសារនោះមកម្តងទៀត ដើម្បីរាយការណ៍។",
     "This button has expired. Send the message again to report it.",
@@ -442,6 +454,33 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
         ));
     }
     lines.join("\n")
+}
+
+/// A reported contact shown to a reviewer, as Telegram HTML.
+pub fn review_item(indicator: &Indicator, reporters: i64, lang: Lang) -> String {
+    let (km, en) = indicator_name(indicator.kind);
+    let value = escape(&inert(&indicator.value));
+    match lang {
+        Lang::Km => format!(
+            "មានអ្នកប្រើ {} នាក់ បានរាយការណ៍ថា{km}នេះជាការបោកប្រាស់៖\n<code>{value}</code>\n\nតើវាជាការបោកប្រាស់មែនទេ?",
+            khmer_digits(reporters)
+        ),
+        Lang::En => format!(
+            "{reporters} people reported this {en} as a scam:\n<code>{value}</code>\n\nIs it a scam?"
+        ),
+    }
+}
+
+/// What a reviewer decided, as Telegram HTML.
+pub fn reviewed(indicator: &Indicator, scam: bool, lang: Lang) -> String {
+    let value = escape(&inert(&indicator.value));
+    let decision = match (scam, lang) {
+        (true, Lang::Km) => "✅ បានបញ្ជាក់ថាជាការបោកប្រាស់៖",
+        (true, Lang::En) => "✅ Confirmed as a scam:",
+        (false, Lang::Km) => "❎ បានសម្គាល់ថាមិនមែនជាការបោកប្រាស់៖",
+        (false, Lang::En) => "❎ Marked as not a scam:",
+    };
+    format!("{decision} <code>{value}</code>")
 }
 
 pub fn escape(text: &str) -> String {
@@ -1028,12 +1067,7 @@ fn reason(signal: Signal, lang: Lang) -> String {
             };
         }
         Signal::ReportedScam(kind, reporters) => {
-            let (km, en) = match kind {
-                IndicatorKind::Phone => ("លេខទូរស័ព្ទ", "phone number"),
-                IndicatorKind::TelegramUsername => ("គណនី Telegram", "Telegram account"),
-                IndicatorKind::Domain => ("គេហទំព័រ", "website"),
-                IndicatorKind::KhqrAccount => ("គណនី", "account"),
-            };
+            let (km, en) = indicator_name(kind);
             return match lang {
                 Lang::Km => format!(
                     "មានអ្នកប្រើ {} នាក់ បានរាយការណ៍ថា{km}ក្នុងសារនេះជាការបោកប្រាស់។",
@@ -1042,6 +1076,15 @@ fn reason(signal: Signal, lang: Lang) -> String {
                 Lang::En => {
                     format!("{reporters} people reported the {en} in this message as a scam.")
                 }
+            };
+        }
+        Signal::ConfirmedScam(kind) => {
+            let (km, en) = indicator_name(kind);
+            return match lang {
+                Lang::Km => {
+                    format!("ក្រុមការងារ CheckSen បានពិនិត្យ និងបញ្ជាក់ថា{km}នេះត្រូវបានប្រើដើម្បីបោកប្រាស់។")
+                }
+                Lang::En => format!("CheckSen's reviewers confirmed this {en} is used in scams."),
             };
         }
         Signal::Model { category, .. } => {
@@ -1397,6 +1440,15 @@ fn kind_name(kind: Kind, lang: Lang) -> &'static str {
     lang.pick(km, en)
 }
 
+fn indicator_name(kind: IndicatorKind) -> (&'static str, &'static str) {
+    match kind {
+        IndicatorKind::Phone => ("លេខទូរស័ព្ទ", "phone number"),
+        IndicatorKind::TelegramUsername => ("គណនី Telegram", "Telegram account"),
+        IndicatorKind::Domain => ("គេហទំព័រ", "website"),
+        IndicatorKind::KhqrAccount => ("គណនី", "account"),
+    }
+}
+
 fn defang(host: &str) -> String {
     host.replace('.', "[.]")
 }
@@ -1641,6 +1693,33 @@ mod tests {
         };
         assert_eq!(decide(&check), Level::Suspicious);
         assert!(render_km(&[check]).contains("មានអ្នកប្រើ ៤ នាក់ បានរាយការណ៍ថាលេខទូរស័ព្ទ"));
+    }
+
+    #[test]
+    fn contacts_confirmed_by_reviewers_are_high_risk() {
+        let check = Check {
+            subject: Subject::Text,
+            signals: vec![Signal::ConfirmedScam(IndicatorKind::Domain)],
+        };
+        assert_eq!(decide(&check), Level::HighRisk);
+        assert!(
+            render(&[check], About::default(), Lang::En)
+                .contains("reviewers confirmed this website")
+        );
+    }
+
+    #[test]
+    fn review_items_cannot_render_as_links() {
+        let site = Indicator {
+            kind: IndicatorKind::Domain,
+            value: "evil.example<b>".to_owned(),
+        };
+        let item = review_item(&site, 3, Lang::En);
+        assert!(
+            item.contains("<code>evil[.]example&lt;b&gt;</code>"),
+            "{item}"
+        );
+        assert!(reviewed(&site, true, Lang::Km).starts_with("✅"));
     }
 
     #[test]
