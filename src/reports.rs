@@ -263,11 +263,13 @@ mod tests {
         let store = Store::connect(&url, "test-secret-that-is-at-least-32-bytes")
             .await
             .unwrap();
-        let user = std::time::SystemTime::now()
+        // Some clocks round nanoseconds to microseconds, so take the number from those.
+        let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos() as u64;
-        let message = format!("Call 0{} now", 12_000_000 + user % 1_000_000);
+            .as_micros() as u64;
+        let user = micros * 1000;
+        let message = format!("Call 0{} now", 12_000_000 + micros % 1_000_000);
         let found = checksen::analyzers::indicators::in_text(&message);
         for reporter in 0..REPORT_THRESHOLD as u64 {
             store.report_all(&found, user + reporter).await.unwrap();

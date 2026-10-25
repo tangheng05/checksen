@@ -762,11 +762,15 @@ mod tests {
         Indicator::khqr_account(&format!("{label}{}@test", nanos % 1_000_000_000_000))
     }
 
+    /// Microseconds differ between runs (some clocks round nanoseconds to them), and the
+    /// counter between tests running at once; tests add small offsets for extra reporters.
     fn unique_user() -> u64 {
-        std::time::SystemTime::now()
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos() as u64
+            .as_micros() as u64;
+        micros * 1000 + NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 10 * 100
     }
 
     #[tokio::test]
@@ -1016,7 +1020,7 @@ mod tests {
             return;
         };
         let week = NaiveDate::from_ymd_opt(1990, 1, 1).unwrap()
-            + chrono::Days::new(7 * (unique_user() % 100_000));
+            + chrono::Days::new(7 * (unique_user() / 100 % 1_000_000));
         assert!(store.claim_week(week).await.unwrap());
         assert!(!store.claim_week(week).await.unwrap());
         store.unclaim_week(week).await.unwrap();
@@ -1025,6 +1029,11 @@ mod tests {
         assert!(!store.mark_posted(week, true).await.unwrap());
         store.mark_posted(week, false).await.unwrap();
         assert!(store.mark_posted(week, true).await.unwrap());
+        sqlx::query("DELETE FROM weekly_posts WHERE week = $1")
+            .bind(week)
+            .execute(&store.pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
