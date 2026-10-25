@@ -69,7 +69,7 @@ async fn rate(
         }
         Err(error) => {
             tracing::warn!(%error, "could not save feedback");
-            toast(&verdict::SHARE_FAILED).await?;
+            toast(&verdict::FEEDBACK_FAILED).await?;
             return Ok(());
         }
     };

@@ -620,6 +620,15 @@ impl Store {
         )
     }
 
+    /// Lets a week be drafted again after its draft couldn't be sent.
+    pub async fn unclaim_week(&self, week: NaiveDate) -> anyhow::Result<()> {
+        sqlx::query("DELETE FROM weekly_posts WHERE week = $1 AND posted_at IS NULL")
+            .bind(week)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Marks a week posted, or not again after a failed post. True when it changed, so a
     /// second tap doesn't post twice.
     pub async fn mark_posted(&self, week: NaiveDate, posted: bool) -> anyhow::Result<bool> {
@@ -994,6 +1003,8 @@ mod tests {
             + chrono::Days::new(7 * (unique_user() % 100_000));
         assert!(store.claim_week(week).await.unwrap());
         assert!(!store.claim_week(week).await.unwrap());
+        store.unclaim_week(week).await.unwrap();
+        assert!(store.claim_week(week).await.unwrap());
         assert!(store.mark_posted(week, true).await.unwrap());
         assert!(!store.mark_posted(week, true).await.unwrap());
         store.mark_posted(week, false).await.unwrap();

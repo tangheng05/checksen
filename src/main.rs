@@ -20,7 +20,7 @@ use checksen::analyzers::reputation::SafeBrowsing;
 use checksen::analyzers::scan::{ClamAv, VirusTotalClient};
 use checksen::env_var;
 use teloxide::prelude::*;
-use teloxide::types::BotCommand;
+use teloxide::types::{BotCommand, BotCommandScope, Recipient};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
         // The most a bot may download through Telegram's own servers.
         None => (Bot::new(token), 20),
     };
-    register_commands(&bot).await;
+    register_commands(&bot, &admins).await;
     let clamav = ClamAv::from_env();
     if clamav.is_none() {
         tracing::warn!("CLAMD_ADDRESS is not set; files are not scanned with ClamAV");
@@ -152,19 +152,62 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn register_commands(bot: &Bot) {
-    let commands = |help: &str, forget: &str| {
+/// Everyone sees /help and /forget; reviewers also see their commands, in their own chat.
+async fn register_commands(bot: &Bot, admins: &admin::Admins) {
+    let everyone = |help: &str, forget: &str| {
         vec![
             BotCommand::new("help", help),
             BotCommand::new("forget", forget),
         ]
     };
-    let khmer = bot.set_my_commands(commands("របៀបប្រើ CheckSen", "លុបការរាយការណ៍របស់ខ្ញុំ"));
-    let english = bot
-        .set_my_commands(commands("How to use CheckSen", "Delete my reports"))
-        .language_code("en");
-    for result in [khmer.await, english.await] {
-        if let Err(error) = result {
+    let reviewer = |help: &str, forget: &str, review: &str, export: &str, stats: &str| {
+        let mut commands = everyone(help, forget);
+        commands.extend([
+            BotCommand::new("review", review),
+            BotCommand::new("export", export),
+            BotCommand::new("stats", stats),
+        ]);
+        commands
+    };
+    let mut requests = vec![
+        bot.set_my_commands(everyone(
+            "របៀបប្រើ CheckSen",
+            "លុបការរាយការណ៍ និងសារដែលខ្ញុំបានចែករំលែក",
+        )),
+        bot.set_my_commands(everyone(
+            "How to use CheckSen",
+            "Delete my reports and shared messages",
+        ))
+        .language_code("en"),
+    ];
+    for admin in admins.ids() {
+        let scope = BotCommandScope::Chat {
+            chat_id: Recipient::Id(ChatId::from(*admin)),
+        };
+        requests.push(
+            bot.set_my_commands(reviewer(
+                "របៀបប្រើ CheckSen",
+                "លុបការរាយការណ៍ និងសារដែលខ្ញុំបានចែករំលែក",
+                "ពិនិត្យការរាយការណ៍ និងសារដែលបានចែករំលែក",
+                "នាំចេញសារដែលបានសម្គាល់",
+                "ចំនួនក្នុង ៧ ថ្ងៃចុងក្រោយ",
+            ))
+            .scope(scope.clone()),
+        );
+        requests.push(
+            bot.set_my_commands(reviewer(
+                "How to use CheckSen",
+                "Delete my reports and shared messages",
+                "Review reports and shared messages",
+                "Export labelled messages as test rows",
+                "Numbers for the last 7 days",
+            ))
+            .scope(scope)
+            .language_code("en"),
+        );
+    }
+    for request in requests {
+        if let Err(error) = request.await {
             tracing::warn!(%error, "could not register bot commands");
         }
     }

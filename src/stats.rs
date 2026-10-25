@@ -87,21 +87,19 @@ pub async fn send_weekly_drafts(bot: Bot, services: Arc<Services>) {
     let Some(store) = services.store.as_deref() else {
         return;
     };
-    let me = match bot.get_me().await {
-        Ok(me) => me,
-        Err(error) => {
-            tracing::warn!(%error, "could not look up the bot's name; no weekly numbers");
-            return;
-        }
-    };
     let mut hourly = tokio::time::interval(Duration::from_secs(60 * 60));
     loop {
         hourly.tick().await;
         let last_week = monday_of(today()) - Days::new(7);
+        // Counts still in memory belong to the week that just ended.
+        services.stats.flush(store).await;
         match store.claim_week(last_week).await {
             Ok(true) => {
-                if let Err(error) = send_draft(&bot, &services, store, last_week, &me).await {
-                    tracing::warn!(%error, "could not send the weekly numbers");
+                if let Err(error) = send_draft(&bot, &services, store, last_week).await {
+                    tracing::warn!(%error, "could not send the weekly numbers; retrying next hour");
+                    if let Err(error) = store.unclaim_week(last_week).await {
+                        tracing::warn!(%error, "could not retry the weekly numbers");
+                    }
                 }
             }
             Ok(false) => {}
@@ -115,10 +113,9 @@ async fn send_draft(
     services: &Services,
     store: &Store,
     week: NaiveDate,
-    me: &Me,
 ) -> anyhow::Result<()> {
-    let post = post(store, week, me).await?;
-    let Some(post) = post else {
+    let me = bot.get_me().await?;
+    let Some(post) = post(store, week, &me).await? else {
         return Ok(());
     };
     for admin in services.admins.ids() {
