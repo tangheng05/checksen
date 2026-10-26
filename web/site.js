@@ -210,6 +210,64 @@
     picks.querySelectorAll(".bar").forEach((b) => (b.style.animationPlayState = e.isIntersecting ? "running" : "paused"));
   }, { threshold: 0.3 }).observe($("demo"));
 
+  // ---------- Voice tile: plays the note and shows what the bot heard ----------
+
+  document.querySelectorAll(".vn[data-audio]").forEach((vn) => {
+    const btn = vn.querySelector(".play");
+    const bars = [...vn.querySelectorAll(".wave b")];
+    const clock = vn.querySelector("small");
+    const heard = vn.closest(".mcol").querySelector(".heard");
+    const audio = new Audio();
+    audio.preload = "none";
+    // Without the clip (missing file, blocked audio) the note still plays through, silently.
+    let silent = false, playing = false, t0 = 0, offset = 0, raf = 0;
+    const dur = () => (!silent && isFinite(audio.duration) ? audio.duration : 12);
+    const now = () => (silent ? offset + (playing ? (performance.now() - t0) / 1000 : 0) : audio.currentTime);
+    const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    const set = (on) => {
+      playing = on;
+      vn.classList.toggle("playing", on);
+      btn.setAttribute("aria-label", t(on ? { km: "ផ្អាក", en: "Pause" } : { km: "ស្ដាប់សារសំឡេង", en: "Play the voice message" }));
+    };
+    const draw = () => {
+      const s = Math.min(now(), dur());
+      const lit = Math.round((s / dur()) * bars.length);
+      bars.forEach((b, i) => b.classList.toggle("on", i < lit));
+      clock.textContent = mmss(playing || s > 0 ? s : dur());
+      if (playing && silent && s >= dur()) end();
+      else if (playing) raf = requestAnimationFrame(draw);
+    };
+    const end = () => {
+      set(false);
+      cancelAnimationFrame(raf);
+      offset = 0;
+      if (!silent) audio.currentTime = 0;
+      draw();
+    };
+    const fallback = () => {
+      silent = true;
+      t0 = performance.now();
+      draw();
+    };
+    const play = () => {
+      heard.hidden = false;
+      set(true);
+      if (silent) return fallback();
+      if (!audio.src) audio.src = vn.dataset.audio;
+      audio.play().then(() => (playing ? draw() : audio.pause()), () => playing && fallback());
+    };
+    const pause = () => {
+      if (silent) offset = now();
+      else audio.pause();
+      set(false);
+      cancelAnimationFrame(raf);
+      draw();
+    };
+    btn.addEventListener("click", () => (playing ? pause() : play()));
+    audio.addEventListener("ended", end);
+    audio.addEventListener("loadedmetadata", () => playing || draw());
+  });
+
   // ---------- FAQ ----------
 
   $("faq-list").addEventListener("click", (e) => {

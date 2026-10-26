@@ -264,9 +264,18 @@ svg { display: block; }
 .vn .play { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; background: #4D8FD1; }
 .vn .play::after { content: ""; position: absolute; left: 15px; top: 12px; border-style: solid; border-width: 8px 0 8px 13px; border-color: transparent transparent transparent #fff; }
 .vn .wave { display: flex; align-items: center; gap: 2px; height: 28px; }
-.vn .wave b { width: 3px; border-radius: 2px; background: #A6C4E2; }
-.vn small { font: 400 12.5px/1 "Mona Sans"; color: #A6C4E2; }
+.vn .wave b { width: 3px; border-radius: 2px; background: #A6C4E2; transition: background-color .15s; }
+.vn small { font: 400 12.5px/1 "Mona Sans"; color: #A6C4E2; font-variant-numeric: tabular-nums; }
+.vn button.play { border: 0; padding: 0; cursor: pointer; transition: background-color .2s, transform .2s var(--ease); }
+.vn button.play:hover { background: #5A9DE0; transform: scale(1.06); }
+.vn button.play:focus-visible { outline: 2px solid #8DC3F5; outline-offset: 2px; }
+.vn.playing .play::after { left: 13px; top: 13px; width: 5px; height: 14px; border: 0; border-left: 4px solid #fff; border-right: 4px solid #fff; }
+.vn .wave b.on { background: #fff; }
 .mb.voice { padding: 8px 14px 8px 8px; }
+.mb.heard b { display: block; font: 600 12px/1.5 "Kantumruy Pro", "Mona Sans"; color: #8DC3F5; }
+.mb.heard:not([hidden]) { animation: rise .45s var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (max-width: 720px) { .mb.heard { max-width: 214px; font-size: 13px; } }
 .link { color: #8DC3F5; text-decoration: underline; text-underline-offset: 2px; }
 .filebub { display: flex; align-items: center; gap: 11px; padding: 2px 0 4px; }
 .filebub i { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 50%; background: #4D8FD1; }
