@@ -250,14 +250,12 @@ async fn answer_album(bot: Bot, key: (ChatId, String), services: Arc<Services>) 
     let guard = &services.guard;
     let sender = sender_id(lead);
     let lang = language(guard, sender, lead);
-    let result = if parts.iter().all(|part| part.photo().is_none()) {
-        answer(&bot, lead, verdict::CANT_LISTEN.get(lang))
-            .await
-            .map(drop)
-    } else if parts.len() == 1 {
+    let result = if parts.len() == 1 || parts.iter().all(|part| part.photo().is_none()) {
         match cache_key(guard, lead, lang) {
             Some(key) => respond(&bot, lead, &[], key, sender, lang, &services).await,
-            None => Ok(()),
+            None => answer(&bot, lead, verdict::CANT_LISTEN.get(lang))
+                .await
+                .map(drop),
         }
     } else {
         let key = album_key(guard, lead, &parts, lang);
@@ -636,7 +634,9 @@ fn mentions(msg: &Message, me: &Me) -> bool {
 }
 
 fn fixed_reply(msg: &Message) -> Option<&'static Text> {
-    if msg.audio().is_some() || msg.video().is_some() || msg.video_note().is_some() {
+    if msg.caption().is_some() {
+        None
+    } else if msg.audio().is_some() || msg.video().is_some() || msg.video_note().is_some() {
         Some(&verdict::CANT_LISTEN)
     } else if msg.sticker().is_some() || msg.animation().is_some() {
         Some(&verdict::GREETING)
@@ -695,16 +695,20 @@ fn cache_key(guard: &Guard, msg: &Message, lang: Lang) -> Option<u64> {
     if let Some(message) = msg.text().filter(|text| !text.starts_with('/')) {
         return Some(guard.key((RULES_VERSION, lang, "text", message, urls, caption)));
     }
-    msg.document().map(|document| {
-        guard.key((
+    if let Some(document) = msg.document() {
+        return Some(guard.key((
             RULES_VERSION,
             lang,
             "document",
             &document.file.unique_id.0,
             caption,
             urls,
-        ))
-    })
+        )));
+    }
+    // A video or GIF can't be watched, but its caption can be read.
+    msg.caption()
+        .is_some()
+        .then(|| guard.key((RULES_VERSION, lang, "caption", caption, urls)))
 }
 
 fn album_key(guard: &Guard, lead: &Message, album: &[Message], lang: Lang) -> u64 {
@@ -747,6 +751,8 @@ async fn check(
         check_text(msg, message, lang, services, progress).await
     } else if let Some(document) = msg.document() {
         check_document(bot, msg, document, lang, services, progress).await
+    } else if msg.caption().is_some() {
+        caption_or(msg, services, progress, Outcome::of(Vec::new())).await
     } else {
         (Outcome::of(Vec::new()), None)
     };
@@ -1454,14 +1460,25 @@ fn entities(msg: &Message) -> Vec<teloxide::types::MessageEntityRef<'_>> {
 
 fn urls_in(msg: &Message) -> Vec<Url> {
     let mut urls: Vec<Url> = Vec::new();
-    for entity in entities(msg) {
-        let url = match entity.kind() {
+    let linked = entities(msg)
+        .into_iter()
+        .filter_map(|entity| match entity.kind() {
             MessageEntityKind::Url => url_from_entity_text(entity.text()),
             MessageEntityKind::TextLink { url } => link::parse_http_url(url.as_str()),
             _ => None,
-        };
+        });
+    // Forwarded posts keep their link buttons, which are often where the scam leads.
+    let buttons = msg
+        .reply_markup()
+        .into_iter()
+        .flat_map(|markup| markup.inline_keyboard.iter().flatten())
+        .filter_map(|button| match &button.kind {
+            InlineKeyboardButtonKind::Url(url) => link::parse_http_url(url.as_str()),
+            _ => None,
+        });
+    for url in linked.chain(buttons) {
         // One link per site, so a different site further down still gets checked.
-        if let Some(url) = url.filter(|url| urls.iter().all(|seen| seen.host() != url.host())) {
+        if urls.iter().all(|seen| seen.host() != url.host()) {
             urls.push(url);
         }
     }
@@ -1559,6 +1576,43 @@ mod tests {
                       "mime_type": "audio/ogg", "file_size": 12_000},
         }))
         .unwrap()
+    }
+
+    fn forwarded_video(caption: Option<&str>) -> Message {
+        let mut json = serde_json::json!({
+            "message_id": 4, "date": 0,
+            "chat": {"id": 7, "type": "private", "first_name": "Sok"},
+            "from": {"id": 7, "is_bot": false, "first_name": "Sok"},
+            "video": {"file_id": "v", "file_unique_id": "v1", "width": 720, "height": 1280,
+                      "duration": 7, "mime_type": "video/mp4", "file_size": 900_000},
+            "reply_markup": {"inline_keyboard": [
+                [{"text": "ស្នើសុំស្តារគណនី", "url": "https://recover-account.example/start"}],
+                [{"text": "Copy", "callback_data": "x"}],
+            ]},
+        });
+        if let Some(caption) = caption {
+            json["caption"] = caption.into();
+        }
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn captions_on_videos_are_checked() {
+        let guard = Guard::new();
+        let silent = forwarded_video(None);
+        assert!(fixed_reply(&silent).is_some());
+        let captioned = forwarded_video(Some("គណនីរបស់អ្នកត្រូវបានផ្អាក សូមចុចប៊ូតុងខាងក្រោម"));
+        assert!(fixed_reply(&captioned).is_none());
+        assert!(cache_key(&guard, &captioned, Lang::Km).is_some());
+    }
+
+    #[test]
+    fn link_buttons_are_checked_like_links_in_the_text() {
+        let urls: Vec<String> = urls_in(&forwarded_video(Some("សូមចុចប៊ូតុងខាងក្រោម")))
+            .iter()
+            .map(Url::to_string)
+            .collect();
+        assert_eq!(urls, ["https://recover-account.example/start"]);
     }
 
     #[test]

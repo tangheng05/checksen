@@ -620,6 +620,12 @@ mod tests {
     }
 
     #[test]
+    fn system_notices_that_point_to_a_button_are_account_threats() {
+        let text = "⚠️ ការជូនដំណឹងអំពីសុវត្ថិភាពប្រព័ន្ធ\n\nតាមរយៈការត្រួតពិនិត្យសុវត្ថិភាពរបស់ប្រព័ន្ធ បានរកឃើញថា គណនីរបស់អ្នកមានសកម្មភាពមិនប្រក្រតីនាពេលថ្មីៗនេះ។ ដើម្បីកាត់បន្ថយហានិភ័យចំពោះទិន្នន័យពាក់ព័ន្ធ ប្រព័ន្ធបានផ្អាកមុខងារមួយចំនួនជាបណ្តោះអាសន្ន ហើយគណនីរបស់អ្នកបច្ចុប្បន្នស្ថិតក្នុងស្ថានភាពផ្អាកប្រើប្រាស់។\n\nសូមចុចប៊ូតុងខាងក្រោម ដើម្បីបញ្ចប់ការដោះស្រាយស្ថានភាពមិនប្រក្រតីបច្ចុប្បន្ន។";
+        assert!(signals(text).contains(&Signal::AccountThreat));
+    }
+
+    #[test]
     fn everyday_messages_are_not_flagged() {
         for text in [
             "Please transfer the rent to my account by Friday, thanks!",
