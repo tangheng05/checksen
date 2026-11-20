@@ -397,6 +397,14 @@ const ANDROID_STEPS: Text = text(
     "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និង Mobile data។\n2. លុបកម្មវិធីក្នុង Settings → Apps (បើលុបមិនចេញ បិទ «device admin» របស់វាសិន)។\n3. ប្រើឧបករណ៍ផ្សេង ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។\n5. ធ្វើបច្ចុប្បន្នភាព Telegram ពី Google Play។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត។",
     "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps (if it won't, turn off its \"device admin\" first).\n3. From another device, change your passwords and remove unknown devices in Telegram → Settings → Devices.\n5. Update Telegram from Google Play.\n4. Call your bank on the number on your card.",
 );
+const PROFILE_ONLY: Text = text(
+    "វាអាចប៉ះពាល់តែ iPhone ប៉ុណ្ណោះ។ នៅលើ Android ឬកុំព្យូទ័រ គ្រាន់តែលុបវាចោល។",
+    "It can only affect an iPhone. On Android or a computer, just delete it.",
+);
+const PROFILE_STEPS: Text = text(
+    "🍎 នៅលើ iPhone៖\n1. ចូល Settings → General → VPN & Device Management ហើយលុប Profile ដែលអ្នកមិនស្គាល់។\n2. លុបកម្មវិធីដែលវាបានដំឡើង ហើយកុំបញ្ចូលលុយទៀត។\n3. ប្រើឧបករណ៍ផ្សេង ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។",
+    "🍎 On iPhone:\n1. Go to Settings → General → VPN & Device Management and remove any profile you don't recognise.\n2. Delete any app it added, and don't put more money into it.\n3. From another device, change your passwords and remove unknown devices in Telegram → Settings → Devices.",
+);
 const IPHONE_STEPS: Text = text(
     "🍎 នៅលើ iPhone៖\nឯកសារ .apk និង .exe មិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបវាចោល។\n• បើបានវាយលេខសម្ងាត់ក្នុងទំព័រណាមួយ សូមប្តូរវាភ្លាម។\n• បើបានដំឡើង Profile សូមលុបវាក្នុង Settings → General → VPN & Device Management។",
     "🍎 On iPhone:\n.apk and .exe files can't install on an iPhone. Just delete it.\n• Typed a password into a page? Change it now.\n• Installed a profile? Remove it in Settings → General → VPN & Device Management.",
@@ -1669,6 +1677,12 @@ fn opened_steps(info: &FileInfo, lang: Lang) -> String {
             ANDROID_ONLY.get(lang),
             ANDROID_STEPS.get(lang)
         )
+    } else if only(&[FileKind::IosProfile]) {
+        format!(
+            "{heading}\n{}\n{}",
+            PROFILE_ONLY.get(lang),
+            PROFILE_STEPS.get(lang)
+        )
     } else if only(&[FileKind::WebPage]) {
         OPENED_PAGE.get(lang).to_owned()
     } else {
@@ -1775,7 +1789,7 @@ fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
         FileKind::Text => ("ឯកសារអក្សរ", "a text file"),
         FileKind::Document => ("ឯកសារ Word ឬ Excel", "a Word or Excel document"),
         FileKind::Archive => ("ឯកសារបង្ហាប់ (zip ឬ rar)", "an archive (zip or rar)"),
-        FileKind::WindowsProgram => ("កម្មវិធីកុំព្យូទ័រ (.exe)", "a Windows program (.exe)"),
+        FileKind::WindowsProgram => ("កម្មវិធីកុំព្យូទ័រ Windows", "a Windows program"),
         FileKind::AndroidApp => ("កម្មវិធីទូរស័ព្ទ Android (.apk)", "an Android app (.apk)"),
         FileKind::OtherProgram => ("កម្មវិធី", "a program"),
         FileKind::Script => ("ស្គ្រីប ដែលអាចដំណើរការកូដ", "a script that runs code"),
@@ -1784,6 +1798,10 @@ fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
             "a web page that can show a fake login",
         ),
         FileKind::Shortcut => ("ផ្លូវកាត់ ដែលអាចបើកកម្មវិធី", "a shortcut that can run programs"),
+        FileKind::IosProfile => (
+            "Profile របស់ iPhone ដែលអាចដំឡើងកម្មវិធីក្លែងក្លាយ",
+            "an iPhone profile that can install fake apps",
+        ),
         FileKind::DiskImage => (
             "ឯកសារ disk image ដែលអាចមានកម្មវិធី",
             "a disk image that can hold programs",
@@ -2619,6 +2637,7 @@ mod tests {
         );
         let apk = zipped(&[("AndroidManifest.xml", b"")]);
         assert!(folded("update.apk", &apk).contains("only harm an Android phone"));
+        assert!(folded("trade.mobileconfig", b"<?xml").contains("only affect an iPhone"));
         assert!(folded("login.html", b"<html><form>").contains("what you typed"));
         let general = OPENED_FILE.en.split_once("🆘").unwrap().1;
         let mixed = rar5_with(&[("a.exe", b"MZ", false), ("b.apk", b"PK", false)]);

@@ -23,6 +23,8 @@ pub enum FileKind {
     WebPage,
     Shortcut,
     DiskImage,
+    /// An iPhone configuration profile, used to install fake apps outside the App Store.
+    IosProfile,
 }
 
 impl FileKind {
@@ -37,6 +39,7 @@ impl FileKind {
                 | Self::WebPage
                 | Self::Shortcut
                 | Self::DiskImage
+                | Self::IosProfile
         )
     }
 
@@ -114,18 +117,24 @@ fn kind_from_extension(extension: &str) -> Option<FileKind> {
         "mp3" | "m4a" | "wav" | "ogg" | "aac" => FileKind::Audio,
         "txt" | "csv" | "log" => FileKind::Text,
         "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "rtf" | "odt" => FileKind::Document,
-        "docm" | "xlsm" | "pptm" => FileKind::Script,
-        "zip" | "rar" | "7z" | "tar" | "gz" => FileKind::Archive,
-        "exe" | "scr" | "msi" | "com" | "pif" | "cpl" | "dll" | "msix" | "appx" | "msixbundle"
-        | "appxbundle" => FileKind::WindowsProgram,
-        "apk" | "xapk" | "apks" | "aab" => FileKind::AndroidApp,
-        "jar" | "dmg" | "pkg" | "app" | "deb" | "elf" => FileKind::OtherProgram,
-        "bat" | "cmd" | "vbs" | "vbe" | "js" | "jse" | "wsf" | "ps1" | "sh" | "hta" | "py" => {
-            FileKind::Script
+        "docm" | "xlsm" | "pptm" | "dotm" | "xltm" | "potm" | "ppsm" | "xlam" | "ppam" | "iqy"
+        | "slk" | "one" => FileKind::Script,
+        "zip" | "zipx" | "rar" | "7z" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "cab" | "arj"
+        | "lzh" | "ace" => FileKind::Archive,
+        "exe" | "scr" | "msi" | "msp" | "com" | "pif" | "cpl" | "dll" | "xll" | "msix" | "appx"
+        | "msixbundle" | "appxbundle" | "appinstaller" | "application" | "appref-ms" | "msc"
+        | "chm" | "reg" | "inf" | "scf" | "wsh" | "gadget" | "library-ms"
+        | "searchconnector-ms" | "settingcontent-ms" => FileKind::WindowsProgram,
+        "apk" | "xapk" | "apks" | "apkm" | "aab" => FileKind::AndroidApp,
+        "jar" | "dmg" | "pkg" | "app" | "deb" | "elf" | "command" | "scpt" => {
+            FileKind::OtherProgram
         }
-        "html" | "htm" | "shtml" | "svg" => FileKind::WebPage,
+        "bat" | "cmd" | "vbs" | "vbe" | "js" | "jse" | "wsf" | "ps1" | "psm1" | "sh" | "hta"
+        | "py" => FileKind::Script,
+        "html" | "htm" | "shtml" | "xhtml" | "mht" | "mhtml" | "svg" => FileKind::WebPage,
         "lnk" | "url" => FileKind::Shortcut,
-        "iso" | "img" | "vhd" => FileKind::DiskImage,
+        "iso" | "img" | "vhd" | "vhdx" => FileKind::DiskImage,
+        "mobileconfig" => FileKind::IosProfile,
         _ => return None,
     })
 }
@@ -138,6 +147,7 @@ pub fn kind_from_mime(mime: &str) -> Option<FileKind> {
         | "application/vnd.microsoft.portable-executable"
         | "application/x-msi" => FileKind::WindowsProgram,
         "application/pdf" => FileKind::Pdf,
+        "application/x-apple-aspen-config" => FileKind::IosProfile,
         "text/html" => FileKind::WebPage,
         _ if mime.starts_with("image/") => FileKind::Image,
         _ if mime.starts_with("video/") => FileKind::Video,
@@ -172,7 +182,11 @@ pub fn kind_from_bytes(bytes: &[u8]) -> Option<FileKind> {
     if bytes.get(4..8) == Some(b"ftyp") {
         return Some(FileKind::Video);
     }
-    if starts(b"Rar!") || starts(b"7z\xbc\xaf") || starts(b"\x1f\x8b") {
+    // Compiled help (.chm) runs scripts when opened.
+    if starts(b"ITSF") {
+        return Some(FileKind::WindowsProgram);
+    }
+    if starts(b"Rar!") || starts(b"7z\xbc\xaf") || starts(b"\x1f\x8b") || starts(b"MSCF") {
         return Some(FileKind::Archive);
     }
     if starts(b"\x4c\x00\x00\x00\x01\x14\x02\x00") {
@@ -503,6 +517,25 @@ mod tests {
             ]
         );
         assert_eq!(kind_from_name("notes.txt"), Some(FileKind::Text));
+        for (name, kind) in [
+            ("update.msc", FileKind::WindowsProgram),
+            ("help.chm", FileKind::WindowsProgram),
+            ("Install.appinstaller", FileKind::WindowsProgram),
+            ("bank.apkm", FileKind::AndroidApp),
+            ("invoice.vhdx", FileKind::DiskImage),
+            ("trade.mobileconfig", FileKind::IosProfile),
+            ("notes.one", FileKind::Script),
+            ("page.mhtml", FileKind::WebPage),
+            ("files.cab", FileKind::Archive),
+        ] {
+            assert_eq!(kind_from_name(name), Some(kind), "{name}");
+        }
+        assert_eq!(kind_from_bytes(b"ITSF\x03"), Some(FileKind::WindowsProgram));
+        assert_eq!(kind_from_bytes(b"MSCF\0\0"), Some(FileKind::Archive));
+        assert_eq!(
+            signals("Profile.pdf.mobileconfig", b"<?xml version"),
+            [disguised(FileKind::Pdf, FileKind::IosProfile)]
+        );
         assert_eq!(
             signals("game.apk", b"PK\x03\x04"),
             [Signal::DangerousFile(FileKind::AndroidApp)]
