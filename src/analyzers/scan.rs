@@ -114,6 +114,10 @@ fn parse_report(body: &[u8]) -> anyhow::Result<VirusTotal> {
         .into_iter()
         .map(count)
         .fold(0u16, u16::saturating_add);
+    // Known but not analysed yet; "0/0" would read like a clean scan.
+    if engines == 0 {
+        return Ok(VirusTotal::Unknown);
+    }
     Ok(VirusTotal::Seen { malicious, engines })
 }
 
@@ -139,6 +143,9 @@ mod tests {
                 engines: 63
             }
         );
+        let queued = br#"{"data":{"attributes":{"last_analysis_stats":
+            {"malicious":0,"suspicious":0,"undetected":0,"harmless":0,"type-unsupported":0}}}}"#;
+        assert_eq!(parse_report(queued).unwrap(), VirusTotal::Unknown);
         assert!(parse_report(br#"{"error":{"code":"QuotaExceededError"}}"#).is_err());
     }
 

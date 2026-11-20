@@ -211,9 +211,9 @@ fn zip_kind(bytes: &[u8]) -> FileKind {
     }
 }
 
-struct Entries {
-    names: Vec<String>,
-    encrypted: bool,
+pub(super) struct Entries {
+    pub(super) names: Vec<String>,
+    pub(super) encrypted: bool,
 }
 
 // The zip library reads a zip's whole directory into memory before anything else, so a 100 MB zip
@@ -238,6 +238,9 @@ pub(super) fn open_zip(bytes: &[u8]) -> Option<zip::ZipArchive<Cursor<&[u8]>>> {
 }
 
 fn archive_entries(bytes: &[u8]) -> Option<Entries> {
+    if bytes.starts_with(b"Rar!") {
+        return super::rar::entries(bytes, MAX_ARCHIVE_ENTRIES);
+    }
     let mut archive = open_zip(bytes)?;
     let count = archive.len().min(MAX_ARCHIVE_ENTRIES);
     let mut names = Vec::with_capacity(count);
@@ -254,7 +257,7 @@ fn archive_entries(bytes: &[u8]) -> Option<Entries> {
     Some(Entries { names, encrypted })
 }
 
-/// Name tricks, the real type behind the name, and what's packed inside a zip.
+/// Name tricks, the real type behind the name, and what's packed inside a zip or RAR.
 pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -> Check {
     let (bytes, unread) = match content {
         Content::Bytes(bytes) => (Some(bytes), None),
@@ -551,6 +554,25 @@ mod tests {
             signals("locked.zip", &zip_with(&[("data.bin", true)])),
             [Signal::LockedArchive]
         );
+    }
+
+    #[test]
+    fn programs_and_passwords_inside_rars_are_flagged() {
+        use crate::analyzers::rar::tests::{rar4_with, rar5_with};
+        let course = "វគ្គសិក្សាសម្រាប់ការប្រឡងឆ្នាំ_២០២៦pdf_.rar";
+        assert_eq!(
+            signals(course, &rar5_with(&[("វគ្គសិក្សា.pdf.exe", b"MZ", false)])),
+            [Signal::ProgramInArchive]
+        );
+        assert_eq!(
+            signals("course.rar", &rar4_with(&[("course.pdf.lnk", b"L")])),
+            [Signal::ProgramInArchive]
+        );
+        assert_eq!(
+            signals("locked.rar", &rar5_with(&[("data.bin", b"x", true)])),
+            [Signal::LockedArchive]
+        );
+        assert!(signals("photos.rar", &rar5_with(&[("a.jpg", b"x", false)])).is_empty());
     }
 
     #[test]

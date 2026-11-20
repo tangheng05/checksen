@@ -1372,7 +1372,7 @@ fn reason(signal: Signal, lang: Lang) -> String {
             };
         }
         Signal::LockedArchive => (
-            "ឯកសារ zip នេះដាក់លេខសម្ងាត់ ដូច្នេះកម្មវិធីកំចាត់មេរោគមិនអាចមើលខាងក្នុងបានទេ។ ជនបោកប្រាស់តែងប្រើល្បិចនេះ។",
+            "ឯកសារបង្ហាប់នេះដាក់លេខសម្ងាត់ ដូច្នេះកម្មវិធីកំចាត់មេរោគមិនអាចមើលខាងក្នុងបានទេ។ ជនបោកប្រាស់តែងប្រើល្បិចនេះ។",
             "This archive is password-protected, so antivirus can't look inside. Scammers often do this.",
         ),
         Signal::KnownMalware(Detector::MalwareBazaar) => (
@@ -1613,7 +1613,7 @@ fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
         FileKind::Audio => ("សំឡេង", "an audio file"),
         FileKind::Text => ("ឯកសារអក្សរ", "a text file"),
         FileKind::Document => ("ឯកសារ Word ឬ Excel", "a Word or Excel document"),
-        FileKind::Archive => ("ឯកសារបង្ហាប់ (zip)", "an archive (zip)"),
+        FileKind::Archive => ("ឯកសារបង្ហាប់ (zip ឬ rar)", "an archive (zip or rar)"),
         FileKind::WindowsProgram => ("កម្មវិធីកុំព្យូទ័រ (.exe)", "a Windows program (.exe)"),
         FileKind::AndroidApp => ("កម្មវិធីទូរស័ព្ទ Android (.apk)", "an Android app (.apk)"),
         FileKind::OtherProgram => ("កម្មវិធី", "a program"),
