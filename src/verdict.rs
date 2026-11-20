@@ -105,8 +105,8 @@ const THANKS: Text = text(
     "Happy to help! Whenever you're unsure about a message, link or QR code, send it to me.",
 );
 const ALREADY_SCAMMED: Text = text(
-    "សូមធ្វើតាមនេះភ្លាមៗ៖\n1. តេទៅធនាគាររបស់អ្នកឥឡូវនេះ តាមលេខក្នុងកម្មវិធី ឬនៅខាងក្រោយកាត ហើយសុំឱ្យគេបញ្ឈប់ការផ្ទេរ ឬបង្កកគណនីសិន។\n2. បើអ្នកបានប្រាប់លេខកូដ ឬលេខសម្ងាត់ សូមប្តូរលេខសម្ងាត់ភ្លាម។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ផ្សេងទាំងអស់ រួចបើក Two-Step Verification។\n3. កុំបង់លុយឱ្យអ្នកណាដែលសន្យាថាអាចយកលុយមកវិញឱ្យ។ នោះក៏ជាការបោកប្រាស់ដែរ។\n4. ទុករូបថតអេក្រង់ និងលេខប្រតិបត្តិការ ហើយរាយការណ៍ទៅធនាគារ និងប៉ូលិស។",
-    "Do this now:\n1. Call your bank right away on the number in its app or on the back of your card, and ask them to stop the transfer or freeze your account.\n2. If you shared a code or password, change your password now. In Telegram, go to Settings → Devices, end all other sessions, and turn on Two-Step Verification.\n3. Don't pay anyone who promises to get your money back. That's a scam too.\n4. Keep screenshots and the transaction ID, and report it to your bank and the police.",
+    "សូមធ្វើតាមនេះភ្លាមៗ៖\n1. តេទៅធនាគាររបស់អ្នកឥឡូវនេះ តាមលេខក្នុងកម្មវិធី ឬនៅខាងក្រោយកាត ហើយសុំឱ្យគេបញ្ឈប់ការផ្ទេរ ឬបង្កកគណនីសិន។\n2. បើអ្នកបានប្រាប់លេខកូដ ឬលេខសម្ងាត់ សូមប្តូរលេខសម្ងាត់ភ្លាម។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ផ្សេងទាំងអស់ រួចបើក Two-Step Verification។\n3. កុំបង់លុយឱ្យអ្នកណាដែលសន្យាថាអាចយកលុយមកវិញឱ្យ។ នោះក៏ជាការបោកប្រាស់ដែរ។\n4. ទុករូបថតអេក្រង់ និងលេខប្រតិបត្តិការ ហើយរាយការណ៍ទៅធនាគារ និងប៉ូលិស (hotline.police.gov.kh)។",
+    "Do this now:\n1. Call your bank right away on the number in its app or on the back of your card, and ask them to stop the transfer or freeze your account.\n2. If you shared a code or password, change your password now. In Telegram, go to Settings → Devices, end all other sessions, and turn on Two-Step Verification.\n3. Don't pay anyone who promises to get your money back. That's a scam too.\n4. Keep screenshots and the transaction ID, and report it to your bank and the police (hotline.police.gov.kh).",
 );
 pub const OPENED_ASK: Text = text(
     "🆘 តើអ្នកបើកវានៅលើឧបករណ៍អ្វី?",
@@ -116,9 +116,10 @@ const ABOUT_CODES: Text = text(
     "ធនាគារ Wing Telegram និងប៉ូលិស មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ មិនថាតាមសារ តាមទូរស័ព្ទ ឬតាមតំណឡើយ។ បើនរណាម្នាក់សុំ នោះជាការបោកប្រាស់។ លេខកូដ OTP សម្រាប់តែអ្នកវាយចូលក្នុងកម្មវិធីដោយខ្លួនឯងប៉ុណ្ណោះ។",
     "Banks, Wing, Telegram and the police never ask for your OTP code, PIN or password, whether by message, phone call or link. If someone asks, it's a scam. An OTP is only for you to type into the app yourself.",
 );
+// hotline.police.gov.kh: the police's "Hotline Scam Reporting 24/7" form (2026-11-20).
 const HOW_TO_REPORT: Text = text(
-    "ដើម្បីរាយការណ៍៖\n• បើអ្នកបានបាត់លុយ ឬប្រាប់លេខកូដ សូមតេទៅធនាគាររបស់អ្នកមុនគេ តាមលេខក្នុងកម្មវិធី។\n• ក្នុង Telegram សូមបើកគណនី ឬឆានែលនោះ ចុច ⋮ ហើយជ្រើស Report។\n• ចុច 🚩 នៅក្រោមចម្លើយរបស់ CheckSen ដើម្បីឱ្យវាព្រមានអ្នកដទៃអំពីលេខ គណនី ឬគេហទំព័រនោះ។\n• អ្នកក៏អាចរាយការណ៍ទៅប៉ូលិសផងដែរ។",
-    "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• Tap 🚩 under a CheckSen reply so it warns others about that number, account or site.\n• You can also report it to the police.",
+    "ដើម្បីរាយការណ៍៖\n• បើអ្នកបានបាត់លុយ ឬប្រាប់លេខកូដ សូមតេទៅធនាគាររបស់អ្នកមុនគេ តាមលេខក្នុងកម្មវិធី។\n• ក្នុង Telegram សូមបើកគណនី ឬឆានែលនោះ ចុច ⋮ ហើយជ្រើស Report។\n• ចុច 🚩 នៅក្រោមចម្លើយរបស់ CheckSen ដើម្បីឱ្យវាព្រមានអ្នកដទៃអំពីលេខ គណនី ឬគេហទំព័រនោះ។\n• រាយការណ៍ទៅប៉ូលិសតាមអនឡាញ៖ hotline.police.gov.kh",
+    "To report a scam:\n• If you lost money or shared a code, call your bank first, on the number in its app.\n• In Telegram, open that account or channel, tap ⋮ and choose Report.\n• Tap 🚩 under a CheckSen reply so it warns others about that number, account or site.\n• Report it to the police online: hotline.police.gov.kh",
 );
 /// The rest of the privacy answer, after what CheckSen keeps and which AI sees messages.
 const PRIVACY_REST: Text = text(
