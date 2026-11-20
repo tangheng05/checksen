@@ -100,6 +100,32 @@ static CONTACT: LazyLock<Regex> = LazyLock::new(|| {
     )
 });
 
+static ABOUT_IT: LazyLock<Regex> = LazyLock::new(|| {
+    compile(
+        r"ពិត|ក្លែង|បោក|ទុកចិត្ត|សុវត្ថិភាព|គ្រោះថ្នាក់|មេរោគ|វីរុស|ធ្វើ(?:ម៉េច|អី|អ្វី|ដូចម្តេច)|គួរ|\b(?:real|fake|scam|legit|safe|trust|virus|malware|dangerous|what (?:should|do|can) i do|now what)\b",
+    )
+});
+
+/// A message that only makes sense about the result the bot just gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FollowUp {
+    Opened,
+    AboutIt,
+}
+
+pub fn follow_up(text: &str) -> Option<FollowUp> {
+    if text.chars().count() > RULES_QUESTION_MAX_CHARS {
+        return None;
+    }
+    match detect(text)? {
+        Intent::OpenedFile => Some(FollowUp::Opened),
+        Intent::OtherQuestion if Normalized::new(text).matches(&ABOUT_IT) => {
+            Some(FollowUp::AboutIt)
+        }
+        _ => None,
+    }
+}
+
 /// What rules alone can tell about why the person sent this.
 pub fn detect(text: &str) -> Option<Intent> {
     let normalized = Normalized::new(text);
@@ -210,6 +236,28 @@ mod tests {
             decide(Some(Intent::OpenedFile), Some(Intent::OtherQuestion), "x"),
             Intent::OpenedFile
         );
+    }
+
+    #[test]
+    fn follow_ups_are_only_about_the_last_result() {
+        for text in [
+            "ពិតអត់?",
+            "តើវាជាការបោកប្រាស់ទេ?",
+            "is it real?",
+            "so what should I do now?",
+            "ធ្វើម៉េចទៅ?",
+        ] {
+            assert_eq!(follow_up(text), Some(FollowUp::AboutIt), "{text}");
+        }
+        assert_eq!(follow_up("ខ្ញុំបានបើកវាហើយ"), Some(FollowUp::Opened));
+        for text in [
+            "តើថ្ងៃនេះភ្លៀងទេ?",
+            "How do I report a scam?",
+            "hi",
+            "Your account is locked. Is this real? Call 012 345 678 now to verify your details or it will be closed today, we are waiting for you",
+        ] {
+            assert_eq!(follow_up(text), None, "{text}");
+        }
     }
 
     #[test]

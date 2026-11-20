@@ -24,3 +24,12 @@
 2. **Typed follow-up.** A new intent `opened_file` (rules + model) for "I opened/installed/clicked/downloaded it". When nothing in the message is flagged, the bot answers with short steps for apk/Android, exe/Windows and iPhone, then passwords and Telegram devices.
 
 Left to the builder: exact wording, regexes, how the inner kind is carried.
+
+## Follow-ups (added the same day)
+
+**Why:** after a result, "is it real?" or "I opened it" got answers that ignored it, so the bot felt dumb.
+
+**Design:** each private-chat verdict leaves a short `Context` per person for 30 minutes, in memory only: a recap (level and 👉 action) and, for flagged files and links, the opened steps. It holds only the bot's own text, never the message. A typed, unforwarded message with no link in a private chat is answered from it before the cache:
+- "I opened it" → the file's or link's steps (otherwise the device question, as before);
+- a question about the result ("is it real?", "ពិតអត់?", "what should I do?") → the recap.
+Anything else goes through the normal check.

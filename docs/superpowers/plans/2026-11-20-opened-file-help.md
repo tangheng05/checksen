@@ -45,3 +45,10 @@
 - [ ] Tests in `intent.rs`: "ខ្ញុំបានបើកវាហើយ", "ខ្ញុំទាញយក ហើយចុចបើកវាហើយ ធ្វើម៉េច", "I already opened the file, what should I do?", "i clicked it and installed the app" → `OpenedFile`; "Click to open the file" → not. `decide(Some(OpenedFile), Some(OtherQuestion), ..)` → `OpenedFile`.
 - [ ] `Intent::OpenedFile` (`opened_file`) after `AlreadyScammed` in `detect`; either side wins in `decide` after `AlreadyScammed`; model prompt line; `answer` → `OPENED_ANSWER`.
 - [ ] Bump `RULES_VERSION`, `cargo fmt --check`, clippy, `cargo test`, `cargo run --bin eval`, commit.
+
+### Task 3: Follow-ups with context
+
+**Files:** `src/verdict.rs` (`Context`, `context(checks, kind)`), `src/analyzers/intent.rs` (`FollowUp`, `follow_up(text)`), `src/guard.rs` (`remember`, `context`, 30 min TTL), `src/bot.rs` (`Reply::context`, answer in `respond` before the cache).
+
+- [ ] Tests: `follow_up` finds Opened / AboutIt and ignores "តើថ្ងៃនេះភ្លៀងទេ?"; `context` for a RAR with an .exe has a 🔴 recap and Windows steps, and a ⚪ file has no opened steps; the guard keeps a context per sender.
+- [ ] fmt, clippy, tests, eval, commit.

@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use moka::sync::Cache;
 
 use checksen::analyzers::indicators::Indicator;
-use checksen::verdict::Lang;
+use checksen::verdict::{Context, Lang};
 
 const CHECKS_PER_WINDOW: u32 = 30;
 /// Messages nobody asked about in one protected group, so a busy group can't crowd out people.
@@ -20,6 +20,7 @@ const VOICE_CALLS_PER_DAY: u32 = 500;
 const FILE_LOOKUPS_PER_DAY: u32 = 450;
 const LANGUAGE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const REPORT_BUTTON_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const CONTEXT_TTL: Duration = Duration::from_secs(30 * 60);
 
 pub struct Reply {
     pub text: String,
@@ -32,6 +33,8 @@ pub struct Reply {
     pub summary: Option<Summary>,
     /// Shows device buttons for someone who already opened something.
     pub devices: bool,
+    /// What the verdict said, for follow-up questions; fixed answers have none.
+    pub context: Option<Arc<Context>>,
 }
 
 /// A verdict without the message: its level, what was checked, and the signals found.
@@ -79,6 +82,7 @@ pub struct Guard {
     report_buttons: Cache<u64, Arc<Vec<Indicator>>>,
     feedback_buttons: Cache<u64, Arc<Summary>>,
     warned: Cache<(i64, i32), ()>,
+    contexts: Cache<u64, Arc<Context>>,
 }
 
 impl Guard {
@@ -112,6 +116,10 @@ impl Guard {
             warned: Cache::builder()
                 .max_capacity(100_000)
                 .time_to_live(REPORT_BUTTON_TTL)
+                .build(),
+            contexts: Cache::builder()
+                .max_capacity(100_000)
+                .time_to_live(CONTEXT_TTL)
                 .build(),
         }
     }
@@ -152,6 +160,15 @@ impl Guard {
             checks if checks == CHECKS_PER_WINDOW + 1 => Admission::LimitReached,
             _ => Admission::Silent,
         }
+    }
+
+    /// Keeps what the last verdict said to this person, for their follow-up questions.
+    pub fn remember(&self, sender: u64, context: Arc<Context>) {
+        self.contexts.insert(self.key(("context", sender)), context);
+    }
+
+    pub fn context(&self, sender: u64) -> Option<Arc<Context>> {
+        self.contexts.get(&self.key(("context", sender)))
     }
 
     /// True the first time a group message is warned about, so editing it doesn't warn again.
@@ -274,6 +291,7 @@ mod tests {
                 html: true,
                 summary: None,
                 devices: false,
+                context: None,
             }),
         );
         let cached = guard.cached(key).unwrap();

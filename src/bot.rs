@@ -17,7 +17,7 @@ use checksen::analyzers::abusech::AbuseCh;
 use checksen::analyzers::contacts;
 use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
 use checksen::analyzers::indicators::{self, Indicator};
-use checksen::analyzers::intent::{self, Intent};
+use checksen::analyzers::intent::{self, FollowUp, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
 use checksen::analyzers::llm::{
     self, Classifier, Media, MessageKind, Reading, ScamCategory, Transcriber,
@@ -150,6 +150,7 @@ impl Outcome {
                 html: false,
                 summary: None,
                 devices: false,
+                context: None,
             },
             Body::AskDevice => Reply {
                 text: verdict::OPENED_ASK.get(lang).to_owned(),
@@ -158,6 +159,7 @@ impl Outcome {
                 html: false,
                 summary: None,
                 devices: true,
+                context: None,
             },
             Body::Checks(checks) => {
                 let mut payees = checks.iter().filter_map(|check| match &check.subject {
@@ -178,6 +180,7 @@ impl Outcome {
                         .map(|signal| format!("{signal:?}"))
                         .collect(),
                 });
+                let context = verdict::context(&checks, about.kind).map(Arc::new);
                 let verdict = verdict::render(&checks, about, lang);
                 let text = match self.preface {
                     Some(preface) => format!("{}\n\n{verdict}", verdict::escape(preface)),
@@ -190,6 +193,7 @@ impl Outcome {
                     html: true,
                     summary,
                     devices: false,
+                    context,
                 }
             }
         };
@@ -310,6 +314,12 @@ async fn respond(
         Admission::Silent => return Ok(()),
     }
 
+    let private = target.chat.is_private() && album.is_empty();
+    if private && let Some(text) = follow_up(target, guard, sender, lang) {
+        answer(bot, target, text).await?;
+        return Ok(());
+    }
+
     let progress = Progress::new(bot, target, lang);
     let reply = match guard.cached(key) {
         Some(reply) => reply,
@@ -327,6 +337,9 @@ async fn respond(
 
     if let Some(summary) = &reply.summary {
         services.stats.count(summary);
+    }
+    if private && let Some(context) = &reply.context {
+        guard.remember(sender, context.clone());
     }
     let keyboard = if reply.devices {
         Some(devices::keyboard())
@@ -674,6 +687,19 @@ fn fixed_reply(msg: &Message) -> Option<&'static Text> {
         Some(&verdict::NOTHING_TO_CHECK)
     } else {
         None
+    }
+}
+
+/// The answer to a typed question about the result this person just got, if it is one.
+fn follow_up(msg: &Message, guard: &Guard, sender: u64, lang: Lang) -> Option<String> {
+    let text = msg.text()?;
+    if msg.forward_origin().is_some() || !urls_in(msg).is_empty() {
+        return None;
+    }
+    let context = guard.context(sender)?;
+    match intent::follow_up(text)? {
+        FollowUp::Opened => context.opened(lang).map(str::to_owned),
+        FollowUp::AboutIt => Some(context.recap(lang).to_owned()),
     }
 }
 
@@ -1667,6 +1693,7 @@ mod tests {
             reportable,
             html: true,
             devices: false,
+            context: None,
             summary: Some(Summary {
                 level: level.name(),
                 subject: "text",
@@ -1697,6 +1724,43 @@ mod tests {
         let asked = reply(Intent::OpenedFile);
         assert!(asked.devices && asked.text == verdict::OPENED_ASK.get(Lang::Km));
         assert!(!reply(Intent::Greeting).devices);
+    }
+
+    #[test]
+    fn follow_ups_are_answered_from_the_last_result() {
+        let guard = Guard::new();
+        let asked = |text: &str| follow_up(&message("private", text, None), &guard, 7, Lang::En);
+        assert_eq!(asked("is it real?"), None);
+
+        let checks = [text::check(
+            "Your ABA account is locked. Send me the OTP code now",
+        )];
+        guard.remember(7, Arc::new(verdict::context(&checks, None).unwrap()));
+        let recap = asked("is it real?").unwrap();
+        assert!(
+            recap.starts_with("↩️ About what you just sent:\n🔴"),
+            "{recap}"
+        );
+        assert_eq!(asked("I already opened it"), None);
+        let linked: Message = serde_json::from_value(serde_json::json!({
+            "message_id": 3, "date": 0,
+            "chat": {"id": 7, "type": "private", "first_name": "Sok"},
+            "from": {"id": 7, "is_bot": false, "first_name": "Sok"},
+            "text": "is it real? aba-verify.top",
+            "entities": [{"type": "url", "offset": 12, "length": 14}],
+        }))
+        .unwrap();
+        assert_eq!(follow_up(&linked, &guard, 7, Lang::En), None);
+        assert_eq!(asked("How do I report a scam?"), None);
+        assert_eq!(
+            follow_up(
+                &message("private", "is it real?", None),
+                &guard,
+                8,
+                Lang::En
+            ),
+            None
+        );
     }
 
     #[test]

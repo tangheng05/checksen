@@ -1671,6 +1671,64 @@ fn opened_steps(info: &FileInfo, lang: Lang) -> String {
     }
 }
 
+/// What a verdict said, kept briefly so a follow-up question can be answered. Only the bot's own words.
+#[derive(Debug)]
+pub struct Context {
+    km: Recall,
+    en: Recall,
+}
+
+#[derive(Debug)]
+struct Recall {
+    recap: String,
+    opened: Option<String>,
+}
+
+impl Context {
+    /// The result again, for "is it real?" or "what should I do?".
+    pub fn recap(&self, lang: Lang) -> &str {
+        &self.recall(lang).recap
+    }
+
+    /// Steps for someone who opened the flagged file or link.
+    pub fn opened(&self, lang: Lang) -> Option<&str> {
+        self.recall(lang).opened.as_deref()
+    }
+
+    fn recall(&self, lang: Lang) -> &Recall {
+        match lang {
+            Lang::Km => &self.km,
+            Lang::En => &self.en,
+        }
+    }
+}
+
+pub fn context(checks: &[Check], kind: Option<MessageKind>) -> Option<Context> {
+    let lead = lead(checks)?;
+    let level = decide(lead);
+    let recall = |lang: Lang| {
+        let mut recap = format!(
+            "{}\n{}",
+            lang.pick("↩️ ចំពោះអ្វីដែលអ្នកទើបផ្ញើមក៖", "↩️ About what you just sent:"),
+            level.label_for(&lead.subject, lang)
+        );
+        if let Some(action) = action(lead, level, kind, lang) {
+            recap.push_str(&format!("\n👉 {action}"));
+        }
+        let opened = match (&lead.subject, level) {
+            (_, Level::NoKnownSignals | Level::CantTell) => None,
+            (Subject::File(info), _) => Some(opened_steps(info, lang)),
+            (Subject::Link(_), _) => Some(OPENED_PAGE.get(lang).to_owned()),
+            _ => None,
+        };
+        Recall { recap, opened }
+    };
+    Some(Context {
+        km: recall(Lang::Km),
+        en: recall(Lang::En),
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {
     Android,
@@ -2564,6 +2622,37 @@ mod tests {
                 assert!(!text.contains("សុវត្ថិភាព") && !text.to_lowercase().contains("safe"));
             }
         }
+    }
+
+    #[test]
+    fn context_recalls_the_result_and_the_steps() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        use crate::analyzers::rar::tests::rar5_with;
+        let rar = rar5_with(&[("course.pdf.exe", b"MZ", false)]);
+        let checks = [inspect(
+            "course.rar",
+            None,
+            Content::Bytes(&rar),
+            Scans::default(),
+        )];
+        let context = context(&checks, None).unwrap();
+        assert!(
+            context
+                .recap(Lang::En)
+                .contains("🟠 Suspicious\n👉 Don't open it")
+        );
+        assert!(context.opened(Lang::En).unwrap().contains(WINDOWS_STEPS.en));
+        assert!(context.opened(Lang::Km).unwrap().contains(WINDOWS_STEPS.km));
+
+        let pdf = [inspect(
+            "bill.pdf",
+            None,
+            Content::Bytes(b"%PDF-1.7"),
+            Scans::default(),
+        )];
+        let context = super::context(&pdf, None).unwrap();
+        assert!(context.opened(Lang::En).is_none());
+        assert!(!context.recap(Lang::En).to_lowercase().contains("safe"));
     }
 
     #[test]
