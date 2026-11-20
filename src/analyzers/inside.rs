@@ -167,7 +167,7 @@ fn nested_app(bytes: &[u8]) -> Option<Inside> {
 
 /// An entry declared bigger than `cap` is skipped rather than read, so a padded manifest goes unread;
 /// the app is still flagged as an app.
-fn zip_entry(bytes: &[u8], name: &str, cap: u64) -> Option<Vec<u8>> {
+pub(super) fn zip_entry(bytes: &[u8], name: &str, cap: u64) -> Option<Vec<u8>> {
     let mut archive = file::open_zip(bytes)?;
     let entry = archive.by_name(name).ok()?;
     if entry.size() > cap {

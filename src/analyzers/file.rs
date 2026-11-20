@@ -6,6 +6,8 @@ use super::inside::{self, OLE, Power};
 use super::{Check, Signal, Subject};
 
 const MAX_ARCHIVE_ENTRIES: usize = 2_000;
+/// Programs bigger than this inside a zip aren't unpacked to be looked up.
+const MAX_PACKED_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FileKind {
@@ -96,6 +98,35 @@ pub struct Scans {
     pub virustotal: Option<VirusTotal>,
     /// Whether MalwareBazaar knows the file.
     pub malwarebazaar: Option<bool>,
+    /// The same lookups for a program packed inside a zip.
+    pub packed: Option<Packed>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Packed {
+    pub name: String,
+    pub virustotal: Option<VirusTotal>,
+    pub malwarebazaar: Option<bool>,
+}
+
+/// The first program packed in a zip, unpacked so its fingerprint can be looked up: archives are
+/// repacked all the time, but the program inside is often already known.
+pub fn packed_program(bytes: &[u8]) -> Option<(String, Vec<u8>)> {
+    if !bytes.starts_with(b"PK\x03\x04") || zip_kind(bytes) != FileKind::Archive {
+        return None;
+    }
+    archive_entries(bytes)?
+        .names
+        .into_iter()
+        .filter(|name| {
+            kind_from_name(name)
+                .is_some_and(|kind| kind.is_dangerous() && kind != FileKind::WebPage)
+        })
+        .take(3)
+        .find_map(|name| {
+            let program = inside::zip_entry(bytes, &name, MAX_PACKED_BYTES)?;
+            Some((name, program))
+        })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -339,20 +370,12 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
     };
     signals.extend(inside.signals);
 
-    match scans.virustotal {
-        Some(VirusTotal::Seen { malicious, .. }) if malicious >= 3 => {
-            signals.push(Signal::KnownMalware(Detector::VirusTotal(malicious)));
-        }
-        Some(VirusTotal::Seen { malicious, .. }) if malicious > 0 => {
-            signals.push(Signal::FlaggedByFewEngines(malicious));
-        }
-        _ => {}
+    lookup_signals(scans.virustotal, scans.malwarebazaar, &mut signals);
+    if let Some(packed) = &scans.packed {
+        lookup_signals(packed.virustotal, packed.malwarebazaar, &mut signals);
     }
     if scans.clamav_clean == Some(false) {
         signals.push(Signal::KnownMalware(Detector::ClamAv));
-    }
-    if scans.malwarebazaar == Some(true) {
-        signals.push(Signal::KnownMalware(Detector::MalwareBazaar));
     }
     let mut unique = Vec::with_capacity(signals.len());
     for signal in signals {
@@ -373,6 +396,21 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
             inside: programs,
         })),
         signals: unique,
+    }
+}
+
+fn lookup_signals(virustotal: Option<VirusTotal>, bazaar: Option<bool>, signals: &mut Vec<Signal>) {
+    match virustotal {
+        Some(VirusTotal::Seen { malicious, .. }) if malicious >= 3 => {
+            signals.push(Signal::KnownMalware(Detector::VirusTotal(malicious)));
+        }
+        Some(VirusTotal::Seen { malicious, .. }) if malicious > 0 => {
+            signals.push(Signal::FlaggedByFewEngines(malicious));
+        }
+        _ => {}
+    }
+    if bazaar == Some(true) {
+        signals.push(Signal::KnownMalware(Detector::MalwareBazaar));
     }
 }
 
@@ -596,6 +634,46 @@ mod tests {
         assert_eq!(
             signals("locked.zip", &zip_with(&[("data.bin", true)])),
             [Signal::LockedArchive]
+        );
+    }
+
+    #[test]
+    fn programs_packed_in_zips_are_unpacked_for_lookups() {
+        use crate::analyzers::inside::tests::zipped;
+        use crate::analyzers::rar::tests::rar5_with;
+        let zip = zipped(&[("readme.txt", b"hi"), ("course.pdf.exe", b"MZ program")]);
+        assert_eq!(
+            packed_program(&zip),
+            Some(("course.pdf.exe".to_owned(), b"MZ program".to_vec()))
+        );
+        assert_eq!(packed_program(&zipped(&[("a.jpg", b"x")])), None);
+        assert_eq!(
+            packed_program(&zipped(&[("AndroidManifest.xml", b"")])),
+            None
+        );
+        assert_eq!(packed_program(&rar5_with(&[("a.exe", b"MZ", false)])), None);
+
+        let scans = Scans {
+            packed: Some(Packed {
+                name: "course.pdf.exe".to_owned(),
+                virustotal: Some(VirusTotal::Seen {
+                    malicious: 40,
+                    engines: 70,
+                }),
+                malwarebazaar: Some(true),
+            }),
+            ..Scans::default()
+        };
+        let check = inspect("course.zip", None, Content::Bytes(&zip), scans);
+        assert!(
+            check
+                .signals
+                .contains(&Signal::KnownMalware(Detector::VirusTotal(40)))
+        );
+        assert!(
+            check
+                .signals
+                .contains(&Signal::KnownMalware(Detector::MalwareBazaar))
         );
     }
 

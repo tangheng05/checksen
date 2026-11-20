@@ -15,7 +15,7 @@ use url::Url;
 
 use checksen::analyzers::abusech::AbuseCh;
 use checksen::analyzers::contacts;
-use checksen::analyzers::file::{self, Content, FileKind, Scans, Unread};
+use checksen::analyzers::file::{self, Content, FileKind, Packed, Scans, Unread, VirusTotal};
 use checksen::analyzers::indicators::{self, Indicator};
 use checksen::analyzers::intent::{self, FollowUp, Intent};
 use checksen::analyzers::link::{self, LinkChecker};
@@ -1134,6 +1134,9 @@ async fn check_document(
 /// VirusTotal's small daily allowance is kept for people who asked, not quiet group checks.
 async fn scan(bytes: &[u8], services: &Services, progress: &Progress<'_>) -> (Scans, bool) {
     let sha256 = scan::fingerprint(bytes);
+    // Unpacking takes a moment for a big program, so other tasks run meanwhile.
+    let packed = tokio::task::block_in_place(|| file::packed_program(bytes))
+        .map(|(name, program)| (name, scan::fingerprint(&program)));
     let clamav = async {
         let clamav = services.clamav.as_ref()?;
         match tokio::time::timeout(CLAMAV_BUDGET, clamav.is_clean(bytes)).await {
@@ -1148,13 +1151,42 @@ async fn scan(bytes: &[u8], services: &Services, progress: &Progress<'_>) -> (Sc
             }
         }
     };
+    let packed_lookups = async {
+        let (name, sha256) = packed.as_ref()?;
+        let (virustotal, malwarebazaar) = lookups(sha256, services, progress).await;
+        Some(Packed {
+            name: name.clone(),
+            virustotal: virustotal.and_then(Result::ok),
+            malwarebazaar: malwarebazaar.and_then(Result::ok),
+        })
+    };
+    let (clamav, (virustotal, malwarebazaar), packed) =
+        tokio::join!(clamav, lookups(&sha256, services, progress), packed_lookups);
+    let scanned = !matches!(clamav, Some(Err(())))
+        && !matches!(virustotal, Some(Err(())))
+        && !matches!(malwarebazaar, Some(Err(())));
+    let scans = Scans {
+        clamav_clean: clamav.and_then(Result::ok),
+        virustotal: virustotal.and_then(Result::ok),
+        malwarebazaar: malwarebazaar.and_then(Result::ok),
+        packed,
+    };
+    (scans, scanned)
+}
+
+/// VirusTotal and MalwareBazaar by fingerprint; `None` when a check isn't set up, `Err` when it failed.
+async fn lookups(
+    sha256: &str,
+    services: &Services,
+    progress: &Progress<'_>,
+) -> (Option<Result<VirusTotal, ()>>, Option<Result<bool, ()>>) {
     let virustotal = async {
         let virustotal = services.virustotal.as_ref().filter(|_| !progress.quiet)?;
         if !services.guard.allow_model_call(ModelCall::FileLookup) {
             tracing::warn!("daily VirusTotal budget used up");
             return Some(Err(()));
         }
-        match tokio::time::timeout(VIRUSTOTAL_BUDGET, virustotal.lookup(&sha256)).await {
+        match tokio::time::timeout(VIRUSTOTAL_BUDGET, virustotal.lookup(sha256)).await {
             Ok(Ok(report)) => Some(Ok(report)),
             Ok(Err(error)) => {
                 tracing::warn!(%error, "VirusTotal lookup failed");
@@ -1168,7 +1200,7 @@ async fn scan(bytes: &[u8], services: &Services, progress: &Progress<'_>) -> (Sc
     };
     let malwarebazaar = async {
         let abusech = services.abusech.as_ref()?;
-        match tokio::time::timeout(VIRUSTOTAL_BUDGET, abusech.known_file(&sha256)).await {
+        match tokio::time::timeout(VIRUSTOTAL_BUDGET, abusech.known_file(sha256)).await {
             Ok(Ok(known)) => Some(Ok(known)),
             Ok(Err(error)) => {
                 tracing::warn!(%error, "MalwareBazaar lookup failed");
@@ -1180,16 +1212,7 @@ async fn scan(bytes: &[u8], services: &Services, progress: &Progress<'_>) -> (Sc
             }
         }
     };
-    let (clamav, virustotal, malwarebazaar) = tokio::join!(clamav, virustotal, malwarebazaar);
-    let scanned = !matches!(clamav, Some(Err(())))
-        && !matches!(virustotal, Some(Err(())))
-        && !matches!(malwarebazaar, Some(Err(())));
-    let scans = Scans {
-        clamav_clean: clamav.and_then(Result::ok),
-        virustotal: virustotal.and_then(Result::ok),
-        malwarebazaar: malwarebazaar.and_then(Result::ok),
-    };
-    (scans, scanned)
+    tokio::join!(virustotal, malwarebazaar)
 }
 
 async fn download(bot: &Bot, id: &FileId) -> anyhow::Result<Vec<u8>> {

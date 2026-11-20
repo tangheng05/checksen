@@ -1891,6 +1891,27 @@ fn file_card(file: &FileInfo, summary: Option<&str>, about: Option<&str>, lang: 
         }),
         None => {}
     }
+    if let Some(packed) = &file.scans.packed {
+        let name = file_name(&packed.name);
+        if let Some(VirusTotal::Seen { malicious, engines }) = packed.virustotal {
+            scans.push(match lang {
+                Lang::Km => format!(
+                    "{name}៖ VirusTotal {}/{} រកឃើញមេរោគ",
+                    khmer_digits(malicious.into()),
+                    khmer_digits(engines.into())
+                ),
+                Lang::En => {
+                    format!("{name}: VirusTotal {malicious}/{engines} engines found malware")
+                }
+            });
+        }
+        if packed.malwarebazaar == Some(true) {
+            scans.push(format!(
+                "{name}: MalwareBazaar {}",
+                lang.pick("ស្គាល់ថាជាមេរោគ", "knows it as malware")
+            ));
+        }
+    }
     if !scans.is_empty() {
         lines.push(lang.pick("🛡️ ការស្កេនមេរោគ៖", "🛡️ Virus scans:").to_owned());
         lines.extend(scans.iter().map(|scan| format!("• {scan}")));
@@ -2591,6 +2612,7 @@ mod tests {
                 engines: 68,
             }),
             malwarebazaar: Some(true),
+            packed: None,
         };
         let reply = render_km(&[inspect(
             "eicar.txt",
@@ -2686,6 +2708,31 @@ mod tests {
     }
 
     #[test]
+    fn programs_inside_archives_show_their_own_lookups() {
+        use crate::analyzers::file::{Content, Packed, Scans, VirusTotal, inspect};
+        use crate::analyzers::inside::tests::zipped;
+        let zip = zipped(&[("course.pdf.exe", b"MZ")]);
+        let scans = Scans {
+            virustotal: Some(VirusTotal::Unknown),
+            packed: Some(Packed {
+                name: "course.pdf.exe".to_owned(),
+                virustotal: Some(VirusTotal::Seen {
+                    malicious: 40,
+                    engines: 70,
+                }),
+                malwarebazaar: Some(false),
+            }),
+            ..Scans::default()
+        };
+        let check = inspect("course.zip", None, Content::Bytes(&zip), scans);
+        assert_eq!(decide(&check), Level::HighRisk);
+        let reply = render(&[check], About::default(), Lang::En);
+        assert!(reply.contains(
+            "• VirusTotal: nobody has scanned this file yet\n• course․pdf․exe: VirusTotal 40/70 engines found malware"
+        ), "{reply}");
+    }
+
+    #[test]
     fn progress_ticks_off_finished_steps() {
         assert_eq!(
             progress(&[Step::Download], Step::Scan, Lang::En),
@@ -2749,6 +2796,7 @@ mod tests {
             clamav_clean: Some(true),
             virustotal: Some(VirusTotal::Unknown),
             malwarebazaar: Some(false),
+            packed: None,
         };
         let pdf = render(
             &[inspect(
