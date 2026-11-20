@@ -67,6 +67,8 @@ pub struct FileInfo {
     pub powers: Vec<Power>,
     /// Links found inside a PDF or web page, to check without opening them.
     pub links: Vec<Url>,
+    /// Kinds of programs packed inside an archive.
+    pub inside: Vec<FileKind>,
 }
 
 /// What the bot got of the file's bytes.
@@ -296,13 +298,20 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
         _ => {}
     }
 
+    let mut programs = Vec::new();
     if real == Some(FileKind::Archive)
         && let Some(entries) = bytes.and_then(archive_entries)
     {
-        if entries.names.iter().any(|entry| {
-            kind_from_name(entry)
-                .is_some_and(|kind| kind.is_dangerous() && kind != FileKind::WebPage)
-        }) {
+        for kind in entries
+            .names
+            .iter()
+            .filter_map(|entry| kind_from_name(entry))
+        {
+            if kind.is_dangerous() && kind != FileKind::WebPage && !programs.contains(&kind) {
+                programs.push(kind);
+            }
+        }
+        if !programs.is_empty() {
             signals.push(Signal::ProgramInArchive);
         }
         if entries.encrypted {
@@ -347,6 +356,7 @@ pub fn inspect(name: &str, mime: Option<&str>, content: Content, scans: Scans) -
             package: inside.package,
             powers: inside.powers,
             links: inside.links,
+            inside: programs,
         })),
         signals: unique,
     }

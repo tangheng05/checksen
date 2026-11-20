@@ -375,6 +375,18 @@ const OPENED_FILE: Text = text(
     "🆘 បើអ្នកបានបើកវារួចហើយ៖\n1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n2. ប្តូរលេខសម្ងាត់ Two-Step Verification។\n3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។\n4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។",
     "🆘 If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
 );
+const OPENED_WINDOWS: Text = text(
+    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nនេះជាកម្មវិធី Windows។ វាអាចបង្កគ្រោះថ្នាក់តែលើកុំព្យូទ័រ Windows ប៉ុណ្ណោះ។\n📱 នៅលើទូរស័ព្ទ ឬ Mac វាមិនអាចដំណើរការបានទេ។ គ្រាន់តែលុបវាចោល។\n💻 នៅលើ Windows៖\n1. បិទ Wi-Fi ឬដកខ្សែអ៊ីនធឺណិត។\n2. លុបឯកសារនេះ រួចស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n3. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook និងអ៊ីមែល។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. បើលុយបាត់ សូមតេទៅធនាគាររបស់អ្នកភ្លាមៗ។",
+    "🆘 If you already opened it:\nThis is a Windows program. It can only harm a Windows computer.\n📱 On a phone or Mac, it can't run. Just delete it.\n💻 On Windows:\n1. Turn off Wi-Fi or unplug the internet cable.\n2. Delete the file, then run a Full scan in Windows Security.\n3. On your phone, change your Telegram, Facebook and email passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. If money is missing, call your bank right away.",
+);
+const OPENED_ANDROID: Text = text(
+    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nនេះជាកម្មវិធី Android។ វាអាចបង្កគ្រោះថ្នាក់តែលើទូរស័ព្ទ Android ប៉ុណ្ណោះ។\n🍎 នៅលើ iPhone ឬកុំព្យូទ័រ វាមិនអាចដំឡើងបានទេ។ គ្រាន់តែលុបវាចោល។\n📱 បើអ្នកបានដំឡើងវាលើ Android៖\n1. បិទ Wi-Fi និងទិន្នន័យទូរស័ព្ទ (Mobile data)។\n2. លុបកម្មវិធីនេះ ក្នុង Settings → Apps។ បើលុបមិនចេញ សូមស្វែងរក «device admin» ក្នុង Settings ហើយបិទវាសម្រាប់កម្មវិធីនេះសិន។\n3. ប្រើទូរស័ព្ទផ្សេង ឬកុំព្យូទ័រ ដើម្បីប្តូរលេខសម្ងាត់ធនាគារ Telegram និង Facebook។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត ហើយសុំឱ្យគេពិនិត្យគណនីរបស់អ្នក។",
+    "🆘 If you already opened it:\nThis is an Android app. It can only harm an Android phone.\n🍎 On an iPhone or a computer, it can't install. Just delete it.\n📱 If you installed it on Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall it in Settings → Apps. If it won't uninstall, search Settings for \"device admin\" and turn it off for this app first.\n3. From another phone or a computer, change your bank, Telegram and Facebook passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. Call your bank on the number on your card and ask them to check your account.",
+);
+const OPENED_PAGE: Text = text(
+    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nការបើកវាតែម្យ៉ាង មិនសូវមានគ្រោះថ្នាក់ទេ។ អ្វីដែលសំខាន់ គឺអ្នកបានវាយអ្វីចូលក្នុងវា។\n1. បើបានវាយលេខសម្ងាត់ សូមប្តូរវាភ្លាម ក្នុងកម្មវិធីពិត។\n2. បើបានវាយលេខកូដធនាគារ ឬលេខកាត សូមតេទៅធនាគារភ្លាមៗ។\n3. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
+    "🆘 If you already opened it:\nOpening it does little on its own. What matters is what you typed into it.\n1. Typed a password? Change it now, in the real app.\n2. Typed a bank code or card number? Call your bank right away.\n3. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+);
 const NO_TEXT_SIGNALS: Text = text(
     "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។",
     "No words that scammers usually use, but stay careful.",
@@ -747,11 +759,12 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
         let heading = lang.pick("ℹ️ ព័ត៌មានលម្អិត", "ℹ️ Details");
         fold.push(format!("{heading}\n{}", details.join("\n\n")));
     }
-    let risky_file = checks.iter().any(|check| {
-        matches!(check.subject, Subject::File(_)) && decide(check) != Level::NoKnownSignals
+    let risky_file = checks.iter().find_map(|check| match &check.subject {
+        Subject::File(info) if decide(check) != Level::NoKnownSignals => Some(info),
+        _ => None,
     });
-    if risky_file {
-        fold.push(OPENED_FILE.get(lang).to_owned());
+    if let Some(info) = risky_file {
+        fold.push(opened_steps(info).get(lang).to_owned());
     }
     if !fold.is_empty() {
         lines.push(String::new());
@@ -1605,6 +1618,25 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
     lines.join("\n")
 }
 
+/// Steps for someone who already opened it, for the devices the file can actually run on.
+fn opened_steps(info: &FileInfo) -> &'static Text {
+    let kinds = match info.real {
+        Some(real) if real.is_dangerous() => vec![real],
+        _ => info.inside.clone(),
+    };
+    let only =
+        |wanted: &[FileKind]| !kinds.is_empty() && kinds.iter().all(|kind| wanted.contains(kind));
+    if only(&[FileKind::WindowsProgram, FileKind::Shortcut]) {
+        &OPENED_WINDOWS
+    } else if only(&[FileKind::AndroidApp]) {
+        &OPENED_ANDROID
+    } else if only(&[FileKind::WebPage]) {
+        &OPENED_PAGE
+    } else {
+        &OPENED_FILE
+    }
+}
+
 fn file_kind_name(kind: FileKind, lang: Lang) -> &'static str {
     let (km, en) = match kind {
         FileKind::Pdf => ("ឯកសារ PDF", "a PDF"),
@@ -2423,8 +2455,47 @@ mod tests {
             About::default(),
             Lang::En,
         );
-        assert_eq!(program.matches("Windows program").count(), 1);
-        assert!(program.contains("<blockquote expandable>🆘 If you already opened it:"));
+        let (card, steps) = program.split_once("🆘").unwrap();
+        assert_eq!(card.matches("Windows program").count(), 1);
+        assert!(
+            card.ends_with("<blockquote expandable>")
+                && steps.starts_with(" If you already opened it:")
+        );
+    }
+
+    #[test]
+    fn opened_steps_fit_the_device() {
+        use crate::analyzers::file::{Content, Scans, inspect};
+        use crate::analyzers::inside::tests::zipped;
+        use crate::analyzers::rar::tests::rar5_with;
+        let folded = |name: &str, bytes: &[u8]| {
+            let check = inspect(name, None, Content::Bytes(bytes), Scans::default());
+            let reply = render(&[check], About::default(), Lang::En);
+            reply.split_once("🆘").unwrap().1.to_owned()
+        };
+        let windows = "only harm a Windows computer";
+        assert!(folded("invoice.exe", b"MZ").contains(windows));
+        assert!(
+            folded(
+                "course.rar",
+                &rar5_with(&[("a.pdf", b"x", false), ("a.pdf.lnk", b"L", false)])
+            )
+            .contains(windows)
+        );
+        let apk = zipped(&[("AndroidManifest.xml", b"")]);
+        assert!(folded("update.apk", &apk).contains("only harm an Android phone"));
+        assert!(folded("login.html", b"<html><form>").contains("what you typed"));
+        let general = OPENED_FILE.en.split_once("🆘").unwrap().1;
+        let mixed = rar5_with(&[("a.exe", b"MZ", false), ("b.apk", b"PK", false)]);
+        assert!(folded("mixed.rar", &mixed).starts_with(general));
+        assert!(folded("run.sh", b"#!/bin/sh").starts_with(general));
+        for steps in [OPENED_WINDOWS, OPENED_ANDROID, OPENED_PAGE] {
+            for lang in [Lang::Km, Lang::En] {
+                let text = steps.get(lang);
+                assert!(text.starts_with(OPENED_FILE.get(lang).lines().next().unwrap()));
+                assert!(!text.contains("សុវត្ថិភាព") && !text.to_lowercase().contains("safe"));
+            }
+        }
     }
 
     #[test]

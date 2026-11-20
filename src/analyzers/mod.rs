@@ -7,7 +7,7 @@ pub mod intent;
 pub mod khqr;
 pub mod link;
 pub mod llm;
-mod rar;
+pub(crate) mod rar;
 pub mod reputation;
 pub mod scan;
 pub mod senders;
