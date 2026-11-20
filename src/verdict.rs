@@ -1840,37 +1840,42 @@ fn file_card(file: &FileInfo, summary: Option<&str>, about: Option<&str>, lang: 
         ),
         None => {}
     }
+    let mut scans = Vec::new();
     if let Some(clean) = file.scans.clamav_clean {
         let result = match clean {
             true => lang.pick("មិនរកឃើញមេរោគ", "no virus found"),
             false => lang.pick("រកឃើញមេរោគ", "virus found"),
         };
-        lines.push(format!("🛡️ ClamAV: {result}"));
+        scans.push(format!("ClamAV: {result}"));
     }
     if let Some(known) = file.scans.malwarebazaar {
         let result = match known {
             true => lang.pick("ស្គាល់ថាជាមេរោគ", "known malware"),
             false => lang.pick("មិនមានក្នុងបញ្ជីមេរោគ", "not on its malware list"),
         };
-        lines.push(format!("🛡️ MalwareBazaar: {result}"));
+        scans.push(format!("MalwareBazaar: {result}"));
     }
     match file.scans.virustotal {
-        Some(VirusTotal::Unknown) => lines.push(format!(
-            "🛡️ VirusTotal: {}",
+        Some(VirusTotal::Unknown) => scans.push(format!(
+            "VirusTotal: {}",
             lang.pick(
                 "មិនទាន់មានអ្នកណាស្កេនឯកសារនេះទេ",
                 "nobody has scanned this file yet"
             )
         )),
-        Some(VirusTotal::Seen { malicious, engines }) => lines.push(match lang {
+        Some(VirusTotal::Seen { malicious, engines }) => scans.push(match lang {
             Lang::Km => format!(
-                "🛡️ VirusTotal: {}/{} រកឃើញមេរោគ",
+                "VirusTotal: {}/{} រកឃើញមេរោគ",
                 khmer_digits(malicious.into()),
                 khmer_digits(engines.into())
             ),
-            Lang::En => format!("🛡️ VirusTotal: {malicious}/{engines} engines found malware"),
+            Lang::En => format!("VirusTotal: {malicious}/{engines} engines found malware"),
         }),
         None => {}
+    }
+    if !scans.is_empty() {
+        lines.push(lang.pick("🛡️ ការស្កេនមេរោគ៖", "🛡️ Virus scans:").to_owned());
+        lines.extend(scans.iter().map(|scan| format!("• {scan}")));
     }
     lines.join("\n")
 }
@@ -2577,7 +2582,8 @@ mod tests {
         )]);
         assert_eq!(reply.matches("ClamAV").count(), 1);
         assert_eq!(reply.matches("VirusTotal").count(), 2);
-        assert!(reply.contains("🛡️ ClamAV: រកឃើញមេរោគ"));
+        assert!(reply.contains("🛡️ ការស្កេនមេរោគ៖\n• ClamAV: រកឃើញមេរោគ"));
+        assert_eq!(reply.matches("🛡️").count(), 1);
 
         let program = render(
             &[inspect("photo.exe", None, Content::Bytes(b"MZ"), scans)],
@@ -2736,7 +2742,7 @@ mod tests {
             Lang::En,
         );
         assert!(!pdf.contains("blockquote"));
-        assert!(pdf.ends_with("📎 bill․pdf · a PDF\n🛡️ ClamAV: no virus found\n🛡️ MalwareBazaar: not on its malware list\n🛡️ VirusTotal: nobody has scanned this file yet"));
+        assert!(pdf.ends_with("📎 bill․pdf · a PDF\n🛡️ Virus scans:\n• ClamAV: no virus found\n• MalwareBazaar: not on its malware list\n• VirusTotal: nobody has scanned this file yet"));
     }
 
     #[test]
