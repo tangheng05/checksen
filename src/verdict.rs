@@ -109,8 +109,8 @@ const ALREADY_SCAMMED: Text = text(
     "Do this now:\n1. Call your bank right away on the number in its app or on the back of your card, and ask them to stop the transfer or freeze your account.\n2. If you shared a code or password, change your password now. In Telegram, go to Settings → Devices, end all other sessions, and turn on Two-Step Verification.\n3. Don't pay anyone who promises to get your money back. That's a scam too.\n4. Keep screenshots and the transaction ID, and report it to your bank and the police.",
 );
 pub const OPENED_ASK: Text = text(
-    "🆘 តើអ្នកបានបើកវានៅលើឧបករណ៍អ្វី? ចុចខាងក្រោម ខ្ញុំនឹងបង្ហាញពីអ្វីដែលត្រូវធ្វើ។",
-    "🆘 Which device did you open it on? Tap one below and I'll show you what to do.",
+    "🆘 តើអ្នកបើកវានៅលើឧបករណ៍អ្វី?",
+    "🆘 Which device did you open it on?",
 );
 const ABOUT_CODES: Text = text(
     "ធនាគារ Wing Telegram និងប៉ូលិស មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ មិនថាតាមសារ តាមទូរស័ព្ទ ឬតាមតំណឡើយ។ បើនរណាម្នាក់សុំ នោះជាការបោកប្រាស់។ លេខកូដ OTP សម្រាប់តែអ្នកវាយចូលក្នុងកម្មវិធីដោយខ្លួនឯងប៉ុណ្ណោះ។",
@@ -381,36 +381,36 @@ const OPENED_FILE: Text = text(
     "🆘 If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
 );
 const WINDOWS_ONLY: Text = text(
-    "នេះជាកម្មវិធី Windows។ វាអាចបង្កគ្រោះថ្នាក់តែលើកុំព្យូទ័រ Windows ប៉ុណ្ណោះ។\n📱 នៅលើទូរស័ព្ទ ឬ Mac វាមិនអាចដំណើរការបានទេ។ គ្រាន់តែលុបវាចោល។",
-    "This is a Windows program. It can only harm a Windows computer.\n📱 On a phone or Mac, it can't run. Just delete it.",
+    "វាបង្កគ្រោះថ្នាក់បានតែលើកុំព្យូទ័រ Windows។ នៅលើទូរស័ព្ទ ឬ Mac គ្រាន់តែលុបវាចោល។",
+    "It can only harm a Windows computer. On a phone or Mac, just delete it.",
 );
 const WINDOWS_STEPS: Text = text(
-    "💻 នៅលើ Windows៖\n1. បិទ Wi-Fi ឬដកខ្សែអ៊ីនធឺណិត។\n2. លុបឯកសារនេះ រួចស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n3. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook អ៊ីមែល និងធនាគារ។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. បើលុយបាត់ សូមតេទៅធនាគាររបស់អ្នកភ្លាមៗ។",
-    "💻 On Windows:\n1. Turn off Wi-Fi or unplug the internet cable.\n2. Delete the file, then run a Full scan in Windows Security.\n3. On your phone, change your Telegram, Facebook, email and bank passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. If money is missing, call your bank right away.",
+    "💻 នៅលើ Windows៖\n1. បិទ Wi-Fi។\n2. លុបឯកសារ ហើយស្កេនពេញលេញ (Full scan) ក្នុង Windows Security។\n3. ប្រើទូរស័ព្ទ ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។\n4. បើលុយបាត់ តេទៅធនាគារភ្លាម។",
+    "💻 On Windows:\n1. Turn off Wi-Fi.\n2. Delete the file and run a Full scan in Windows Security.\n3. On your phone, change your passwords and remove unknown devices in Telegram → Settings → Devices.\n4. Money missing? Call your bank now.",
 );
 const ANDROID_ONLY: Text = text(
-    "នេះជាកម្មវិធី Android។ វាអាចបង្កគ្រោះថ្នាក់តែលើទូរស័ព្ទ Android ប៉ុណ្ណោះ។\n🍎 នៅលើ iPhone ឬកុំព្យូទ័រ វាមិនអាចដំឡើងបានទេ។ គ្រាន់តែលុបវាចោល។",
-    "This is an Android app. It can only harm an Android phone.\n🍎 On an iPhone or a computer, it can't install. Just delete it.",
+    "វាបង្កគ្រោះថ្នាក់បានតែលើទូរស័ព្ទ Android។ នៅលើ iPhone ឬកុំព្យូទ័រ គ្រាន់តែលុបវាចោល។",
+    "It can only harm an Android phone. On an iPhone or computer, just delete it.",
 );
 const ANDROID_STEPS: Text = text(
-    "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និងទិន្នន័យទូរស័ព្ទ (Mobile data)។\n2. លុបកម្មវិធីនោះ ក្នុង Settings → Apps។ បើលុបមិនចេញ សូមស្វែងរក «device admin» ក្នុង Settings បិទវាសម្រាប់កម្មវិធីនោះ រួចលុបម្តងទៀត។\n3. ប្រើទូរស័ព្ទផ្សេង ឬកុំព្យូទ័រ ដើម្បីប្តូរលេខសម្ងាត់ធនាគារ Telegram និង Facebook។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត ហើយសុំឱ្យគេពិនិត្យគណនីរបស់អ្នក។",
-    "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps. If it won't uninstall, search Settings for \"device admin\", turn it off for that app, then try again.\n3. From another phone or a computer, change your bank, Telegram and Facebook passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. Call your bank on the number on your card and ask them to check your account.",
+    "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និង Mobile data។\n2. លុបកម្មវិធីក្នុង Settings → Apps (បើលុបមិនចេញ បិទ «device admin» របស់វាសិន)។\n3. ប្រើឧបករណ៍ផ្សេង ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត។",
+    "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps (if it won't, turn off its \"device admin\" first).\n3. From another device, change your passwords and remove unknown devices in Telegram → Settings → Devices.\n4. Call your bank on the number on your card.",
 );
 const IPHONE_STEPS: Text = text(
-    "🍎 នៅលើ iPhone៖\nកម្មវិធីពីឯកសារ (.apk) និងកម្មវិធីកុំព្យូទ័រ (.exe) មិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបឯកសារនោះចោល។\n1. បើទំព័រណាមួយសុំលេខសម្ងាត់ ឬលេខកូដ ហើយអ្នកបានវាយចូល សូមប្តូរលេខសម្ងាត់នោះភ្លាម។\n2. បើវាប្រាប់ឱ្យដំឡើង Profile សូមលុបវាក្នុង Settings → General → VPN & Device Management។\n3. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
-    "🍎 On iPhone:\nApp files (.apk) and programs (.exe) can't install on an iPhone. Just delete the file.\n1. If a page asked for a password or code and you typed it, change that password now.\n2. If it asked you to install a profile, remove it in Settings → General → VPN & Device Management.\n3. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+    "🍎 នៅលើ iPhone៖\nឯកសារ .apk និង .exe មិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបវាចោល។\n• បើបានវាយលេខសម្ងាត់ក្នុងទំព័រណាមួយ សូមប្តូរវាភ្លាម។\n• បើបានដំឡើង Profile សូមលុបវាក្នុង Settings → General → VPN & Device Management។",
+    "🍎 On iPhone:\n.apk and .exe files can't install on an iPhone. Just delete it.\n• Typed a password into a page? Change it now.\n• Installed a profile? Remove it in Settings → General → VPN & Device Management.",
 );
 const MAC_STEPS: Text = text(
-    "💻 នៅលើ Mac៖\nកម្មវិធី Windows (.exe) និងកម្មវិធី Android (.apk) មិនអាចដំណើរការលើ Mac បានទេ។ គ្រាន់តែលុបឯកសារនោះចោល។\nបើអ្នកបានបើកកម្មវិធី Mac ពីវា ឬបានវាយលេខសម្ងាត់ Mac ពេលវាសុំ៖\n1. បិទ Wi-Fi ហើយលុបកម្មវិធីនោះ។\n2. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram អ៊ីមែល និងធនាគារ។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
-    "💻 On Mac:\nWindows programs (.exe) and Android apps (.apk) can't run on a Mac. Just delete the file.\nIf you opened a Mac app from it, or typed your Mac password when asked:\n1. Turn off Wi-Fi and delete the app.\n2. On your phone, change your Telegram, email and bank passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+    "💻 នៅលើ Mac៖\nឯកសារ .exe និង .apk មិនអាចដំណើរការលើ Mac បានទេ។ គ្រាន់តែលុបវាចោល។\n• បើបានបើកកម្មវិធី Mac ឬវាយលេខសម្ងាត់ Mac សូមលុបកម្មវិធីនោះ ហើយប្រើទូរស័ព្ទប្តូរលេខសម្ងាត់។",
+    "💻 On Mac:\n.exe and .apk files can't run on a Mac. Just delete it.\n• Opened a Mac app or typed your Mac password? Delete the app and change your passwords from your phone.",
 );
 const SEND_FILE: Text = text(
-    "មិនប្រាកដថាឯកសារនោះជាអ្វី? ផ្ញើវាមកខ្ញុំ ខ្ញុំនឹងពិនិត្យឱ្យ។",
-    "Not sure what the file was? Send it to me and I'll check it.",
+    "មិនប្រាកដថាវាជាអ្វី? ផ្ញើឯកសារមកខ្ញុំ។",
+    "Not sure what it was? Send me the file.",
 );
 const OPENED_PAGE: Text = text(
-    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nការបើកវាតែម្យ៉ាង មិនសូវមានគ្រោះថ្នាក់ទេ។ អ្វីដែលសំខាន់ គឺអ្នកបានវាយអ្វីចូលក្នុងវា។\n1. បើបានវាយលេខសម្ងាត់ សូមប្តូរវាភ្លាម ក្នុងកម្មវិធីពិត។\n2. បើបានវាយលេខកូដធនាគារ ឬលេខកាត សូមតេទៅធនាគារភ្លាមៗ។\n3. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
-    "🆘 If you already opened it:\nOpening it does little on its own. What matters is what you typed into it.\n1. Typed a password? Change it now, in the real app.\n2. Typed a bank code or card number? Call your bank right away.\n3. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nសំខាន់គឺអ្វីដែលអ្នកបានវាយចូល។\n• បើបានវាយលេខសម្ងាត់ សូមប្តូរវាភ្លាម។\n• បើបានវាយលេខកូដធនាគារ ឬលេខកាត សូមតេទៅធនាគារ។",
+    "🆘 If you already opened it:\nOnly what you typed into it matters.\n• Typed a password? Change it now.\n• Typed a bank code or card number? Call your bank.",
 );
 const NO_TEXT_SIGNALS: Text = text(
     "មិនឃើញពាក្យដែលអ្នកបោកប្រាស់តែងប្រើទេ តែសូមនៅតែប្រយ័ត្ន។",
