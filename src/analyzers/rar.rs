@@ -31,7 +31,10 @@ fn rar5(bytes: &[u8], max: usize, entries: &mut Entries) {
 
 /// Reads one block and returns where the next one starts, or `None` at the end.
 fn rar5_block(bytes: &[u8], at: usize, entries: &mut Entries) -> Option<usize> {
-    let mut reader = Reader { bytes, at: at + 4 };
+    let mut reader = Reader {
+        bytes,
+        at: at.checked_add(4)?,
+    };
     let size = reader.size()?;
     let end = reader.at.checked_add(size)?;
     let header = bytes.get(..end)?;
@@ -321,5 +324,20 @@ pub(crate) mod tests {
             entries(&rar5[..cut], 100);
         }
         assert!(entries(b"PK\x03\x04", 100).is_none());
+    }
+
+    #[test]
+    fn a_block_claiming_endless_data_ends_the_list() {
+        let mut archive = RAR5.to_vec();
+        let mut body = vint(1);
+        body.extend(vint(0x02));
+        let end = RAR5.len() + 4 + 1 + 13;
+        body.extend(vint((usize::MAX - end - 2) as u64));
+        body.extend(vint(0));
+        archive.extend([0; 4]);
+        archive.extend(vint(body.len() as u64));
+        archive.extend(body);
+        assert_eq!(archive.len(), end);
+        assert!(entries(&archive, 100).unwrap().names.is_empty());
     }
 }
