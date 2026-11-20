@@ -108,9 +108,9 @@ const ALREADY_SCAMMED: Text = text(
     "សូមធ្វើតាមនេះភ្លាមៗ៖\n1. តេទៅធនាគាររបស់អ្នកឥឡូវនេះ តាមលេខក្នុងកម្មវិធី ឬនៅខាងក្រោយកាត ហើយសុំឱ្យគេបញ្ឈប់ការផ្ទេរ ឬបង្កកគណនីសិន។\n2. បើអ្នកបានប្រាប់លេខកូដ ឬលេខសម្ងាត់ សូមប្តូរលេខសម្ងាត់ភ្លាម។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ផ្សេងទាំងអស់ រួចបើក Two-Step Verification។\n3. កុំបង់លុយឱ្យអ្នកណាដែលសន្យាថាអាចយកលុយមកវិញឱ្យ។ នោះក៏ជាការបោកប្រាស់ដែរ។\n4. ទុករូបថតអេក្រង់ និងលេខប្រតិបត្តិការ ហើយរាយការណ៍ទៅធនាគារ និងប៉ូលិស។",
     "Do this now:\n1. Call your bank right away on the number in its app or on the back of your card, and ask them to stop the transfer or freeze your account.\n2. If you shared a code or password, change your password now. In Telegram, go to Settings → Devices, end all other sessions, and turn on Two-Step Verification.\n3. Don't pay anyone who promises to get your money back. That's a scam too.\n4. Keep screenshots and the transaction ID, and report it to your bank and the police.",
 );
-const OPENED_ANSWER: Text = text(
-    "🆘 បើអ្នកបានបើកឯកសារ កម្មវិធី ឬតំណ ដែលមិនគួរទុកចិត្ត៖\n• កម្មវិធី Android (.apk)៖ បិទអ៊ីនធឺណិត ហើយលុបវាក្នុង Settings → Apps។\n• កម្មវិធី Windows (.exe)៖ បិទ Wi-Fi លុបវាចោល ហើយស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n• iPhone៖ ឯកសារបែបនេះមិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបវាចោល។\n• តំណ៖ បើអ្នកបានវាយលេខសម្ងាត់ ឬលេខកូដ សូមប្តូរវាភ្លាម។\nបន្ទាប់មក ប្រើឧបករណ៍ដែលអ្នកទុកចិត្ត ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook និងធនាគារ ហើយក្នុង Telegram ចូល Settings → Devices ដើម្បីបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។ បើលុយបាត់ សូមតេទៅធនាគារ។\n\nផ្ញើឯកសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាជាអ្វី។",
-    "🆘 If you opened a file, app or link you don't trust:\n• Android app (.apk): turn off the internet and uninstall it in Settings → Apps.\n• Windows program (.exe): turn off Wi-Fi, delete it, and run a Full scan in Windows Security.\n• iPhone: files like these can't install on it. Just delete it.\n• A link: if you typed a password or code, change it now.\nThen, from a device you trust, change your Telegram, Facebook and bank passwords, and in Telegram go to Settings → Devices and end any session you don't recognise. If money is missing, call your bank.\n\nSend me the file and I'll tell you what it is.",
+pub const OPENED_ASK: Text = text(
+    "🆘 តើអ្នកបានបើកវានៅលើឧបករណ៍អ្វី? ចុចខាងក្រោម ខ្ញុំនឹងបង្ហាញពីអ្វីដែលត្រូវធ្វើ។",
+    "🆘 Which device did you open it on? Tap one below and I'll show you what to do.",
 );
 const ABOUT_CODES: Text = text(
     "ធនាគារ Wing Telegram និងប៉ូលិស មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ មិនថាតាមសារ តាមទូរស័ព្ទ ឬតាមតំណឡើយ។ បើនរណាម្នាក់សុំ នោះជាការបោកប្រាស់។ លេខកូដ OTP សម្រាប់តែអ្នកវាយចូលក្នុងកម្មវិធីដោយខ្លួនឯងប៉ុណ្ណោះ។",
@@ -219,7 +219,7 @@ pub fn answer(intent: Intent, lang: Lang, ai: Ai) -> Option<&'static str> {
         Intent::Greeting => &GREETING,
         Intent::Thanks => &THANKS,
         Intent::AlreadyScammed => &ALREADY_SCAMMED,
-        Intent::OpenedFile => &OPENED_ANSWER,
+        Intent::OpenedFile => &OPENED_ASK,
         Intent::AsksAboutContact => &ABOUT_CONTACT,
         Intent::AsksAboutCodes => &ABOUT_CODES,
         Intent::AsksHowToReport => &HOW_TO_REPORT,
@@ -380,13 +380,33 @@ const OPENED_FILE: Text = text(
     "🆘 បើអ្នកបានបើកវារួចហើយ៖\n1. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n2. ប្តូរលេខសម្ងាត់ Two-Step Verification។\n3. ស្កេនកុំព្យូទ័រ ឬទូរស័ព្ទរកមេរោគ ហើយចាកចេញពីកម្មវិធីធនាគារ។\n4. បើគណនីរបស់អ្នកត្រូវគេយកទៅបោកអ្នកដទៃ សូមតេទៅប៉ូលិសជាតិ លេខ 117។",
     "🆘 If you already opened it:\n1. In Telegram, go to Settings → Devices and end any session you don't recognise.\n2. Change your Two-Step Verification password.\n3. Scan your computer or phone for viruses, and log out of your bank app.\n4. If your account was used to scam others, call the National Police on 117.",
 );
-const OPENED_WINDOWS: Text = text(
-    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nនេះជាកម្មវិធី Windows។ វាអាចបង្កគ្រោះថ្នាក់តែលើកុំព្យូទ័រ Windows ប៉ុណ្ណោះ។\n📱 នៅលើទូរស័ព្ទ ឬ Mac វាមិនអាចដំណើរការបានទេ។ គ្រាន់តែលុបវាចោល។\n💻 នៅលើ Windows៖\n1. បិទ Wi-Fi ឬដកខ្សែអ៊ីនធឺណិត។\n2. លុបឯកសារនេះ រួចស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n3. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook និងអ៊ីមែល។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. បើលុយបាត់ សូមតេទៅធនាគាររបស់អ្នកភ្លាមៗ។",
-    "🆘 If you already opened it:\nThis is a Windows program. It can only harm a Windows computer.\n📱 On a phone or Mac, it can't run. Just delete it.\n💻 On Windows:\n1. Turn off Wi-Fi or unplug the internet cable.\n2. Delete the file, then run a Full scan in Windows Security.\n3. On your phone, change your Telegram, Facebook and email passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. If money is missing, call your bank right away.",
+const WINDOWS_ONLY: Text = text(
+    "នេះជាកម្មវិធី Windows។ វាអាចបង្កគ្រោះថ្នាក់តែលើកុំព្យូទ័រ Windows ប៉ុណ្ណោះ។\n📱 នៅលើទូរស័ព្ទ ឬ Mac វាមិនអាចដំណើរការបានទេ។ គ្រាន់តែលុបវាចោល។",
+    "This is a Windows program. It can only harm a Windows computer.\n📱 On a phone or Mac, it can't run. Just delete it.",
 );
-const OPENED_ANDROID: Text = text(
-    "🆘 បើអ្នកបានបើកវារួចហើយ៖\nនេះជាកម្មវិធី Android។ វាអាចបង្កគ្រោះថ្នាក់តែលើទូរស័ព្ទ Android ប៉ុណ្ណោះ។\n🍎 នៅលើ iPhone ឬកុំព្យូទ័រ វាមិនអាចដំឡើងបានទេ។ គ្រាន់តែលុបវាចោល។\n📱 បើអ្នកបានដំឡើងវាលើ Android៖\n1. បិទ Wi-Fi និងទិន្នន័យទូរស័ព្ទ (Mobile data)។\n2. លុបកម្មវិធីនេះ ក្នុង Settings → Apps។ បើលុបមិនចេញ សូមស្វែងរក «device admin» ក្នុង Settings ហើយបិទវាសម្រាប់កម្មវិធីនេះសិន។\n3. ប្រើទូរស័ព្ទផ្សេង ឬកុំព្យូទ័រ ដើម្បីប្តូរលេខសម្ងាត់ធនាគារ Telegram និង Facebook។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត ហើយសុំឱ្យគេពិនិត្យគណនីរបស់អ្នក។",
-    "🆘 If you already opened it:\nThis is an Android app. It can only harm an Android phone.\n🍎 On an iPhone or a computer, it can't install. Just delete it.\n📱 If you installed it on Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall it in Settings → Apps. If it won't uninstall, search Settings for \"device admin\" and turn it off for this app first.\n3. From another phone or a computer, change your bank, Telegram and Facebook passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. Call your bank on the number on your card and ask them to check your account.",
+const WINDOWS_STEPS: Text = text(
+    "💻 នៅលើ Windows៖\n1. បិទ Wi-Fi ឬដកខ្សែអ៊ីនធឺណិត។\n2. លុបឯកសារនេះ រួចស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n3. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook អ៊ីមែល និងធនាគារ។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. បើលុយបាត់ សូមតេទៅធនាគាររបស់អ្នកភ្លាមៗ។",
+    "💻 On Windows:\n1. Turn off Wi-Fi or unplug the internet cable.\n2. Delete the file, then run a Full scan in Windows Security.\n3. On your phone, change your Telegram, Facebook, email and bank passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. If money is missing, call your bank right away.",
+);
+const ANDROID_ONLY: Text = text(
+    "នេះជាកម្មវិធី Android។ វាអាចបង្កគ្រោះថ្នាក់តែលើទូរស័ព្ទ Android ប៉ុណ្ណោះ។\n🍎 នៅលើ iPhone ឬកុំព្យូទ័រ វាមិនអាចដំឡើងបានទេ។ គ្រាន់តែលុបវាចោល។",
+    "This is an Android app. It can only harm an Android phone.\n🍎 On an iPhone or a computer, it can't install. Just delete it.",
+);
+const ANDROID_STEPS: Text = text(
+    "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និងទិន្នន័យទូរស័ព្ទ (Mobile data)។\n2. លុបកម្មវិធីនោះ ក្នុង Settings → Apps។ បើលុបមិនចេញ សូមស្វែងរក «device admin» ក្នុង Settings បិទវាសម្រាប់កម្មវិធីនោះ រួចលុបម្តងទៀត។\n3. ប្រើទូរស័ព្ទផ្សេង ឬកុំព្យូទ័រ ដើម្បីប្តូរលេខសម្ងាត់ធនាគារ Telegram និង Facebook។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត ហើយសុំឱ្យគេពិនិត្យគណនីរបស់អ្នក។",
+    "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps. If it won't uninstall, search Settings for \"device admin\", turn it off for that app, then try again.\n3. From another phone or a computer, change your bank, Telegram and Facebook passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.\n4. Call your bank on the number on your card and ask them to check your account.",
+);
+const IPHONE_STEPS: Text = text(
+    "🍎 នៅលើ iPhone៖\nកម្មវិធីពីឯកសារ (.apk) និងកម្មវិធីកុំព្យូទ័រ (.exe) មិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបឯកសារនោះចោល។\n1. បើទំព័រណាមួយសុំលេខសម្ងាត់ ឬលេខកូដ ហើយអ្នកបានវាយចូល សូមប្តូរលេខសម្ងាត់នោះភ្លាម។\n2. បើវាប្រាប់ឱ្យដំឡើង Profile សូមលុបវាក្នុង Settings → General → VPN & Device Management។\n3. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
+    "🍎 On iPhone:\nApp files (.apk) and programs (.exe) can't install on an iPhone. Just delete the file.\n1. If a page asked for a password or code and you typed it, change that password now.\n2. If it asked you to install a profile, remove it in Settings → General → VPN & Device Management.\n3. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+);
+const MAC_STEPS: Text = text(
+    "💻 នៅលើ Mac៖\nកម្មវិធី Windows (.exe) និងកម្មវិធី Android (.apk) មិនអាចដំណើរការលើ Mac បានទេ។ គ្រាន់តែលុបឯកសារនោះចោល។\nបើអ្នកបានបើកកម្មវិធី Mac ពីវា ឬបានវាយលេខសម្ងាត់ Mac ពេលវាសុំ៖\n1. បិទ Wi-Fi ហើយលុបកម្មវិធីនោះ។\n2. ប្រើទូរស័ព្ទ ដើម្បីប្តូរលេខសម្ងាត់ Telegram អ៊ីមែល និងធនាគារ។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
+    "💻 On Mac:\nWindows programs (.exe) and Android apps (.apk) can't run on a Mac. Just delete the file.\nIf you opened a Mac app from it, or typed your Mac password when asked:\n1. Turn off Wi-Fi and delete the app.\n2. On your phone, change your Telegram, email and bank passwords. In Telegram, go to Settings → Devices and end any session you don't recognise.",
+);
+const SEND_FILE: Text = text(
+    "មិនប្រាកដថាឯកសារនោះជាអ្វី? ផ្ញើវាមកខ្ញុំ ខ្ញុំនឹងពិនិត្យឱ្យ។",
+    "Not sure what the file was? Send it to me and I'll check it.",
 );
 const OPENED_PAGE: Text = text(
     "🆘 បើអ្នកបានបើកវារួចហើយ៖\nការបើកវាតែម្យ៉ាង មិនសូវមានគ្រោះថ្នាក់ទេ។ អ្វីដែលសំខាន់ គឺអ្នកបានវាយអ្វីចូលក្នុងវា។\n1. បើបានវាយលេខសម្ងាត់ សូមប្តូរវាភ្លាម ក្នុងកម្មវិធីពិត។\n2. បើបានវាយលេខកូដធនាគារ ឬលេខកាត សូមតេទៅធនាគារភ្លាមៗ។\n3. ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។",
@@ -769,7 +789,7 @@ pub fn render(checks: &[Check], about: About, lang: Lang) -> String {
         _ => None,
     });
     if let Some(info) = risky_file {
-        fold.push(opened_steps(info).get(lang).to_owned());
+        fold.push(opened_steps(info, lang));
     }
     if !fold.is_empty() {
         lines.push(String::new());
@@ -1624,21 +1644,62 @@ fn render_link(link: &LinkInfo, lang: Lang) -> String {
 }
 
 /// Steps for someone who already opened it, for the devices the file can actually run on.
-fn opened_steps(info: &FileInfo) -> &'static Text {
+fn opened_steps(info: &FileInfo, lang: Lang) -> String {
     let kinds = match info.real {
         Some(real) if real.is_dangerous() => vec![real],
         _ => info.inside.clone(),
     };
     let only =
         |wanted: &[FileKind]| !kinds.is_empty() && kinds.iter().all(|kind| wanted.contains(kind));
+    let heading = OPENED_FILE.get(lang).lines().next().unwrap_or_default();
     if only(&[FileKind::WindowsProgram, FileKind::Shortcut]) {
-        &OPENED_WINDOWS
+        format!(
+            "{heading}\n{}\n{}",
+            WINDOWS_ONLY.get(lang),
+            WINDOWS_STEPS.get(lang)
+        )
     } else if only(&[FileKind::AndroidApp]) {
-        &OPENED_ANDROID
+        format!(
+            "{heading}\n{}\n{}",
+            ANDROID_ONLY.get(lang),
+            ANDROID_STEPS.get(lang)
+        )
     } else if only(&[FileKind::WebPage]) {
-        &OPENED_PAGE
+        OPENED_PAGE.get(lang).to_owned()
     } else {
-        &OPENED_FILE
+        OPENED_FILE.get(lang).to_owned()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Device {
+    Android,
+    Iphone,
+    Windows,
+    Mac,
+}
+
+impl Device {
+    pub const ALL: [Self; 4] = [Self::Android, Self::Iphone, Self::Windows, Self::Mac];
+
+    pub fn button(self) -> &'static str {
+        match self {
+            Self::Android => "📱 Android",
+            Self::Iphone => "🍎 iPhone",
+            Self::Windows => "💻 Windows",
+            Self::Mac => "💻 Mac",
+        }
+    }
+
+    /// What to do after opening something untrusted on this device.
+    pub fn steps(self, lang: Lang) -> String {
+        let steps = match self {
+            Self::Android => ANDROID_STEPS,
+            Self::Iphone => IPHONE_STEPS,
+            Self::Windows => WINDOWS_STEPS,
+            Self::Mac => MAC_STEPS,
+        };
+        format!("{}\n\n{}", steps.get(lang), SEND_FILE.get(lang))
     }
 }
 
@@ -2494,10 +2555,12 @@ mod tests {
         let mixed = rar5_with(&[("a.exe", b"MZ", false), ("b.apk", b"PK", false)]);
         assert!(folded("mixed.rar", &mixed).starts_with(general));
         assert!(folded("run.sh", b"#!/bin/sh").starts_with(general));
-        for steps in [OPENED_WINDOWS, OPENED_ANDROID, OPENED_PAGE] {
-            for lang in [Lang::Km, Lang::En] {
-                let text = steps.get(lang);
-                assert!(text.starts_with(OPENED_FILE.get(lang).lines().next().unwrap()));
+        for lang in [Lang::Km, Lang::En] {
+            let heading = OPENED_FILE.get(lang).lines().next().unwrap();
+            assert!(OPENED_PAGE.get(lang).starts_with(heading));
+            for device in Device::ALL {
+                let text = device.steps(lang);
+                assert!(text.ends_with(SEND_FILE.get(lang)));
                 assert!(!text.contains("សុវត្ថិភាព") && !text.to_lowercase().contains("safe"));
             }
         }

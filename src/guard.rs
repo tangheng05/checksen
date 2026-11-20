@@ -30,6 +30,8 @@ pub struct Reply {
     pub html: bool,
     /// What a verdict found, kept with 👍/👎 feedback; fixed answers have none.
     pub summary: Option<Summary>,
+    /// Shows device buttons for someone who already opened something.
+    pub devices: bool,
 }
 
 /// A verdict without the message: its level, what was checked, and the signals found.
@@ -271,6 +273,7 @@ mod tests {
                 reportable: Vec::new(),
                 html: true,
                 summary: None,
+                devices: false,
             }),
         );
         let cached = guard.cached(key).unwrap();

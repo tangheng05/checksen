@@ -1,5 +1,6 @@
 mod admin;
 mod bot;
+mod devices;
 mod feedback;
 mod guard;
 mod protect;
@@ -158,6 +159,11 @@ async fn main() -> anyhow::Result<()> {
                 Update::filter_callback_query()
                     .filter(stats::is_post)
                     .endpoint(stats::handle_callback),
+            )
+            .branch(
+                Update::filter_callback_query()
+                    .filter(devices::is_device)
+                    .endpoint(devices::handle_callback),
             )
             .branch(
                 Update::filter_callback_query()

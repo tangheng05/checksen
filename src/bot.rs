@@ -29,6 +29,7 @@ use checksen::analyzers::{self, Check, Signal, Subject, khqr, text};
 use checksen::verdict::{self, Lang, Level, Step, Text};
 
 use crate::admin::{self, Admins};
+use crate::devices;
 use crate::guard::{Admission, Guard, ModelCall, Reply, Summary};
 use crate::protect::{self, Protected};
 use crate::reports;
@@ -81,6 +82,7 @@ pub struct Services {
 enum Body {
     Checks(Vec<Check>),
     Text(String),
+    AskDevice,
 }
 
 struct Outcome {
@@ -123,6 +125,18 @@ impl Outcome {
         }
     }
 
+    /// The fixed answer for an intent; someone who opened a file is asked for their device.
+    fn answer(intent: Intent, lang: Lang, ai: verdict::Ai, cacheable: bool) -> Option<Self> {
+        let text = verdict::answer(intent, lang, ai)?;
+        Some(match intent {
+            Intent::OpenedFile => Self {
+                body: Body::AskDevice,
+                ..Self::text("", cacheable)
+            },
+            _ => Self::text(text, cacheable),
+        })
+    }
+
     fn finish(self, about: verdict::About, lang: Lang) -> (Reply, bool) {
         let about = verdict::About {
             heard: self.heard.as_deref(),
@@ -135,6 +149,15 @@ impl Outcome {
                 reportable: Vec::new(),
                 html: false,
                 summary: None,
+                devices: false,
+            },
+            Body::AskDevice => Reply {
+                text: verdict::OPENED_ASK.get(lang).to_owned(),
+                account: None,
+                reportable: Vec::new(),
+                html: false,
+                summary: None,
+                devices: true,
             },
             Body::Checks(checks) => {
                 let mut payees = checks.iter().filter_map(|check| match &check.subject {
@@ -166,6 +189,7 @@ impl Outcome {
                     reportable: self.reportable,
                     html: true,
                     summary,
+                    devices: false,
                 }
             }
         };
@@ -304,7 +328,11 @@ async fn respond(
     if let Some(summary) = &reply.summary {
         services.stats.count(summary);
     }
-    let keyboard = reports::keyboard(services.store.as_deref(), &services.guard, &reply, lang);
+    let keyboard = if reply.devices {
+        Some(devices::keyboard())
+    } else {
+        reports::keyboard(services.store.as_deref(), &services.guard, &reply, lang)
+    };
     progress.finish(&reply, keyboard).await
 }
 
@@ -851,9 +879,9 @@ async fn check_text(
             return (Outcome::text(answer, true), None);
         }
         if too_short(message) && text::check(message).signals.is_empty() {
-            let answer = rules.and_then(|intent| verdict::answer(intent, lang, services.ai));
+            let answer = rules.and_then(|intent| Outcome::answer(intent, lang, services.ai, true));
             return (
-                Outcome::text(answer.unwrap_or(verdict::TOO_SHORT.get(lang)), true),
+                answer.unwrap_or_else(|| Outcome::text(verdict::TOO_SHORT.get(lang), true)),
                 None,
             );
         }
@@ -874,12 +902,15 @@ async fn check_text(
             .iter()
             .any(|check| verdict::decide(check) != Level::NoKnownSignals);
     let verdict = Outcome::of(checks).reporting(reportable);
+    let cacheable = verdict.cacheable;
     let outcome = match verdict::answer(intent, lang, services.ai) {
         Some(answer) if intent == Intent::AlreadyScammed && flagged => Outcome {
             preface: Some(answer),
             ..verdict
         },
-        Some(answer) if !flagged => Outcome::text(answer, verdict.cacheable),
+        Some(_) if !flagged => {
+            Outcome::answer(intent, lang, services.ai, cacheable).unwrap_or(verdict)
+        }
         _ => verdict,
     };
     (outcome, reading.kind)
@@ -1635,6 +1666,7 @@ mod tests {
             account: None,
             reportable,
             html: true,
+            devices: false,
             summary: Some(Summary {
                 level: level.name(),
                 subject: "text",
@@ -1652,6 +1684,19 @@ mod tests {
             ..reply(Level::HighRisk, Vec::new())
         };
         assert!(!worth_warning(&answer));
+    }
+
+    #[test]
+    fn people_who_opened_something_are_asked_for_their_device() {
+        let reply = |intent| {
+            Outcome::answer(intent, Lang::Km, verdict::Ai::Off, true)
+                .unwrap()
+                .finish(verdict::About::default(), Lang::Km)
+                .0
+        };
+        let asked = reply(Intent::OpenedFile);
+        assert!(asked.devices && asked.text == verdict::OPENED_ASK.get(Lang::Km));
+        assert!(!reply(Intent::Greeting).devices);
     }
 
     #[test]
