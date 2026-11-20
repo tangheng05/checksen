@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::{Check, Signal, Subject};
 
-pub const RULES_VERSION: u32 = 19;
+pub const RULES_VERSION: u32 = 20;
 
 const SECRET_CODE_KM: &str =
     r"(?:លេខកូដ(?:otp|pin|ផ្ទៀងផ្ទាត់|សម្ងាត់|\d+ខ្ទង់|ដែល(?:ទើបតែ)?(?:ទទួល|ផ្ញើ))|លេខសម្ងាត់|otp|pin)";
@@ -285,6 +285,15 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             )),
         ),
         Rule::new(
+            Signal::FaceScan,
+            &[
+                r"(?:ស្កេន|ថត|ផ្ទៀងផ្ទាត់)(?:រូប)?(?:ផ្ទៃ)?មុខ|\b(?:face|facial) (?:scan|verification)\b|\b(?:scan|verify|record) (?:your|the) face\b|\bselfie (?:verification|video)\b",
+                r"ចុច|តំណ|ដំឡើង|ទាញយក|https?://|\b(?:click|tap|link|install|download|apk)\b",
+                r"ផ្អាក|បិទ|ប្លុក|បច្ចុប្បន្នភាព|ទាមទារ|ត្រូវតែ|ផុតកំណត់|\b(?:suspend\w*|lock\w*|block\w*|update|required?|must|expire\w*|avoid)\b",
+            ],
+            Some(NEWS_OR_WARNING),
+        ),
+        Rule::new(
             Signal::MalwareFile,
             &[r"\.(?:apk|xapk|apks|exe|scr|bat|vbs|vbe|ps1|msi|cmd|sh|hta|lnk|jar|pif|jse|wsf)\b"],
             None,
@@ -373,6 +382,17 @@ mod tests {
 
     fn signals(text: &str) -> Vec<Signal> {
         check(text).signals
+    }
+
+    #[test]
+    fn face_scans_are_flagged_only_when_pushed_through_a_link() {
+        for genuine in [
+            "Open an ABA account in minutes in ABA Mobile with face verification. Download the app today!",
+            "Update ABA Mobile to log in with Face ID.",
+            "ព័ត៌មាន៖ ជនបោកប្រាស់ផ្ញើតំណ ឱ្យជនរងគ្រោះស្កេនមុខ ដើម្បីបើកគណនីរបស់គេ",
+        ] {
+            assert!(!signals(genuine).contains(&Signal::FaceScan), "{genuine}");
+        }
     }
 
     #[test]
@@ -491,6 +511,14 @@ mod tests {
             (
                 Signal::FamilyImpersonation,
                 "Mom, I lost my phone. Can you send me $200?",
+            ),
+            (
+                Signal::FaceScan,
+                "គណនីរបស់អ្នកនឹងត្រូវផ្អាក។ សូមចុចតំណខាងក្រោម ដើម្បីស្កេនមុខផ្ទៀងផ្ទាត់អត្តសញ្ញាណ",
+            ),
+            (
+                Signal::FaceScan,
+                "Tax notice: install the app from this link and complete face verification or your account will be locked",
             ),
             (Signal::Urgency, "សូមធ្វើភ្លាមៗ"),
             (Signal::Urgency, "Act now, today only"),

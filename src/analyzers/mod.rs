@@ -80,6 +80,7 @@ pub enum Signal {
     DonationRequest,
     Extortion,
     PaymentRedirect,
+    FaceScan,
     RecruitmentBait,
     MalwareFile,
     GamblingBait,
@@ -157,6 +158,7 @@ impl Signal {
             | Self::AuthorityThreat
             | Self::FamilyImpersonation
             | Self::PaymentRedirect
+            | Self::FaceScan
             | Self::Model { .. } => 0.5,
             Self::Lookalike(_)
             | Self::BrandClaim(_)
@@ -191,7 +193,7 @@ impl Signal {
     }
 }
 
-const TEXT_RULE_SIGNALS: [(Signal, &str); 20] = [
+const TEXT_RULE_SIGNALS: [(Signal, &str); 21] = [
     (Signal::OtpRequest, "otp_request"),
     (Signal::UpfrontFee, "upfront_fee"),
     (Signal::MoveMoneyOut, "move_money_out"),
@@ -207,6 +209,7 @@ const TEXT_RULE_SIGNALS: [(Signal, &str); 20] = [
     (Signal::DonationRequest, "donation_request"),
     (Signal::Extortion, "extortion"),
     (Signal::PaymentRedirect, "payment_redirect"),
+    (Signal::FaceScan, "face_scan"),
     (Signal::RecruitmentBait, "recruitment_bait"),
     (Signal::MalwareFile, "malware_file"),
     (Signal::GamblingBait, "gambling_bait"),

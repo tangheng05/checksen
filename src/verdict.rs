@@ -393,8 +393,8 @@ const ANDROID_ONLY: Text = text(
     "It can only harm an Android phone. On an iPhone or computer, just delete it.",
 );
 const ANDROID_STEPS: Text = text(
-    "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និង Mobile data។\n2. លុបកម្មវិធីក្នុង Settings → Apps (បើលុបមិនចេញ បិទ «device admin» របស់វាសិន)។\n3. ប្រើឧបករណ៍ផ្សេង ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត។",
-    "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps (if it won't, turn off its \"device admin\" first).\n3. From another device, change your passwords and remove unknown devices in Telegram → Settings → Devices.\n4. Call your bank on the number on your card.",
+    "📱 នៅលើ Android៖\n1. បិទ Wi-Fi និង Mobile data។\n2. លុបកម្មវិធីក្នុង Settings → Apps (បើលុបមិនចេញ បិទ «device admin» របស់វាសិន)។\n3. ប្រើឧបករណ៍ផ្សេង ប្តូរលេខសម្ងាត់ ហើយលុបឧបករណ៍ដែលមិនស្គាល់ ក្នុង Telegram → Settings → Devices។\n5. ធ្វើបច្ចុប្បន្នភាព Telegram ពី Google Play។\n4. តេទៅធនាគារ តាមលេខនៅខាងក្រោយកាត។",
+    "📱 On Android:\n1. Turn off Wi-Fi and mobile data.\n2. Uninstall the app in Settings → Apps (if it won't, turn off its \"device admin\" first).\n3. From another device, change your passwords and remove unknown devices in Telegram → Settings → Devices.\n5. Update Telegram from Google Play.\n4. Call your bank on the number on your card.",
 );
 const IPHONE_STEPS: Text = text(
     "🍎 នៅលើ iPhone៖\nឯកសារ .apk និង .exe មិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបវាចោល។\n• បើបានវាយលេខសម្ងាត់ក្នុងទំព័រណាមួយ សូមប្តូរវាភ្លាម។\n• បើបានដំឡើង Profile សូមលុបវាក្នុង Settings → General → VPN & Device Management។",
@@ -960,8 +960,8 @@ fn action(check: &Check, level: Level, kind: Option<MessageKind>, lang: Lang) ->
             "Don't open it unless you know the sender and have asked them directly.",
         ),
         (Subject::File(_), Level::NoKnownSignals) => lang.pick(
-            "បើកតែឯកសារពីអ្នកដែលអ្នកស្គាល់ និងទុកចិត្តប៉ុណ្ណោះ។",
-            "Only open files from people you know and trust.",
+            "ទោះមកពីអ្នកស្គាល់ក៏ដោយ សូមតេសួរគេសិន មុនបើក ព្រោះគណនីរបស់គេអាចត្រូវគេលួច។",
+            "Even from someone you know, call them to check before opening it. Their account may be hacked.",
         ),
         (Subject::Khqr(_) | Subject::Unreadable, Level::HighRisk) => {
             lang.pick("កុំបង់ប្រាក់តាម QR នេះ។", "Don't pay with this QR.")
@@ -1291,6 +1291,10 @@ fn reason(signal: Signal, lang: Lang) -> String {
         Signal::PaymentRedirect => (
             "សារនេះឱ្យបង់ថ្លៃភ្លើង ថ្លៃសេវា ឬពន្ធ តាមភ្នាក់ងារ ឬគណនីផ្សេង មិនមែនតាមវិធីផ្លូវការទេ។ សូមបង់តាមកម្មវិធីផ្លូវការ ឬតេទៅស្ថាប័ននោះផ្ទាល់។",
             "This message asks you to pay a power bill, fee or tax through an agent or another account, not the official way. Pay through the official app or call the organisation directly.",
+        ),
+        Signal::FaceScan => (
+            "សារនេះសុំឱ្យអ្នកស្កេនមុខតាមតំណ ឬកម្មវិធី។ ជនបោកប្រាស់យករូបមុខរបស់អ្នក ដើម្បីចូលគណនីធនាគារ។ ធ្វើតែក្នុងកម្មវិធីធនាគារផ្លូវការប៉ុណ្ណោះ។",
+            "This message asks you to scan your face through a link or app. Scammers use face scans to get into bank accounts. Only do this inside your bank's official app.",
         ),
         Signal::RecruitmentBait => (
             "សារនេះផ្សាយការងារវាយអក្សរ ឆាត ឬ call center ប្រាក់ខែខ្ពស់ ដែលតែងជាការបោកទៅធ្វើការក្នុងទីតាំងបោកប្រាស់។ គេអាចដកលិខិតឆ្លងដែនរបស់អ្នក ហើយបង្ខំឱ្យធ្វើការ។",
