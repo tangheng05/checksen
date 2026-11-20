@@ -222,6 +222,7 @@ cited_signals: from the rule signals listed before the message, the ones your de
 intent: why the person sent this to the service.
 - check: it is a message, post, offer or notice they received and want checked. Any forwarded or pasted message is check, even if it contains questions.
 - already_scammed: they say they already paid or transferred money, shared a code or password, or lost money or an account.
+- opened_file: they say they already opened, installed, downloaded or clicked a file, app or link and ask what to do.
 - asks_about_contact: they ask whether a phone number, account, person, page or seller is a scammer.
 - asks_about_codes: they ask whether a bank, wallet or company would ask for an OTP, PIN or password.
 - asks_how_to_report: they ask how or where to report a scam.

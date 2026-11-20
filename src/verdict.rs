@@ -108,6 +108,10 @@ const ALREADY_SCAMMED: Text = text(
     "សូមធ្វើតាមនេះភ្លាមៗ៖\n1. តេទៅធនាគាររបស់អ្នកឥឡូវនេះ តាមលេខក្នុងកម្មវិធី ឬនៅខាងក្រោយកាត ហើយសុំឱ្យគេបញ្ឈប់ការផ្ទេរ ឬបង្កកគណនីសិន។\n2. បើអ្នកបានប្រាប់លេខកូដ ឬលេខសម្ងាត់ សូមប្តូរលេខសម្ងាត់ភ្លាម។ ក្នុង Telegram ចូល Settings → Devices ហើយបិទឧបករណ៍ផ្សេងទាំងអស់ រួចបើក Two-Step Verification។\n3. កុំបង់លុយឱ្យអ្នកណាដែលសន្យាថាអាចយកលុយមកវិញឱ្យ។ នោះក៏ជាការបោកប្រាស់ដែរ។\n4. ទុករូបថតអេក្រង់ និងលេខប្រតិបត្តិការ ហើយរាយការណ៍ទៅធនាគារ និងប៉ូលិស។",
     "Do this now:\n1. Call your bank right away on the number in its app or on the back of your card, and ask them to stop the transfer or freeze your account.\n2. If you shared a code or password, change your password now. In Telegram, go to Settings → Devices, end all other sessions, and turn on Two-Step Verification.\n3. Don't pay anyone who promises to get your money back. That's a scam too.\n4. Keep screenshots and the transaction ID, and report it to your bank and the police.",
 );
+const OPENED_ANSWER: Text = text(
+    "🆘 បើអ្នកបានបើកឯកសារ កម្មវិធី ឬតំណ ដែលមិនគួរទុកចិត្ត៖\n• កម្មវិធី Android (.apk)៖ បិទអ៊ីនធឺណិត ហើយលុបវាក្នុង Settings → Apps។\n• កម្មវិធី Windows (.exe)៖ បិទ Wi-Fi លុបវាចោល ហើយស្កេនរកមេរោគទាំងស្រុង (Full scan) ក្នុង Windows Security។\n• iPhone៖ ឯកសារបែបនេះមិនអាចដំឡើងលើ iPhone បានទេ។ គ្រាន់តែលុបវាចោល។\n• តំណ៖ បើអ្នកបានវាយលេខសម្ងាត់ ឬលេខកូដ សូមប្តូរវាភ្លាម។\nបន្ទាប់មក ប្រើឧបករណ៍ដែលអ្នកទុកចិត្ត ដើម្បីប្តូរលេខសម្ងាត់ Telegram, Facebook និងធនាគារ ហើយក្នុង Telegram ចូល Settings → Devices ដើម្បីបិទឧបករណ៍ដែលអ្នកមិនស្គាល់។ បើលុយបាត់ សូមតេទៅធនាគារ។\n\nផ្ញើឯកសារនោះមកខ្ញុំ ខ្ញុំនឹងប្រាប់ថាវាជាអ្វី។",
+    "🆘 If you opened a file, app or link you don't trust:\n• Android app (.apk): turn off the internet and uninstall it in Settings → Apps.\n• Windows program (.exe): turn off Wi-Fi, delete it, and run a Full scan in Windows Security.\n• iPhone: files like these can't install on it. Just delete it.\n• A link: if you typed a password or code, change it now.\nThen, from a device you trust, change your Telegram, Facebook and bank passwords, and in Telegram go to Settings → Devices and end any session you don't recognise. If money is missing, call your bank.\n\nSend me the file and I'll tell you what it is.",
+);
 const ABOUT_CODES: Text = text(
     "ធនាគារ Wing Telegram និងប៉ូលិស មិនដែលសុំលេខកូដ OTP លេខ PIN ឬលេខសម្ងាត់របស់អ្នកទេ មិនថាតាមសារ តាមទូរស័ព្ទ ឬតាមតំណឡើយ។ បើនរណាម្នាក់សុំ នោះជាការបោកប្រាស់។ លេខកូដ OTP សម្រាប់តែអ្នកវាយចូលក្នុងកម្មវិធីដោយខ្លួនឯងប៉ុណ្ណោះ។",
     "Banks, Wing, Telegram and the police never ask for your OTP code, PIN or password, whether by message, phone call or link. If someone asks, it's a scam. An OTP is only for you to type into the app yourself.",
@@ -215,6 +219,7 @@ pub fn answer(intent: Intent, lang: Lang, ai: Ai) -> Option<&'static str> {
         Intent::Greeting => &GREETING,
         Intent::Thanks => &THANKS,
         Intent::AlreadyScammed => &ALREADY_SCAMMED,
+        Intent::OpenedFile => &OPENED_ANSWER,
         Intent::AsksAboutContact => &ABOUT_CONTACT,
         Intent::AsksAboutCodes => &ABOUT_CODES,
         Intent::AsksHowToReport => &HOW_TO_REPORT,

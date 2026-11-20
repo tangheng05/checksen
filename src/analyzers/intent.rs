@@ -15,6 +15,7 @@ pub enum Intent {
     Greeting,
     Thanks,
     AlreadyScammed,
+    OpenedFile,
     AsksAboutContact,
     AsksAboutCodes,
     AsksHowToReport,
@@ -24,11 +25,12 @@ pub enum Intent {
 }
 
 impl Intent {
-    pub const NAMES: [&'static str; 10] = [
+    pub const NAMES: [&'static str; 11] = [
         "check",
         "greeting",
         "thanks",
         "already_scammed",
+        "opened_file",
         "asks_about_contact",
         "asks_about_codes",
         "asks_how_to_report",
@@ -62,6 +64,14 @@ static VICTIM: LazyLock<Regex> = LazyLock::new(|| {
         r"|\blost (?:all )?(?:my |the )?money\b|\bmy (?:\w+ )?account (?:was|got|has been|is) hacked",
         r"|\bi (?:already |just |accidentally )?(?:gave|sent|shared|told|entered|typed) (?:them |him |her |it |the |my )*(?:otp|code|pin|password)",
         r"|\bi (?:already |just )?(?:paid|transferred|sent (?:the |them )?money)\b.{0,60}\b(?:scam|fake|now what|what (?:do|should|can) i do|help)",
+    ))
+});
+static OPENED: LazyLock<Regex> = LazyLock::new(|| {
+    compile(concat!(
+        r"(?:^|ខ្ញុំ)(?:បាន|ទើបតែ|ច្រលំ)?\s*(?:ចុច\s*)?(?:បើក|ដំឡើង|ទាញយក|ដោនឡូត|download|install|open|click)",
+        // ហើយ also means "and", so it only counts at the end of a clause.
+        r"[^?？!។]{0,30}?(?:ហើយ|រួច(?:ហើយ)?)\s*(?:$|ធ្វើ|តើ|អី|ម៉េច|បង|ចឹង|[?？!។,])",
+        r"|\bi(?:'ve| have)? (?:already |just |accidentally |mistakenly )?(?:opened|clicked|installed|downloaded|ran|tapped)\b",
     ))
 });
 static MISTAKEN_TRANSFER: LazyLock<Regex> =
@@ -105,6 +115,9 @@ pub fn detect(text: &str) -> Option<Intent> {
     if normalized.matches(&VICTIM) && !normalized.matches(&MISTAKEN_TRANSFER) {
         return Some(Intent::AlreadyScammed);
     }
+    if normalized.matches(&OPENED) {
+        return Some(Intent::OpenedFile);
+    }
     if normalized.matches(&WHAT_BOT_DOES) {
         return Some(Intent::AsksWhatBotDoes);
     }
@@ -124,14 +137,16 @@ pub fn detect(text: &str) -> Option<Intent> {
     })
 }
 
-/// Either side can spot a victim; otherwise the model's reading wins over the rules'.
+/// Either side can spot a victim or someone who opened a file; otherwise the model's reading wins.
 pub fn decide(rules: Option<Intent>, model: Option<Intent>, text: &str) -> Intent {
     if [rules, model].contains(&Some(Intent::AlreadyScammed)) {
         return Intent::AlreadyScammed;
     }
-    model
-        .or(rules.filter(|_| text.chars().count() <= RULES_QUESTION_MAX_CHARS))
-        .unwrap_or(Intent::Check)
+    let rules = rules.filter(|_| text.chars().count() <= RULES_QUESTION_MAX_CHARS);
+    if [rules, model].contains(&Some(Intent::OpenedFile)) {
+        return Intent::OpenedFile;
+    }
+    model.or(rules).unwrap_or(Intent::Check)
 }
 
 #[cfg(test)]
@@ -169,6 +184,31 @@ mod tests {
         assert_ne!(
             detect("Sorry, I transferred money to your account by mistake, please send it back"),
             Some(Intent::AlreadyScammed)
+        );
+    }
+
+    #[test]
+    fn people_who_opened_a_file_are_recognised() {
+        for text in [
+            "ខ្ញុំបានបើកវាហើយ",
+            "ខ្ញុំទាញយក ហើយចុចបើកវាហើយ ធ្វើម៉េច",
+            "បើកហើយ ធ្វើម៉េចបង?",
+            "I already opened the file, what should I do?",
+            "i clicked it and installed the app",
+        ] {
+            assert_eq!(detect(text), Some(Intent::OpenedFile), "{text}");
+        }
+        for text in [
+            "ខ្ញុំមិនទាន់បើកវាទេ",
+            "សូមចុចបើកតំណនេះ ហើយបញ្ចូលលេខកូដ",
+            "បើកកម្មវិធី ABA ហើយចូល Settings",
+            "Click to open the file",
+        ] {
+            assert_ne!(detect(text), Some(Intent::OpenedFile), "{text}");
+        }
+        assert_eq!(
+            decide(Some(Intent::OpenedFile), Some(Intent::OtherQuestion), "x"),
+            Intent::OpenedFile
         );
     }
 
