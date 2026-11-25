@@ -6,7 +6,7 @@ use checksen::analyzers::llm::ScamCategory;
 use checksen::analyzers::text::RULES_VERSION;
 use checksen::verdict::Totals;
 use chrono::NaiveDate;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
